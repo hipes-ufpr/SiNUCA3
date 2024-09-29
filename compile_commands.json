@@ -1,0 +1,74 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/clang++",
+      "-Wall",
+      "-Wextra",
+      "-fno-exceptions",
+      "-std=c++98",
+      "-Og",
+      "-g",
+      "-c",
+      "-o",
+      "build/main-debug.o",
+      "src/main.cpp"
+    ],
+    "directory": "/home/gabriel/src/SiNUCA3",
+    "file": "/home/gabriel/src/SiNUCA3/src/main.cpp",
+    "output": "/home/gabriel/src/SiNUCA3/build/main-debug.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/clang++",
+      "-Wall",
+      "-Wextra",
+      "-fno-exceptions",
+      "-std=c++98",
+      "-Og",
+      "-g",
+      "-c",
+      "-o",
+      "build/components/simple_memory-debug.o",
+      "src/components/simple_memory.cpp"
+    ],
+    "directory": "/home/gabriel/src/SiNUCA3",
+    "file": "/home/gabriel/src/SiNUCA3/src/components/simple_memory.cpp",
+    "output": "/home/gabriel/src/SiNUCA3/build/components/simple_memory-debug.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/clang++",
+      "-Wall",
+      "-Wextra",
+      "-fno-exceptions",
+      "-std=c++98",
+      "-Og",
+      "-g",
+      "-c",
+      "-o",
+      "build/processor/processor-debug.o",
+      "src/processor/processor.cpp"
+    ],
+    "directory": "/home/gabriel/src/SiNUCA3",
+    "file": "/home/gabriel/src/SiNUCA3/src/processor/processor.cpp",
+    "output": "/home/gabriel/src/SiNUCA3/build/processor/processor-debug.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/clang++",
+      "-Wall",
+      "-Wextra",
+      "-fno-exceptions",
+      "-std=c++98",
+      "-Og",
+      "-g",
+      "-c",
+      "-o",
+      "build/config-debug.o",
+      "src/config.cpp"
+    ],
+    "directory": "/home/gabriel/src/SiNUCA3",
+    "file": "/home/gabriel/src/SiNUCA3/src/config.cpp",
+    "output": "/home/gabriel/src/SiNUCA3/build/config-debug.o"
+  }
+]
