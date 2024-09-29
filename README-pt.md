@@ -7,6 +7,12 @@ Arquiteturas de Cache Não-Uniformes).
 
 todo: colocar o nome de geral aqui.
 
+## Código de terceiros
+
+Nós embutimos o código do
+[json-parser](https://github.com/json-parser/json-parser), que é licenciado sob
+BSD-2-Clause. Para mais informações, veja `src/json/json_parser/LICENSE`.
+
 ## Compilando
 
 Só `make` funciona.
