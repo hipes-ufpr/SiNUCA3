@@ -76,7 +76,7 @@ Guide](https://google.github.io/styleguide/cppguide.html) with some extensions:
   ```
 - We use `.cpp` for C++ and `.hpp` for C++ headers. Similarly, the include
   guards ends with `HPP_`.
-- Static storage duration still should be avoided but we're more permisse
+- Static storage duration still should be avoided but we're more permissive
   towards it then Google due to the nature of our project.
 - Usually you should only inherit from virtual classes.
 - Operator overloading is strictly forbidden.
