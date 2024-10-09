@@ -15,28 +15,28 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-//
-// Implementation of the Processor class.
-//
+/**
+ * @file processor.cpp
+ * @brief Implementation of the Processor class.
+ */
 
 #include "processor.hpp"
 
 #include <cstdio>
 
-#include "../config.hpp"
 #include "../sinuca3.hpp"
 
-Processor::Processor() : cache(config::cache) {}
+Processor::Processor() {}
 
 void Processor::Process() {
     printf("Processor is working!\n");
-    MemoryPacket packet = {
+    sinuca::MemoryPacket packet = {
         this,
         this->cache,
     };
     cache->Request(packet);
 }
 
-void Processor::Response(MemoryPacket packet) {
+void Processor::Response(sinuca::MemoryPacket packet) {
     printf("Processor received memory packet back from %p\n", packet.responser);
 }

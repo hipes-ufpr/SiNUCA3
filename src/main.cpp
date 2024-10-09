@@ -15,22 +15,14 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-//
-// Entry point. User interaction should go here. Besides, should mostly just
-// consume other public APIs.
-//
+/**
+ * @file main.cpp
+ * @details Entry point. User interaction should go here. Besides, should mostly
+ * just consume other public APIs.
+ */
 
-#include <cassert>
-#include <cstdio>
-#include <cstddef>
-
-#include "processor/processor.hpp"
-#include "sinuca3.hpp"
-#include "config.hpp"
-
-int main() {
-    Processor processor = Processor();
-    processor.Process();
-
-    return 0;
-}
+/**
+ * @brief Entry point.
+ * @returns Non-zero on error.
+ */
+int main() { return 0; }

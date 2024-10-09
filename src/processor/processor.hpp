@@ -18,21 +18,22 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-//
-// Public API of the Processor, which use methods for the frontend and
-// attributes for the backend.
-//
+/**
+ * @file processor.hpp
+ * @brief Public API of the Processor, which use methods for the frontend and
+ * attributes for the backend.
+ */
 
 #include "../sinuca3.hpp"
 
-class Processor : public MemoryRequester {
+class Processor : public sinuca::MemoryRequester {
   private:
-    MemoryComponent* cache;
+    sinuca::MemoryComponent* cache;
 
   public:
     Processor();
     void Process();
-    void Response(MemoryPacket packet);
+    void Response(sinuca::MemoryPacket packet);
 };
 
 #endif  // SINUCA3_PROCESSOR_HPP_

@@ -1,3 +1,6 @@
+#ifndef SINUCA3_CUSTOM_CUSTOM_EXAMPLE_HPP_
+#define SINUCA3_CUSTOM_CUSTOM_EXAMPLE_HPP_
+
 //
 // Copyright (C) 2024  HiPES - Universidade Federal do Paraná
 //
@@ -15,21 +18,12 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-/**
- * @file simple_memory.cpp
- * @brief Implementation of the SimpleMemory.
- */
+#include "../sinuca3.hpp"
 
-#include "simple_memory.hpp"
+class CustomExample : public sinuca::MemoryComponent, public sinuca::Component {
+  public:
+    void Request(sinuca::MemoryPacket packet);
+    int SetConfigParameter(const char* parameter, sinuca::ConfigValue value);
+};
 
-void SimpleMemory::Request(sinuca::MemoryPacket packet) {
-    packet.respondTo->Response(packet);
-}
-
-int SimpleMemory::SetConfigParameter(const char* parameter,
-                                     sinuca::ConfigValue value) {
-    (void)parameter;
-    (void)value;
-
-    return 1;
-}
+#endif  // SINUCA3_CUSTOM_CUSTOM_EXAMPLE_HPP_

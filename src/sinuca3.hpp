@@ -17,17 +17,60 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-//
-// This header has all public API users may want to use. This mainly consists of
-// virtual classes:
-// - Prefetch;
-// - MemoryComponent;
-// - BranchPredictor;
-// - BranchTargetPredictor;
-// - ReorderBuffer;
-//
+/**
+ * @file sinuca3.hpp
+ * @details This header has all public API users may want to use. This mainly
+ * consists of virtual classes:
+ * - Prefetch;
+ * - MemoryComponent;
+ * - BranchPredictor;
+ * - BranchTargetPredictor;
+ * - ReorderBuffer;
+ */
 
 #include <cstdio>
+#include <cstring>
+
+namespace sinuca {
+
+enum ConfigValueType {
+    ConfigValueTypeString,
+    ConfigValueTypeDouble,
+    ConfigValueTypeInteger,
+    ConfigValueTypeObjectReference,
+};
+
+// Pre-declaration for ConfigValue.
+class Component;
+
+struct ConfigValue {
+    ConfigValueType type;
+    union {
+        char* string;
+        double doub;
+        long integer;
+        Component* componentReference;
+    } value;
+};
+
+class Component {
+  public:
+    virtual int SetConfigParameter(const char* parameter,
+                                   ConfigValue value) = 0;
+};
+
+#define COMPONENT(type) \
+    if (!strcmp(name, #type)) return new type
+
+#define COMPONENTS(components)                                 \
+    namespace sinuca {                                         \
+    Component* CreateCustomComponentByName(const char* name) { \
+        components;                                            \
+        return 0;                                              \
+    }                                                          \
+    }
+
+Component* CreateCustomComponentByName(const char* name);
 
 // Pre-defines for MemoryPacket.
 class MemoryRequester;
@@ -58,6 +101,8 @@ class BranchPredictor {};
 class BranchTargetPredictor {};
 
 class ReorderBuffer {};
+
+}  // namespace sinuca
 
 #define SINUCA3_HPP_
 #endif  // SINUCA3_HPP_

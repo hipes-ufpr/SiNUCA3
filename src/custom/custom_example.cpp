@@ -1,6 +1,3 @@
-#ifndef SINUCA3_CONFIG_HPP_
-#define SINUCA3_CONFIG_HPP_
-
 //
 // Copyright (C) 2024  HiPES - Universidade Federal do Paraná
 //
@@ -18,14 +15,20 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-//
-// Configuration API.
-//
+#include "custom_example.hpp"
 
-#include "sinuca3.hpp"
+#include <cstdio>
 
-namespace config {
-extern MemoryComponent* cache;
+#include "../sinuca3.hpp"
+
+void CustomExample::Request(sinuca::MemoryPacket packet) {
+    packet.respondTo->Response(packet);
 }
 
-#endif  // SINUCA3_CONFIG_HPP_
+int CustomExample::SetConfigParameter(const char* parameter,
+                                      sinuca::ConfigValue value) {
+    (void)parameter;
+    (void)value;
+
+    return 1;
+}

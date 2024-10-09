@@ -18,17 +18,24 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-//
-// Public API of the SimpleMemory: component for SiNUCA3 which just responds
-// immediatly for every request. I.e., the perfect memory: big and works at the
-// light speed!
-//
+/**
+ * @file simple_memory.hpp
+ * @details Public API of the SimpleMemory: component for SiNUCA3 which just
+ * responds immediatly for every request. I.e., the perfect memory: big and
+ * works at the light speed!
+ */
 
 #include "../sinuca3.hpp"
 
-class SimpleMemory : public MemoryComponent {
+/**
+ * @details SimpleMemory is a MemoryComponent that just responds immediatly for
+ * every request. I.e., it's the perfect memory: big and works at the light
+ * speed!
+ */
+class SimpleMemory : public sinuca::MemoryComponent, public sinuca::Component {
   public:
-    void Request(MemoryPacket packet);
+    void Request(sinuca::MemoryPacket packet);
+    int SetConfigParameter(const char* parameter, sinuca::ConfigValue value);
 };
 
 #endif  // SINUCA3_SIMPLE_MEMORY_HPP_
