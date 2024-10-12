@@ -16,27 +16,12 @@
 //
 
 /**
- * @file processor.cpp
- * @brief Implementation of the Processor class.
+ * @file engine.cpp
+ * @brief Implementation of the simulation engine.
  */
 
-#include "processor.hpp"
+#include "engine.hpp"
 
-#include <cstdio>
+using namespace sinuca;
 
-#include "../sinuca3.hpp"
-
-Processor::Processor() {}
-
-void Processor::Process() {
-    printf("Processor is working!\n");
-    sinuca::MemoryPacket packet = {
-        this,
-        this->cache,
-    };
-    cache->Request(packet);
-}
-
-void Processor::Response(sinuca::MemoryPacket packet) {
-    printf("Processor received memory packet back from %p\n", packet.responser);
-}
+Engine::Engine() {}

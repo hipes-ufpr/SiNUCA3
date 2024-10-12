@@ -1,5 +1,5 @@
-#ifndef SINUCA3_PROCESSOR_HPP_
-#define SINUCA3_PROCESSOR_HPP_
+#ifndef SINUCA3_ENGINE_HPP_
+#define SINUCA3_ENGINE_HPP_
 
 //
 // Copyright (C) 2024  HiPES - Universidade Federal do Paraná
@@ -26,14 +26,13 @@
 
 #include "../sinuca3.hpp"
 
-class Processor : public sinuca::MemoryRequester {
-  private:
-    sinuca::MemoryComponent* cache;
+namespace sinuca {
 
+class Engine {
   public:
-    Processor();
-    void Process();
-    void Response(sinuca::MemoryPacket packet);
+    Engine();
 };
 
-#endif  // SINUCA3_PROCESSOR_HPP_
+}  // namespace sinuca
+
+#endif  // SINUCA3_ENGINE_HPP_
