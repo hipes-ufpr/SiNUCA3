@@ -8,7 +8,7 @@ Third iteration of the Simulator of Non-Uniform Cache Architectures.
 
 todo: put the name of everyone here.
 
-## Dependências
+## Dependencies
 
 SiNUCA3 depends on libyaml (`sudo apt install libyaml-dev` on Debian, Ubuntu and
 derivatives).
