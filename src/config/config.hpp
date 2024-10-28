@@ -1,3 +1,6 @@
+#ifndef SINUCA3_CONFIG_HPP
+#define SINUCA3_CONFIG_HPP
+
 //
 // Copyright (C) 2024  HiPES - Universidade Federal do Paraná
 //
@@ -15,20 +18,32 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-#include "custom_example.hpp"
+namespace sinuca {
 
-#include <string>
-
-#include "../sinuca3.hpp"
-
-int CustomExample::SetConfigParameter(const std::string* parameter,
-                                      sinuca::config::ConfigValue value) {
-    (void)parameter;
-    (void)value;
-
-    return 1;
+// Pre-declaration for ConfigValue as Linkable should not be included here as it
+// already includes us.
+namespace engine {
+class Linkable;
 }
 
-void CustomExample::Clock() {}
+namespace config {
 
-int CustomExample::FinishSetup() { return 0; }
+enum ConfigValueType {
+    ConfigValueTypeInteger,
+    ConfigValueTypeNumber,
+    ConfigValueTypeComponentReference,
+};
+
+struct ConfigValue {
+    ConfigValueType type;
+    union {
+        long integer;
+        double number;
+        engine::Linkable* componentReference;
+    } value;
+};
+
+}  // namespace config
+}  // namespace sinuca
+
+#endif  // SINUCA3_CONFIG_HPP

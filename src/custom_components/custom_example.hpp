@@ -1,5 +1,5 @@
-#ifndef SINUCA3_CUSTOM_CUSTOM_EXAMPLE_HPP_
-#define SINUCA3_CUSTOM_CUSTOM_EXAMPLE_HPP_
+#ifndef SINUCA3_CUSTOM_EXAMPLE_HPP_
+#define SINUCA3_CUSTOM_EXAMPLE_HPP_
 
 //
 // Copyright (C) 2024  HiPES - Universidade Federal do Paraná
@@ -20,10 +20,12 @@
 
 #include "../sinuca3.hpp"
 
-class CustomExample : public sinuca::MemoryComponent, public sinuca::Component {
+class CustomExample : public sinuca::Component<int> {
   public:
-    void Request(sinuca::MemoryPacket packet);
-    int SetConfigParameter(const char* parameter, sinuca::ConfigValue value);
+    void Clock();
+    int FinishSetup();
+    virtual int SetConfigParameter(const std::string* parameter,
+                                   sinuca::config::ConfigValue value);
 };
 
-#endif  // SINUCA3_CUSTOM_CUSTOM_EXAMPLE_HPP_
+#endif  // SINUCA3_CUSTOM_EXAMPLE_HPP_

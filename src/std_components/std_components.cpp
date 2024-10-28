@@ -28,7 +28,7 @@
 
 using namespace sinuca;
 
-Component* sinuca::CreateDefaultComponentByClass(const char* name) {
+engine::Linkable* sinuca::CreateDefaultComponentByClass(const char* name) {
     COMPONENT(SimpleMemory);
 
     return NULL;

@@ -19,120 +19,38 @@
 
 /**
  * @file sinuca3.hpp
- * @details This header has all public API users may want to use. This mainly
- * consists of virtual classes:
- * - Prefetch;
- * - MemoryComponent;
- * - BranchPredictor;
- * - BranchTargetPredictor;
- * - ReorderBuffer;
+ * @details This header has all public API users may want to use. Some things
+ * are actually imported from other headers.
  */
 
-#include <cstdio>
 #include <cstring>
 
+#include "engine/component.hpp"
+#include "engine/linkable.hpp"
+
 namespace sinuca {
-
-/** @brief Types of configuration values. */
-enum ConfigValueType {
-    ConfigValueTypeBoolean,
-    ConfigValueTypeNumber,
-    ConfigValueTypeInteger,
-    ConfigValueTypeComponentReference,
-};
-
-// Pre-declaration for ConfigValue.
-class Component;
-
-/** @brief Tagged union of ConfigValueType. */
-struct ConfigValue {
-    ConfigValueType type;
-    union {
-        bool boolean;
-        double number;
-        long integer;
-        Component* componentReference;
-    } value;
-};
-
-/** @brief Everything is a component. */
-class Component {
-  public:
-    /**
-     * @brief Called when the SimulatorBuilder parses a config parameter inside
-     * a component.
-     * @param parameter The name (key) of the parameter.
-     * @param value The value.
-     * @return 0 when success, 1 if there's a problem with the configuration
-     * parameter.
-     */
-    virtual int SetConfigParameter(const char* parameter,
-                                   ConfigValue value) = 0;
-    /** @brief Needed because of C++. */
-    inline virtual ~Component() {}
-};
 
 #define COMPONENT(type) \
     if (!strcmp(name, #type)) return new type
 
-#define COMPONENTS(components)                                 \
-    namespace sinuca {                                         \
-    Component* CreateCustomComponentByClass(const char* name) { \
-        components;                                            \
-        return 0;                                              \
-    }                                                          \
+#define COMPONENTS(components)                                         \
+    namespace sinuca {                                                 \
+    engine::Linkable* CreateCustomComponentByClass(const char* name) { \
+        components;                                                    \
+        return 0;                                                      \
+    }                                                                  \
     }
 
 /** @brief Don't call, used by the SimulatorBuilder. */
-Component* CreateDefaultComponentByClass(const char* name);
+engine::Linkable* CreateDefaultComponentByClass(const char* name);
 /** @brief Don't call, used by the SimulatorBuilder. */
-Component* CreateCustomComponentByClass(const char* name);
-
-// Pre-defines for MemoryPacket.
-class MemoryRequester;
-class MemoryComponent;
-
-/** @brief Exchanged between MemoryComponent and MemoryRequester. */
-struct MemoryPacket {
-    MemoryRequester* respondTo;
-    MemoryComponent* responser;
-    /** @brief Components may use it to identify specific packets. */
-    const long id;
-};
+engine::Linkable* CreateCustomComponentByClass(const char* name);
 
 /** @brief Exchanged between the engine, FirstStagePipeline and other pipeline
  * stages. */
 struct InstructionPacket {};
 
-/** @brief MemoryComponents can receive memory requests from MemoryRequesters.
- * */
-class MemoryComponent {
-  public:
-    /** @brief Called by MemoryRequesters. */
-    virtual void Request(MemoryPacket packet) = 0;
-};
-
-/** @brief MemoryRequesters send memory requests to MemoryComponents. */
-class MemoryRequester {
-  public:
-    /** @brief Called by MemoryComponents in response to a specific packet. */
-    virtual void Response(MemoryPacket packet) = 0;
-};
-
-/** @brief Required component in all simulations that receives instructions from
- * the real fetcher (trace reader or similar). */
-class FirstStagePipeline {
-  public:
-    virtual void NextInstruction(InstructionPacket packet) = 0;
-};
-
-class Prefetch {};
-
-class BranchPredictor {};
-
-class BranchTargetPredictor {};
-
-class ReorderBuffer {};
+struct MessagePacket {};
 
 }  // namespace sinuca
 

@@ -21,18 +21,17 @@
  */
 
 #include "engine.hpp"
+
 #include "../utils/logging.hpp"
+#include "component.hpp"
+#include "linkable.hpp"
 
-using namespace sinuca;
-
-int Engine::AddFirstStage(Component *component) {
-    this->firstStage = dynamic_cast<FirstStagePipeline *>(component);
-    return (this->firstStage == NULL);
+int sinuca::engine::Engine::AddRoot(sinuca::engine::Linkable* root) {
+    this->root = dynamic_cast<Component<InstructionPacket>*>(root);
+    return this->root == NULL;
 }
 
-int Engine::Simulate() {
-    SINUCA3_DEBUG_PRINTF("Simulation starting.\n");
-    SINUCA3_DEBUG_PRINTF("Simulation ending.\n");
-
+int sinuca::engine::Engine::Simulate() {
+    SINUCA3_LOG_PRINTF("Engine is running!\n");
     return 0;
 }

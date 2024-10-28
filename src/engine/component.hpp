@@ -1,5 +1,5 @@
-#ifndef SINUCA3_ENGINE_HPP_
-#define SINUCA3_ENGINE_HPP_
+#ifndef SINUCA3_ENGINE_COMPONENT_HPP_
+#define SINUCA3_ENGINE_COMPONENT_HPP_
 
 //
 // Copyright (C) 2024  HiPES - Universidade Federal do Paraná
@@ -18,29 +18,30 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-/**
- * @file processor.hpp
- * @brief Public API of the Processor, which use methods for the frontend and
- * attributes for the backend.
- */
+#include <string>
 
-#include "../sinuca3.hpp"
-#include "component.hpp"
+#include "../config/config.hpp"
 #include "linkable.hpp"
 
 namespace sinuca {
-namespace engine {
 
-class Engine {
-  private:
-    Component<InstructionPacket>* root;
-
+template <typename MessageType>
+class Component : public engine::Linkable {
   public:
-    int AddRoot(Linkable* root);
-    int Simulate();
+    /* Other component methods. */
+    inline int SendMessage(const MessageType message, int channelID) {
+        return this->SendMessageLinkable((const char*)&message, channelID);
+    }
+    inline int RetrieveResponse(MessageType* message, int channelID) {
+        return this->RetrieveResponseLinkable((const char*)&message, channelID);
+    }
+
+    inline Component(long numberOfBuffers = 0)
+        : engine::Linkable(sizeof(MessageType), numberOfBuffers) {}
+
+    inline ~Component() {}
 };
 
-}  // namespace engine
 }  // namespace sinuca
 
-#endif  // SINUCA3_ENGINE_HPP_
+#endif  // SINUCA3_ENGINE_COMPONENT_HPP_
