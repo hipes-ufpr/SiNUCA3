@@ -48,7 +48,9 @@
         printf(__VA_ARGS__);      \
     }
 #else
-#define SINUCA3_DEBUG_PRINTF(...) (void)
+#define SINUCA3_DEBUG_PRINTF(...) \
+    do {                          \
+    } while (0)
 #endif  // SINUCA3_DEBUG_PRINTF
 
 #endif  // SINUCA3_UTILS_LOGGING_HPP_
