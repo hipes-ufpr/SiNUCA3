@@ -90,40 +90,33 @@ static inline sinuca::yaml::YamlValue* ParseMapping(yaml_parser_t* parser) {
         new sinuca::yaml::YamlValue(sinuca::yaml::YamlValueTypeMapping);
 
     yaml_event_t event;
-
-    // The loop exits by returning the mapping when event.type is
-    // YAML_MAPPING_EVENT.
-    for (;;) {
+    yaml_event_type_t eventType;
+    do {
         if (YamlParseAndLogError(parser, &event)) {
             delete mapping;
             return NULL;
         }
 
-        sinuca::yaml::YamlMappingEntry* entry;
-        switch (event.type) {
-            // This exits the loop.
-            case YAML_MAPPING_END_EVENT:
-                yaml_event_delete(&event);
-                return mapping;
-            // This pushes a new value onto the mapping.
-            case YAML_SCALAR_EVENT:
-                entry = ParseMappingEntry(parser,
-                                          (const char*)event.data.scalar.value);
-                yaml_event_delete(&event);
-                if (entry == NULL) {
-                    delete mapping;
-                    return NULL;
-                }
-                mapping->value.mapping->push_back(entry);
-                break;
-            default:
-                SINUCA3_DEBUG_PRINTF(
-                    "%s:%d: Mapping parser got a strange event: %d\n",
-                    __FILE_NAME__, __LINE__, event.type);
-                yaml_event_delete(&event);
-                break;
+        eventType = event.type;
+        if (eventType == YAML_SCALAR_EVENT) {
+            sinuca::yaml::YamlMappingEntry* entry =
+                ParseMappingEntry(parser, (const char*)event.data.scalar.value);
+            if (entry == NULL) {
+                delete mapping;
+                return NULL;
+            }
+            mapping->value.mapping->push_back(entry);
         }
-    }
+#ifndef NDEBUG
+        else if (eventType != YAML_MAPPING_END_EVENT) {
+            SINUCA3_DEBUG_PRINTF(
+                "%s:%d: Mapping parser got a strange event: %d\n",
+                __FILE_NAME__, __LINE__, eventType);
+        }
+#endif
+        yaml_event_delete(&event);
+    } while (eventType != YAML_MAPPING_END_EVENT);
+    return mapping;
 }
 
 static inline sinuca::yaml::YamlValue* ParseSequence(yaml_parser_t* parser) {
