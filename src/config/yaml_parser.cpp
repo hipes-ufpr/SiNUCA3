@@ -34,15 +34,22 @@ static inline sinuca::yaml::YamlValue* ParseYamlValue(yaml_parser_t* parser);
 static inline sinuca::yaml::YamlValue* ParseYamlValueFromEvent(
     yaml_parser_t* parser, yaml_event_t* event);
 
-static inline int EnsureFileIsYamlMapping(yaml_parser_t* parser) {
-    yaml_event_t event;
-
-    // Assert toplevel is sane: stream start, then document, then mapping.
-    if (!yaml_parser_parse(parser, &event)) {
+static inline int YamlParseAndLogError(yaml_parser_t* parser,
+                                       yaml_event_t* event) {
+    if (!yaml_parser_parse(parser, event)) {
         SINUCA3_ERROR_PRINTF("while reading config file %s: %s\n",
                              parser->context, parser->problem);
         return 1;
     }
+
+    return 0;
+}
+
+static inline int EnsureFileIsYamlMapping(yaml_parser_t* parser) {
+    yaml_event_t event;
+
+    // Assert toplevel is sane: stream start, then document, then mapping.
+    if (YamlParseAndLogError(parser, &event)) return 1;
     if (event.type != YAML_STREAM_START_EVENT) {
         SINUCA3_ERROR_PRINTF(
             "while reading config file: file is not a YAML mappnig.\n");
@@ -50,26 +57,18 @@ static inline int EnsureFileIsYamlMapping(yaml_parser_t* parser) {
         return 1;
     }
     yaml_event_delete(&event);
-    if (!yaml_parser_parse(parser, &event)) {
-        SINUCA3_ERROR_PRINTF("while reading config file %s: %s\n",
-                             parser->context, parser->problem);
-        return 1;
-    }
+    if (YamlParseAndLogError(parser, &event)) return 1;
     if (event.type != YAML_DOCUMENT_START_EVENT) {
-        SINUCA3_ERROR_PRINTF("while reading config file %s: %s\n",
-                             parser->context, parser->problem);
+        SINUCA3_ERROR_PRINTF(
+            "while reading config file: file is not a YAML mappnig.\n");
         yaml_event_delete(&event);
         return 1;
     }
     yaml_event_delete(&event);
-    if (!yaml_parser_parse(parser, &event)) {
-        SINUCA3_ERROR_PRINTF("while reading config file %s: %s\n",
-                             parser->context, parser->problem);
-        return 1;
-    }
+    if (YamlParseAndLogError(parser, &event)) return 1;
     if (event.type != YAML_MAPPING_START_EVENT) {
-        SINUCA3_ERROR_PRINTF("while reading config file %s: %s\n",
-                             parser->context, parser->problem);
+        SINUCA3_ERROR_PRINTF(
+            "while reading config file: file is not a YAML mappnig.\n");
         yaml_event_delete(&event);
         return 1;
     }
@@ -95,9 +94,7 @@ static inline sinuca::yaml::YamlValue* ParseMapping(yaml_parser_t* parser) {
     // The loop exits by returning the mapping when event.type is
     // YAML_MAPPING_EVENT.
     for (;;) {
-        if (!yaml_parser_parse(parser, &event)) {
-            SINUCA3_ERROR_PRINTF("while parsing config file %s: %s\n",
-                                 parser->context, parser->problem);
+        if (YamlParseAndLogError(parser, &event)) {
             delete mapping;
             return NULL;
         }
@@ -138,9 +135,7 @@ static inline sinuca::yaml::YamlValue* ParseSequence(yaml_parser_t* parser) {
     // The loop exits by returning the array when event.type is
     // YAML_SEQUENCE_EVENT.
     for (;;) {
-        if (!yaml_parser_parse(parser, &event)) {
-            SINUCA3_ERROR_PRINTF("while parsing config file %s: %s\n",
-                                 parser->context, parser->problem);
+        if (YamlParseAndLogError(parser, &event)) {
             delete array;
             return NULL;
         }
@@ -207,11 +202,7 @@ static inline sinuca::yaml::YamlValue* ParseYamlValueFromEvent(
 
 static inline sinuca::yaml::YamlValue* ParseYamlValue(yaml_parser_t* parser) {
     yaml_event_t event;
-    if (!yaml_parser_parse(parser, &event)) {
-        SINUCA3_ERROR_PRINTF("while parsing config file %s: %s\n",
-                             parser->context, parser->problem);
-        return NULL;
-    }
+    if (YamlParseAndLogError(parser, &event)) return NULL;
 
     sinuca::yaml::YamlValue* value = ParseYamlValueFromEvent(parser, &event);
     yaml_event_delete(&event);
