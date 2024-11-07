@@ -17,8 +17,6 @@
 
 #include "custom_example.hpp"
 
-#include <string>
-
 #include "../sinuca3.hpp"
 
 int CustomExample::SetConfigParameter(const char* parameter,
