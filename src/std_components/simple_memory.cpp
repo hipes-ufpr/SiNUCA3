@@ -30,4 +30,6 @@ int SimpleMemory::SetConfigParameter(const char* parameter,
     return 1;
 }
 
+int SimpleMemory::FinishSetup() { return 0; }
+
 void SimpleMemory::Clock() {}

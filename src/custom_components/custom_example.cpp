@@ -15,6 +15,11 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+/**
+ * @file custom_example.cpp
+ * @brief Implements an example custom component to show how to create them.
+ */
+
 #include "custom_example.hpp"
 
 #include "../sinuca3.hpp"

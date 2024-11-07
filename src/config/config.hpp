@@ -18,6 +18,11 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+/**
+ * @file config.hpp
+ * @brief Configuration public API for SiNUCA3.
+ */
+
 namespace sinuca {
 
 // Pre-declaration for ConfigValue as Linkable should not be included here as it
@@ -28,12 +33,18 @@ class Linkable;
 
 namespace config {
 
+/**
+ * @brief Each configuration parameter type supported for components.
+ */
 enum ConfigValueType {
     ConfigValueTypeInteger,
     ConfigValueTypeNumber,
     ConfigValueTypeComponentReference,
 };
 
+/**
+ * @brief A single configuration parameter.
+ */
 struct ConfigValue {
     ConfigValueType type;
     union {

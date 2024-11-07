@@ -49,10 +49,15 @@ engine::Linkable* CreateDefaultComponentByClass(const char* name);
 /** @brief Don't call, used by the SimulatorBuilder. */
 engine::Linkable* CreateCustomComponentByClass(const char* name);
 
-/** @brief Exchanged between the engine, FirstStagePipeline and other pipeline
- * stages. */
+/**
+ * @brief Exchanged between the engine, FirstStagePipeline and other pipeline
+ * stages.
+ */
 struct InstructionPacket {};
 
+/**
+ * @brief Used by SimpleMemory.
+ */
 struct MessagePacket {};
 
 }  // namespace sinuca

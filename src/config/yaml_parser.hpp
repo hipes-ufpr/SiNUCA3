@@ -26,8 +26,8 @@
  */
 
 #include <cassert>
-#include <vector>
 #include <cstdlib>
+#include <vector>
 
 namespace sinuca {
 namespace yaml {
@@ -47,9 +47,12 @@ enum YamlValueType {
 // Pre-declaration for YamlMappingEntry.
 struct YamlValue;
 
+/**
+ * @brief This is an entry in a YAML mapping.
+ */
 struct YamlMappingEntry {
-    const char* name;
-    YamlValue* value;
+    const char* name; /** @brief The key in the mapping. */
+    YamlValue* value; /** @brief It's value. */
 
     // The constructors and destructors of this struct are defined after
     // YamlValue because "deleting incomplete type may cause undefined
@@ -69,17 +72,23 @@ struct YamlValue {
         const char* alias;
         std::vector<YamlValue*>* array;
         std::vector<YamlMappingEntry*>* mapping;
-    } value;
-    YamlValueType type;
+    } value;            /** @brief The value of the tagged union. */
+    YamlValueType type; /** @brief The tag of the tagged union. */
 
+    /** @brief Constructs a value from a double. */
     inline YamlValue(double value) : type(YamlValueTypeNumber) {
         this->value.number = value;
     }
 
+    /** @brief Constructs a value from a boolean. */
     inline YamlValue(bool value) : type(YamlValueTypeBoolean) {
         this->value.boolean = value;
     }
 
+    /**
+     * @brief Constructs a value WITHOUT INITIALIZING IT, just setting it's
+     * type.
+     */
     inline YamlValue(YamlValueType type) : type(type) {
         switch (this->type) {
             case YamlValueTypeAlias:

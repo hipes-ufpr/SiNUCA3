@@ -19,9 +19,8 @@
 //
 
 /**
- * @file processor.hpp
- * @brief Public API of the Processor, which use methods for the frontend and
- * attributes for the backend.
+ * @file engine.hpp
+ * @brief Public API of the simulation engine.
  */
 
 #include "../sinuca3.hpp"
@@ -31,12 +30,33 @@
 namespace sinuca {
 namespace engine {
 
+/** @brief The engine itself. */
 class Engine {
   private:
+    /**
+     * @brief This component receives the instruction packets from the engine.
+     */
     Component<InstructionPacket>* root;
 
   public:
+    /**
+     * @brief Don't call this method.
+     * @details After reading the configuration file, the simulator calls this
+     * method to set which component should receive the instruction packets from
+     * the engine. This component should inherit from
+     * Component<InstructionPacket>.
+     * @param root A pointer to a Component<InstructionPacket>.
+     * @returns Non-zero if root is not a pointer to
+     * Component<InstructionPacket>. 0 otherwise. Trying to start the simulation
+     * after this method returns non-zero is undefined behaviour.
+     */
     int AddRoot(Linkable* root);
+    /**
+     * @brief Self-explanatory. Should be called only after AddRoot returned 0.
+     * Causes undefined behaviour otherwise.
+     * @returns Non-zero if the simulation stopped because of a problem. 0 if it
+     * stopped normally.
+     */
     int Simulate();
 };
 
