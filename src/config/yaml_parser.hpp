@@ -61,7 +61,8 @@ struct YamlMappingEntry {
 };
 
 /**
- * @brief a generic YAML value. Tagged union.
+ * @brief a generic YAML value. Tagged union + the anchor (C-style string,
+ * deleted by the destructor).
  */
 struct YamlValue {
     union {
@@ -72,15 +73,18 @@ struct YamlValue {
         std::vector<YamlValue*>* array;
         std::vector<YamlMappingEntry*>* mapping;
     } value;            /** @brief The value of the tagged union. */
+    const char* anchor; /** @brief The anchor. */
     YamlValueType type; /** @brief The tag of the tagged union. */
 
     /** @brief Constructs a value from a double. */
-    inline YamlValue(double value) : type(YamlValueTypeNumber) {
+    inline YamlValue(double value, const char* anchor = NULL)
+        : anchor(anchor), type(YamlValueTypeNumber) {
         this->value.number = value;
     }
 
     /** @brief Constructs a value from a boolean. */
-    inline YamlValue(bool value) : type(YamlValueTypeBoolean) {
+    inline YamlValue(bool value, const char* anchor = NULL)
+        : anchor(anchor), type(YamlValueTypeBoolean) {
         this->value.boolean = value;
     }
 
@@ -88,7 +92,8 @@ struct YamlValue {
      * @brief Constructs a value WITHOUT INITIALIZING IT, just setting it's
      * type.
      */
-    inline YamlValue(YamlValueType type) : type(type) {
+    inline YamlValue(YamlValueType type, const char* anchor = NULL)
+        : anchor(anchor), type(type) {
         switch (this->type) {
             case YamlValueTypeAlias:
                 this->value.alias = NULL;
@@ -111,6 +116,7 @@ struct YamlValue {
     }
 
     inline ~YamlValue() {
+        if (this->anchor != NULL) delete[] this->anchor;
         switch (this->type) {
             case YamlValueTypeAlias:
                 delete[] this->value.alias;
@@ -130,6 +136,23 @@ struct YamlValue {
                 break;
             default:
                 break;
+        }
+    }
+
+    inline const char* TypeAsString() const {
+        switch (this->type) {
+            case YamlValueTypeString:
+                return "string";
+            case YamlValueTypeAlias:
+                return "alias";
+            case YamlValueTypeMapping:
+                return "mapping";
+            case YamlValueTypeArray:
+                return "array";
+            case YamlValueTypeBoolean:
+                return "boolean";
+            case YamlValueTypeNumber:
+                return "number";
         }
     }
 };

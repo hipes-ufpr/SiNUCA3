@@ -92,9 +92,17 @@ static inline sinuca::yaml::YamlMappingEntry* ParseMappingEntry(
     return new sinuca::yaml::YamlMappingEntry(newStrName, value);
 }
 
-static inline sinuca::yaml::YamlValue* ParseMapping(yaml_parser_t* parser) {
+static inline sinuca::yaml::YamlValue* ParseMapping(yaml_parser_t* parser,
+                                                    const char* anchor) {
+    if (anchor != NULL) {
+        long anchorSize = strlen(anchor);
+        char* newAnchor = new char[anchorSize + 1];
+        memcpy((void*)newAnchor, (const void*)anchor, anchorSize + 1);
+        anchor = newAnchor;
+    }
+
     sinuca::yaml::YamlValue* mapping =
-        new sinuca::yaml::YamlValue(sinuca::yaml::YamlValueTypeMapping);
+        new sinuca::yaml::YamlValue(sinuca::yaml::YamlValueTypeMapping, anchor);
 
     yaml_event_t event;
     yaml_event_type_t eventType;
@@ -126,9 +134,17 @@ static inline sinuca::yaml::YamlValue* ParseMapping(yaml_parser_t* parser) {
     return mapping;
 }
 
-static inline sinuca::yaml::YamlValue* ParseSequence(yaml_parser_t* parser) {
+static inline sinuca::yaml::YamlValue* ParseSequence(yaml_parser_t* parser,
+                                                     const char* anchor) {
+    if (anchor != NULL) {
+        long anchorSize = strlen(anchor);
+        char* newAnchor = new char[anchorSize + 1];
+        memcpy((void*)newAnchor, (const void*)anchor, anchorSize + 1);
+        anchor = newAnchor;
+    }
+
     sinuca::yaml::YamlValue* array =
-        new sinuca::yaml::YamlValue(sinuca::yaml::YamlValueTypeArray);
+        new sinuca::yaml::YamlValue(sinuca::yaml::YamlValueTypeArray, anchor);
 
     yaml_event_t event;
 
@@ -158,17 +174,25 @@ static inline sinuca::yaml::YamlValue* ParseSequence(yaml_parser_t* parser) {
 }
 
 static inline sinuca::yaml::YamlValue* ParseScalar(const char* scalar,
-                                                   long scalarSize) {
+                                                   long scalarSize,
+                                                   const char* anchor) {
+    if (anchor != NULL) {
+        long anchorSize = strlen(anchor);
+        char* newAnchor = new char[anchorSize + 1];
+        memcpy((void*)newAnchor, (const void*)anchor, anchorSize + 1);
+        anchor = newAnchor;
+    }
+
     double number;
     if (sscanf(scalar, "%lf", &number) == 1)
-        return new sinuca::yaml::YamlValue(number);
+        return new sinuca::yaml::YamlValue(number, anchor);
     if (!strcmp(scalar, "true") || !strcmp(scalar, "yes"))
-        return new sinuca::yaml::YamlValue(true);
+        return new sinuca::yaml::YamlValue(true, anchor);
     if (!strcmp(scalar, "false") || !strcmp(scalar, "no"))
-        return new sinuca::yaml::YamlValue(false);
+        return new sinuca::yaml::YamlValue(false, anchor);
 
     sinuca::yaml::YamlValue* value =
-        new sinuca::yaml::YamlValue(sinuca::yaml::YamlValueTypeString);
+        new sinuca::yaml::YamlValue(sinuca::yaml::YamlValueTypeString, anchor);
     value->value.string = new char[scalarSize + 1];
     memcpy((void*)value->value.string, (const void*)scalar, scalarSize + 1);
     return value;
@@ -189,13 +213,16 @@ static inline sinuca::yaml::YamlValue* ParseYamlValueFromEvent(
             break;
         case YAML_SCALAR_EVENT:
             value = ParseScalar((const char*)event->data.scalar.value,
-                                event->data.scalar.length);
+                                event->data.scalar.length,
+                                (const char*)event->data.scalar.anchor);
             break;
         case YAML_MAPPING_START_EVENT:
-            value = ParseMapping(parser);
+            value = ParseMapping(parser,
+                                 (const char*)event->data.mapping_start.anchor);
             break;
         case YAML_SEQUENCE_START_EVENT:
-            value = ParseSequence(parser);
+            value = ParseSequence(
+                parser, (const char*)event->data.sequence_start.anchor);
             break;
         default:
             SINUCA3_DEBUG_PRINTF(
@@ -203,6 +230,7 @@ static inline sinuca::yaml::YamlValue* ParseYamlValueFromEvent(
                 __FILE_NAME__, __LINE__, event->type);
             break;
     }
+
     return value;
 }
 
@@ -230,7 +258,7 @@ sinuca::yaml::YamlValue* sinuca::yaml::ParseFile(const char* configFile) {
     // We need to make sure the top level is a mapping because another thing
     // would make no sense.
     YamlValue* yaml = NULL;
-    if (!EnsureFileIsYamlMapping(&parser)) yaml = ParseMapping(&parser);
+    if (!EnsureFileIsYamlMapping(&parser)) yaml = ParseMapping(&parser, NULL);
 
     yaml_parser_delete(&parser);
 
@@ -365,7 +393,7 @@ void sinuca::yaml::PrintYaml(YamlValue* value) {
             printf("%s\n", value->value.string);
             break;
         case sinuca::yaml::YamlValueTypeAlias:
-            printf("%s\n", value->value.alias);
+            printf("*%s\n", value->value.alias);
             break;
         case sinuca::yaml::YamlValueTypeArray:
             printf("[\n");
