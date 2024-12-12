@@ -2,3 +2,4 @@ build/
 .cache/
 sinuca3
 sinuca3-debug
+compile_commands.json
