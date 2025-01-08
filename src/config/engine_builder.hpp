@@ -25,6 +25,7 @@ struct ComponentDefinition;
 struct ComponentInstantiation {
     const char* alias;
     ComponentDefinition* definition;
+    // We cannot delete this pointer because it'll be "exported".
     sinuca::engine::Linkable* component;
     bool alreadyDefined;
 
@@ -58,7 +59,8 @@ struct Parameter {
     inline Parameter() : type(ParameterTypeInteger) {}
 
     inline ~Parameter() {
-        if (this->type == ParameterTypeArray)
+        if (this->type == ParameterTypeArray &&
+            this->value.array.parameters != NULL)
             delete this->value.array.parameters;
     }
 };
@@ -131,7 +133,7 @@ class EngineBuilder {
     int YamlArray2Parameter(builder::Parameter* dest,
                             const std::vector<yaml::YamlValue*>* array);
 
-    int FillParametersAndComponent(
+    int FillParametersAndClass(
         builder::ComponentDefinition* definition,
         const std::vector<yaml::YamlMappingEntry*>* config);
 
@@ -146,6 +148,24 @@ class EngineBuilder {
 
     int Yaml2Parameter(const char* name, builder::Parameter* dest,
                        const yaml::YamlValue* src);
+
+    int EnsureAllComponentsAreDefined();
+
+    int TreatParameter(const char* name, const yaml::YamlValue* value);
+    engine::Linkable* InstantiateComponent(
+        builder::ComponentInstantiation* component);
+
+    int SetupComponentConfig(const builder::ComponentInstantiation* instance);
+    int Parameter2ConfigValue(const builder::Parameter* parameter,
+                              ConfigValue* value);
+    int ArrayParameter2ConfigValue(const builder::ParameterArray* array,
+                                   ConfigValue* value);
+
+    engine::Linkable* NewComponentFromDefinitionReference(
+        builder::ComponentDefinition* reference);
+
+    sinuca::engine::Engine* FreeSelfOnInstantiationFailure(
+        const yaml::YamlValue* yamlConfig);
 
   public:
     engine::Engine* Instantiate(const char* configFile);

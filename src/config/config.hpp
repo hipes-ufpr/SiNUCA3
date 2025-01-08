@@ -46,6 +46,12 @@ enum ConfigValueType {
     ConfigValueTypeComponentReference,
 };
 
+struct ConfigValue;
+struct ConfigArray {
+    ConfigValue* items;
+    long size;
+};
+
 /**
  * @brief A single configuration parameter.
  */
@@ -58,6 +64,26 @@ struct ConfigValue {
         engine::Linkable* componentReference;
     } value;
     ConfigValueType type;
+
+    inline ConfigValue() {}
+
+    inline ConfigValue(long integer) : type(ConfigValueTypeInteger) {
+        this->value.integer = integer;
+    }
+    inline ConfigValue(double number) : type(ConfigValueTypeNumber) {
+        this->value.number = number;
+    }
+    inline ConfigValue(bool boolean) : type(ConfigValueTypeBoolean) {
+        this->value.boolean = boolean;
+    }
+    inline ConfigValue(std::vector<ConfigValue>* array)
+        : type(ConfigValueTypeArray) {
+        this->value.array = array;
+    }
+    inline ConfigValue(engine::Linkable* componentReference)
+        : type(ConfigValueTypeComponentReference) {
+        this->value.componentReference = componentReference;
+    }
 };
 
 }  // namespace config

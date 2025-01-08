@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../utils/logging.hpp"
+#include "config.hpp"
 #include "yaml_parser.hpp"
 
 //
@@ -169,7 +170,7 @@ static inline int AddClass(sinuca::builder::ComponentDefinition* definition,
     return 0;
 }
 
-int sinuca::config::EngineBuilder::FillParametersAndComponent(
+int sinuca::config::EngineBuilder::FillParametersAndClass(
     builder::ComponentDefinition* definition,
     const std::vector<yaml::YamlMappingEntry*>* config) {
     definition->clazz = NULL;
@@ -223,15 +224,25 @@ int sinuca::config::EngineBuilder::FillParametersAndComponent(
 sinuca::builder::ComponentDefinition*
 sinuca::config::EngineBuilder::AddComponentDefinitionFromYamlMapping(
     const char* name, const std::vector<yaml::YamlMappingEntry*>* config) {
-    builder::ComponentDefinition definition =
-        builder::ComponentDefinition(name, true);
-    this->componentDefinitions.push_back(definition);
+    builder::ComponentDefinition* addr;
+    bool mustPop = false;
 
-    builder::ComponentDefinition* addr =
-        &this->componentDefinitions[this->componentDefinitions.size() - 1];
+    addr = this->GetComponentDefinition(name);
+    if (addr == NULL) {
+        builder::ComponentDefinition definition =
+            builder::ComponentDefinition(name, true);
+        this->componentDefinitions.push_back(definition);
 
-    if (this->FillParametersAndComponent(addr, config)) {
-        this->componentDefinitions.pop_back();
+        addr =
+            &this->componentDefinitions[this->componentDefinitions.size() - 1];
+        mustPop = true;
+    } else if (addr->alreadyDefined) {
+        SINUCA3_ERROR_PRINTF("Multiple definitions of component %s.", name);
+        return NULL;
+    }
+
+    if (this->FillParametersAndClass(addr, config)) {
+        if (mustPop) this->componentDefinitions.pop_back();
         return NULL;
     }
 
@@ -245,6 +256,18 @@ sinuca::config::EngineBuilder::AddComponentInstantiationFromYamlMapping(
     builder::ComponentDefinition* definition =
         this->AddComponentDefinitionFromYamlMapping(name, config);
     if (definition == NULL) return NULL;
+
+    builder::ComponentInstantiation* instancePtr =
+        this->GetComponentInstantiation(alias);
+    if (instancePtr != NULL) {
+        if (instancePtr->alreadyDefined) {
+            SINUCA3_ERROR_PRINTF("Multiple components with alias %s.", alias);
+            return NULL;
+        }
+        instancePtr->alreadyDefined = true;
+        instancePtr->definition = definition;
+        return instancePtr;
+    }
 
     builder::ComponentInstantiation instance =
         builder::ComponentInstantiation(alias, definition, true);
@@ -313,6 +336,172 @@ int sinuca::config::EngineBuilder::TreatCoresParameter(
     return 0;
 }
 
+int sinuca::config::EngineBuilder::TreatParameter(
+    const char* name, const yaml::YamlValue* value) {
+    // Treat the `cores` parameter. May return error.
+    if (strcmp(name, "cores") == 0) {
+        if (this->TreatCoresParameter(value)) return 1;
+
+        // Now we add each core.
+        const std::vector<sinuca::yaml::YamlValue*>* coresConfig =
+            value->value.array;
+        if (this->AddCores(coresConfig)) return 1;
+
+        return 0;
+    }
+
+    // If it's not the `cores` special parameter, it's a component
+    // definition.
+    if (value->type != yaml::YamlValueTypeMapping) {
+        SINUCA3_ERROR_PRINTF(
+            "While trying to define component %s: expected a YAML Mapping, "
+            "got %s.\n",
+            name, value->TypeAsString());
+        return 1;
+    }
+
+    if (value->anchor != NULL) {
+        if (this->AddComponentInstantiationFromYamlMapping(
+                name, value->anchor, value->value.mapping) == NULL)
+            return 1;
+
+        return 0;
+    }
+
+    if (this->AddComponentDefinitionFromYamlMapping(
+            name, value->value.mapping) == NULL)
+        return 1;
+
+    return 0;
+}
+
+int sinuca::config::EngineBuilder::EnsureAllComponentsAreDefined() {
+    for (unsigned long i = 0; i < this->components.size(); ++i) {
+        if (!components[i].alreadyDefined) {
+            SINUCA3_ERROR_PRINTF("Component with alias %s was never defined.",
+                                 components[i].alias);
+            return 1;
+        }
+    }
+
+    for (unsigned long i = 0; i < this->componentDefinitions.size(); ++i) {
+        if (!componentDefinitions[i].alreadyDefined) {
+            SINUCA3_ERROR_PRINTF("Component definition %s was never defined.",
+                                 componentDefinitions[i].name);
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static inline sinuca::engine::Linkable* CreateComponent(const char* clazz) {
+    sinuca::engine::Linkable* component =
+        sinuca::CreateDefaultComponentByClass(clazz);
+    if (component != NULL) return component;
+
+    component = sinuca::CreateCustomComponentByClass(clazz);
+    return component;
+}
+
+sinuca::engine::Engine*
+sinuca::config::EngineBuilder::FreeSelfOnInstantiationFailure(
+    const sinuca::yaml::YamlValue* yamlConfig) {
+    delete yamlConfig;
+
+    // Go back deallocating everything. We need to do this because
+    // ComponentInstantiation doesn't delete it's own component pointer.
+    for (unsigned long j = 0;
+         j < this->components.size() && this->components[j].component != NULL;
+         ++j)
+        delete this->components[j].component;
+    // The definitions array doesn't need one of this.
+
+    return NULL;
+}
+
+int sinuca::config::EngineBuilder::ArrayParameter2ConfigValue(
+    const builder::ParameterArray* parameter, ConfigValue* value) {
+    std::vector<ConfigValue>* array = new std::vector<ConfigValue>;
+    array->reserve(parameter->size);
+    for (unsigned long i = 0; i < parameter->size; ++i) {
+        ConfigValue itemValue;
+        if (this->Parameter2ConfigValue(&parameter->parameters[i],
+                                        &itemValue)) {
+            delete array;
+            return 1;
+        }
+        array->push_back(itemValue);
+    }
+
+    *value = ConfigValue(array);
+
+    return 0;
+}
+
+sinuca::engine::Linkable*
+sinuca::config::EngineBuilder::NewComponentFromDefinitionReference(
+    builder::ComponentDefinition* reference) {
+    engine::Linkable* component = CreateComponent(reference->clazz);
+    if (component == NULL) return NULL;
+
+    builder::ComponentInstantiation instance =
+        builder::ComponentInstantiation(NULL, reference, true);
+    instance.component = component;
+
+    this->components.push_back(instance);
+
+    return component;
+}
+
+int sinuca::config::EngineBuilder::Parameter2ConfigValue(
+    const builder::Parameter* parameter, ConfigValue* value) {
+    switch (parameter->type) {
+        case builder::ParameterTypeInteger:
+            *value = ConfigValue(parameter->value.integer);
+            break;
+        case builder::ParameterTypeNumber:
+            *value = ConfigValue(parameter->value.number);
+            break;
+        case builder::ParameterTypeBoolean:
+            *value = ConfigValue(parameter->value.boolean);
+            break;
+        case builder::ParameterTypeInstanceReference:
+            *value =
+                ConfigValue(parameter->value.referenceToInstance->component);
+            break;
+        case builder::ParameterTypeArray:
+            return this->ArrayParameter2ConfigValue(&parameter->value.array,
+                                                    value);
+            break;
+        case builder::ParameterTypeDefinitionReference:
+            // TODO.
+            *value = ConfigValue(this->NewComponentFromDefinitionReference(
+                parameter->value.referenceToDefinition));
+            if (value->value.componentReference == NULL) return 1;
+            break;
+        default:
+            assert(0 && "unreachable");
+    }
+
+    return 0;
+}
+
+int sinuca::config::EngineBuilder::SetupComponentConfig(
+    const sinuca::builder::ComponentInstantiation* instance) {
+    sinuca::engine::Linkable* component = instance->component;
+    builder::ParameterMap* map = &instance->definition->parameters;
+
+    for (long i = 0; i < map->size; ++i) {
+        const char* parameterName = map->items[i].name;
+        const builder::Parameter* parameterValue = &map->items[i].value;
+        ConfigValue value;
+        if (this->Parameter2ConfigValue(parameterValue, &value)) return 1;
+    }
+
+    return 0;
+}
+
 sinuca::engine::Engine* sinuca::config::EngineBuilder::Instantiate(
     const char* configFile) {
     const sinuca::yaml::YamlValue* yamlConfig =
@@ -325,50 +514,34 @@ sinuca::engine::Engine* sinuca::config::EngineBuilder::Instantiate(
         yamlConfig->value.mapping;
 
     for (unsigned int i = 0; i < config->size(); ++i) {
-        const char* name = (*config)[i]->name;
-        const yaml::YamlValue* value = (*config)[i]->value;
+        if (this->TreatParameter((*config)[i]->name, (*config)[i]->value))
+            return this->FreeSelfOnInstantiationFailure(yamlConfig);
+    }
 
-        // Treat the `cores` parameter. May return error.
-        if (strcmp(name, "cores") == 0) {
-            if (this->TreatCoresParameter(value)) {
-                delete yamlConfig;
-                return NULL;
-            }
+    // Error.
+    if (this->EnsureAllComponentsAreDefined())
+        return this->FreeSelfOnInstantiationFailure(yamlConfig);
 
-            // Now we add each core.
-            const std::vector<sinuca::yaml::YamlValue*>* coresConfig =
-                value->value.array;
-            if (this->AddCores(coresConfig)) {
-                delete yamlConfig;
-                return NULL;
-            }
+    // We instantiate all components first so the pointers to aliased stuff will
+    // always work. We only have to solve definitions references now.
+    for (unsigned long i = 0; i < this->components.size(); ++i) {
+        builder::ComponentInstantiation* component = &this->components[i];
+        component->component = CreateComponent(component->definition->clazz);
 
-            continue;
+        // No such class.
+        if (component->component == NULL) {
+            SINUCA3_ERROR_PRINTF("No such component class: %s.",
+                                 component->definition->clazz);
+            return this->FreeSelfOnInstantiationFailure(yamlConfig);
         }
+    }
 
-        // If it's not the `cores` special parameter, it's a component
-        // definition.
-        if (value->type != yaml::YamlValueTypeMapping) {
-            SINUCA3_ERROR_PRINTF(
-                "While trying to define component %s: expected a YAML Mapping, "
-                "got %s.\n",
-                name, value->TypeAsString());
-            delete yamlConfig;
-            return NULL;
-        }
-        if (value->anchor != NULL) {
-            if (this->AddComponentInstantiationFromYamlMapping(
-                    name, value->anchor, value->value.mapping) == NULL) {
-                delete yamlConfig;
-                return NULL;
-            }
-        } else {
-            if (this->AddComponentDefinitionFromYamlMapping(
-                    name, value->value.mapping) == NULL) {
-                delete yamlConfig;
-                return NULL;
-            }
-        }
+    // Pass the parameters to the components. This also resolves pointers to
+    // definitions, thus allocating more components. As we already ensured all
+    // definitions are satisfied, this cannot fail.
+    for (unsigned long i = 0; i < this->components.size(); ++i) {
+        if (this->SetupComponentConfig(&this->components[i]))
+            return this->FreeSelfOnInstantiationFailure(yamlConfig);
     }
 
     sinuca::engine::Engine* engine = new sinuca::engine::Engine;
