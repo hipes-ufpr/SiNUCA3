@@ -497,6 +497,7 @@ int sinuca::config::EngineBuilder::SetupComponentConfig(
         const builder::Parameter* parameterValue = &map->items[i].value;
         ConfigValue value;
         if (this->Parameter2ConfigValue(parameterValue, &value)) return 1;
+        if (component->SetConfigParameter(parameterName, value)) return 1;
     }
 
     return 0;
