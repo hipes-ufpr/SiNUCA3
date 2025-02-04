@@ -173,6 +173,8 @@ static inline int AddClass(sinuca::builder::ComponentDefinition* definition,
 int sinuca::config::EngineBuilder::FillParametersAndClass(
     builder::ComponentDefinition* definition,
     const std::vector<yaml::YamlMappingEntry*>* config) {
+    SINUCA3_DEBUG_PRINTF("    Filling parameters and class for definition.\n");
+
     definition->clazz = NULL;
 
     if (config->size() == 0 || strcmp((*config)[0]->name, "class") != 0) {
@@ -338,20 +340,27 @@ int sinuca::config::EngineBuilder::TreatCoresParameter(
 
 int sinuca::config::EngineBuilder::TreatParameter(
     const char* name, const yaml::YamlValue* value) {
+    SINUCA3_DEBUG_PRINTF("Treating parameter %s.\n", name);
+
     // Treat the `cores` parameter. May return error.
     if (strcmp(name, "cores") == 0) {
         if (this->TreatCoresParameter(value)) return 1;
+
+        SINUCA3_DEBUG_PRINTF("Successfully treated parameter cores.\n");
 
         // Now we add each core.
         const std::vector<sinuca::yaml::YamlValue*>* coresConfig =
             value->value.array;
         if (this->AddCores(coresConfig)) return 1;
 
+        SINUCA3_DEBUG_PRINTF("Successfully added each core.\n");
+
         return 0;
     }
 
     // If it's not the `cores` special parameter, it's a component
     // definition.
+    SINUCA3_DEBUG_PRINTF("Parameter is a component definition.\n");
     if (value->type != yaml::YamlValueTypeMapping) {
         SINUCA3_ERROR_PRINTF(
             "While trying to define component %s: expected a YAML Mapping, "
@@ -360,11 +369,13 @@ int sinuca::config::EngineBuilder::TreatParameter(
         return 1;
     }
 
+    SINUCA3_DEBUG_PRINTF("  With anchor %s.\n", value->anchor);
     if (value->anchor != NULL) {
         if (this->AddComponentInstantiationFromYamlMapping(
                 name, value->anchor, value->value.mapping) == NULL)
             return 1;
 
+        SINUCA3_DEBUG_PRINTF("  Successfully added component instantiation.\n");
         return 0;
     }
 
@@ -372,6 +383,7 @@ int sinuca::config::EngineBuilder::TreatParameter(
             name, value->value.mapping) == NULL)
         return 1;
 
+    SINUCA3_DEBUG_PRINTF("  Successfully added component definition.\n");
     return 0;
 }
 
@@ -545,7 +557,36 @@ sinuca::engine::Engine* sinuca::config::EngineBuilder::Instantiate(
             return this->FreeSelfOnInstantiationFailure(yamlConfig);
     }
 
-    sinuca::engine::Engine* engine = new sinuca::engine::Engine;
+    // Now we do the same for the cores.
+    std::vector<builder::ComponentInstantiation> coresInstantiations;
+    coresInstantiations.reserve(this->numberOfCores);
+    for (long i = 0; i < this->numberOfCores; ++i) {
+        coresInstantiations.push_back(
+            builder::ComponentInstantiation(NULL, this->cores[i], true));
+        if (this->SetupComponentConfig(&coresInstantiations[i]))
+            return this->FreeSelfOnInstantiationFailure(yamlConfig);
+    }
+
+    return this->BuildEngine(&coresInstantiations);
+}
+
+sinuca::engine::Engine* sinuca::config::EngineBuilder::BuildEngine(
+    const std::vector<builder::ComponentInstantiation>* coresInstances) {
+    long numberOfComponents = this->components.size();
+    engine::Linkable** components = new engine::Linkable*[numberOfComponents];
+    engine::Linkable** cores = new engine::Linkable*[this->numberOfCores];
+
+    for (long i = 0; i < numberOfComponents; ++i)
+        components[i] = this->components[i].component;
+    for (long i = 0; i < this->numberOfCores; ++i)
+        cores[i] = (*coresInstances)[i].component;
+
+    engine::Engine* engine = new engine::Engine(components, numberOfComponents);
+    if (engine->AddCPUs(cores, this->numberOfCores)) {
+        delete[] cores;
+        delete engine;
+        return NULL;
+    }
 
     return engine;
 }

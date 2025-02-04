@@ -355,6 +355,10 @@ class EngineBuilder {
     sinuca::engine::Engine* FreeSelfOnInstantiationFailure(
         const yaml::YamlValue* yamlConfig);
 
+    /** @brief After everything is done, constructs the engine. */
+    sinuca::engine::Engine* BuildEngine(
+        const std::vector<builder::ComponentInstantiation>* coresInstances);
+
   public:
     /** @brief Instantiates an Engine from a configuration file, returning NULL
      * on error. */
