@@ -1,0 +1,4 @@
+comp: &etc
+  foo: bar
+
+other: *etc

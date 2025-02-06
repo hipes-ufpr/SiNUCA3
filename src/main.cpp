@@ -23,9 +23,10 @@
 
 #include <getopt.h>
 
-#include <cassert>
+// #include <cassert>
 #include <cstdlib>
 
+#include "config/engine_builder.hpp"
 #include "utils/logging.hpp"
 
 /**
@@ -95,7 +96,13 @@ int main(int argc, char* const argv[]) {
         return 1;
     }
 
-    assert(0 && "TODO!");
+    sinuca::config::EngineBuilder builder;
+    sinuca::engine::Engine* engine = builder.Instantiate(rootConfigFile);
+    if (engine == NULL) return 1;
+
+#ifdef NDEBUG
+    engine->Simulate();
+#endif
 
     return 0;
 }

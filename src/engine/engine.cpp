@@ -26,12 +26,45 @@
 #include "component.hpp"
 #include "linkable.hpp"
 
-int sinuca::engine::Engine::AddRoot(sinuca::engine::Linkable* root) {
-    this->root = dynamic_cast<Component<InstructionPacket>*>(root);
-    return this->root == NULL;
+int sinuca::engine::Engine::AddCPUs(sinuca::engine::Linkable** cpus,
+                                    long numberOfCPUs) {
+    this->cpus = new Component<InstructionPacket>*[numberOfCPUs];
+    this->numberOfCPUs = numberOfCPUs;
+
+    // This could be done without another allocation and in a single cast but
+    // this way we got a better error message. Me when C++.
+    for (long i = 0; i < numberOfCPUs; ++i) {
+        // Ensure the component passed was a Component<InstructionPacket>.
+        this->cpus[i] = dynamic_cast<Component<InstructionPacket>*>(cpus[i]);
+        // If it wasn't, we error out.
+        if (this->cpus[i] == NULL) {
+            delete[] this->cpus;
+            SINUCA3_ERROR_PRINTF(
+                "CPU number %ld is not of type Component<InstructionPacket>.\n",
+                i);
+            return 1;
+        }
+    }
+
+    delete[] cpus;
+
+    return 0;
 }
 
 int sinuca::engine::Engine::Simulate() {
-    SINUCA3_LOG_PRINTF("Engine is running!\n");
+    for (;;) {
+        for (long i = 0; i < this->numberOfCPUs; ++i) this->cpus[i]->PreClock();
+        for (long i = 0; i < this->numberOfComponents; ++i)
+            this->components[i]->PreClock();
+
+        for (long i = 0; i < this->numberOfCPUs; ++i) this->cpus[i]->Clock();
+        for (long i = 0; i < this->numberOfComponents; ++i)
+            this->components[i]->Clock();
+
+        for (long i = 0; i < this->numberOfCPUs; ++i) this->cpus[i]->PosClock();
+        for (long i = 0; i < this->numberOfComponents; ++i)
+            this->components[i]->PosClock();
+    }
+
     return 0;
 }
