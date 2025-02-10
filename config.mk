@@ -10,6 +10,6 @@ CPP_RELEASE_FLAGS = $(C_RELEASE_FLAGS)
 C_DEBUG_FLAGS = -Og -gdwarf-2
 CPP_DEBUG_FLAGS = $(C_DEBUG_FLAGS)
 
-LD_FLAGS = -lyaml
+LD_FLAGS = -lyaml -lz
 
 TARGET = sinuca3
