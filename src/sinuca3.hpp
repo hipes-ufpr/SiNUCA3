@@ -50,10 +50,17 @@ engine::Linkable* CreateDefaultComponentByClass(const char* name);
 engine::Linkable* CreateCustomComponentByClass(const char* name);
 
 /**
- * @brief Exchanged between the engine, FirstStagePipeline and other pipeline
- * stages.
+ * @brief Exchanged between the engine and components.
  */
-struct InstructionPacket {};
+struct InstructionPacket {
+    const char* opcode;
+};
+
+/**
+ * @brief The core shall respond this to inform the engine to stall the
+ * fetching for the next cycle.
+ */
+const InstructionPacket STALL_FETCHING = {0};
 
 /**
  * @brief Used by SimpleMemory.
