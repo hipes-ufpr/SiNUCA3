@@ -58,7 +58,7 @@ struct InstructionPacket {};
 /**
  * @brief Used by SimpleMemory.
  */
-struct MessagePacket {};
+struct MemoryPacket {};
 
 }  // namespace sinuca
 
