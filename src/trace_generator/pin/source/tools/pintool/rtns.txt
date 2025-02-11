@@ -1,0 +1,30 @@
+A: /tmp_proj/pin_jen/workspace/pypl-pin-nightly-user/GitPin/Source/pin/pin/image.cpp: RTN_InsHeadOnly: 3497: Call RTN_Open(rtn) before inspecting the instructions of an RTN.
+
+################################################################################
+## STACK TRACE
+################################################################################
+??? at /home/fbc23/Programas/SiNUCA3/src/trace_generator/pin/source/tools/pintool/obj-intel64/sinuca3_pintool.so+0x00005d7cd 
+
+??? at /home/fbc23/Programas/SiNUCA3/src/trace_generator/pin/source/tools/pintool/obj-intel64/sinuca3_pintool.so+0x00005f91c 
+
+??? at /home/fbc23/Programas/SiNUCA3/src/trace_generator/pin/source/tools/pintool/obj-intel64/sinuca3_pintool.so+0x00001c08b 
+
+??? at /home/fbc23/Programas/SiNUCA3/src/trace_generator/pin/source/tools/pintool/obj-intel64/sinuca3_pintool.so+0x00004db53 
+
+??? at /home/fbc23/Programas/SiNUCA3/src/trace_generator/pin/source/tools/pintool/obj-intel64/sinuca3_pintool.so+0x00006627b 
+
+??? at /home/fbc23/Programas/SiNUCA3/src/trace_generator/pin/source/tools/pintool/obj-intel64/sinuca3_pintool.so+0x00009e37a 
+
+??? at /home/fbc23/Programas/SiNUCA3/src/trace_generator/pin/source/tools/pintool/obj-intel64/sinuca3_pintool.so+0x00007563f 
+
+LEVEL_INJECTOR::UNIX_INJECTEE::StartProgram+0x000000109 at /home/fbc23/Programas/SiNUCA3/src/trace_generator/pin/intel64/bin/pinbin+0x000349989 
+
+main+0x000000120 at /home/fbc23/Programas/SiNUCA3/src/trace_generator/pin/source/tools/pintool/obj-intel64/sinuca3_pintool.so+0x00000a540 
+
+LEVEL_INJECTOR::UNIX_INJECTEE::StartTool+0x000000197 at /home/fbc23/Programas/SiNUCA3/src/trace_generator/pin/intel64/bin/pinbin+0x000348af7 
+
+LEVEL_INJECTOR::UNIX_INJECTEE::RunMainThreadOnPinStackAttach+0x00000036d at /home/fbc23/Programas/SiNUCA3/src/trace_generator/pin/intel64/bin/pinbin+0x00034ef2d 
+
+Pin: pin-3.31-98869-fa6f126a8
+Copyright 2002-2024 Intel Corporation.
+

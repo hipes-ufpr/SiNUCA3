@@ -1,0 +1,4 @@
+Pin: pin-3.31-98869-fa6f126a8
+Copyright 2002-2024 Intel Corporation.
+A:  /tmp_proj/pin_jen/workspace/pypl-pin-nightly-user/GitPin/Source/pin/pin/image.cpp: RTN_InsHeadOnly: 3497: Call RTN_Open(rtn) before inspecting the instructions of an RTN.
+
