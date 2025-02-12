@@ -22,6 +22,7 @@
 
 #include "engine.hpp"
 
+#include "../trace_reader/trace_reader.hpp"
 #include "../utils/logging.hpp"
 #include "component.hpp"
 #include "linkable.hpp"
@@ -51,8 +52,13 @@ int sinuca::engine::Engine::AddCPUs(sinuca::engine::Linkable** cpus,
     return 0;
 }
 
-int sinuca::engine::Engine::Simulate() {
-    for (;;) {
+int sinuca::engine::Engine::Simulate(
+    sinuca::traceReader::TraceReader* traceReader) {
+    InstructionPacket packet;
+    traceReader::FetchResult result;
+
+    while ((result = traceReader->Fetch(&packet)) ==
+           traceReader::FetchResultOk) {
         for (long i = 0; i < this->numberOfCPUs; ++i) this->cpus[i]->PreClock();
         for (long i = 0; i < this->numberOfComponents; ++i)
             this->components[i]->PreClock();
@@ -66,5 +72,5 @@ int sinuca::engine::Engine::Simulate() {
             this->components[i]->PosClock();
     }
 
-    return 0;
+    return (result == traceReader::FetchResultError) ? 1 : 0;
 }

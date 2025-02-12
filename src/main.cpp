@@ -25,8 +25,11 @@
 
 // #include <cassert>
 #include <cstdlib>
+#include <cstring>
 
 #include "config/engine_builder.hpp"
+#include "trace_reader/orcs_trace_reader.hpp"
+#include "trace_reader/trace_reader.hpp"
 #include "utils/logging.hpp"
 
 /**
@@ -66,7 +69,21 @@ void usage() {
     // TODO: Make this pretty.
     SINUCA3_LOG_PRINTF(
         "Use -h to see this text, -c to set a configuration file (required for "
-        "simulation) and -l to see license information.\n");
+        "simulation) and -l to see license information.\n"
+        "\n"
+        "Other simulation options:\n"
+        "   -t <string> sets the trace reader to use (orcs, foo, bar, "
+        "TODO...)\n");
+}
+
+/**
+ * @brief Returns a TraceReader from it's name. TODO: add default trace reader.
+ */
+sinuca::traceReader::TraceReader* AllocTraceReader(const char* traceReader) {
+    if (strcmp(traceReader, "orcs") == 0)
+        return new sinuca::traceReader::orcsTraceReader::OrCSTraceReader;
+    else
+        return NULL;
 }
 
 /**
@@ -75,12 +92,16 @@ void usage() {
  */
 int main(int argc, char* const argv[]) {
     const char* rootConfigFile = NULL;
+    const char* traceReader = NULL;
     char nextOpt;
 
-    while ((nextOpt = getopt(argc, argv, "lc:")) != -1) {
+    while ((nextOpt = getopt(argc, argv, "lc:t:")) != -1) {
         switch (nextOpt) {
             case 'c':
                 rootConfigFile = optarg;
+                break;
+            case 't':
+                traceReader = optarg;
                 break;
             case 'l':
                 license();
@@ -100,9 +121,7 @@ int main(int argc, char* const argv[]) {
     sinuca::engine::Engine* engine = builder.Instantiate(rootConfigFile);
     if (engine == NULL) return 1;
 
-#ifdef NDEBUG
-    engine->Simulate();
-#endif
+    engine->Simulate(AllocTraceReader(traceReader));
 
     return 0;
 }

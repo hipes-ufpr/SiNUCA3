@@ -24,6 +24,7 @@
  */
 
 #include "../sinuca3.hpp"
+#include "../trace_reader/trace_reader.hpp"
 #include "component.hpp"
 #include "linkable.hpp"
 
@@ -62,7 +63,7 @@ class Engine {
      * @returns Non-zero if the simulation stopped because of a problem. 0 if it
      * stopped normally.
      */
-    int Simulate();
+    int Simulate(traceReader::TraceReader* traceReader);
 
     inline ~Engine() {
         for (long i = 0; i < this->numberOfComponents; ++i)
