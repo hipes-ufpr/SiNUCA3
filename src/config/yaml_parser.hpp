@@ -25,7 +25,6 @@
  * implementation details, check yaml_parser.cpp.
  */
 
-#include <cassert>
 #include <cstdlib>
 #include <vector>
 
@@ -62,7 +61,8 @@ struct YamlMappingEntry {
 };
 
 /**
- * @brief a generic YAML value. Tagged union.
+ * @brief a generic YAML value. Tagged union + the anchor (C-style string,
+ * deleted by the destructor).
  */
 struct YamlValue {
     union {
@@ -73,15 +73,18 @@ struct YamlValue {
         std::vector<YamlValue*>* array;
         std::vector<YamlMappingEntry*>* mapping;
     } value;            /** @brief The value of the tagged union. */
+    const char* anchor; /** @brief The anchor. */
     YamlValueType type; /** @brief The tag of the tagged union. */
 
     /** @brief Constructs a value from a double. */
-    inline YamlValue(double value) : type(YamlValueTypeNumber) {
+    inline YamlValue(double value, const char* anchor = NULL)
+        : anchor(anchor), type(YamlValueTypeNumber) {
         this->value.number = value;
     }
 
     /** @brief Constructs a value from a boolean. */
-    inline YamlValue(bool value) : type(YamlValueTypeBoolean) {
+    inline YamlValue(bool value, const char* anchor = NULL)
+        : anchor(anchor), type(YamlValueTypeBoolean) {
         this->value.boolean = value;
     }
 
@@ -89,7 +92,8 @@ struct YamlValue {
      * @brief Constructs a value WITHOUT INITIALIZING IT, just setting it's
      * type.
      */
-    inline YamlValue(YamlValueType type) : type(type) {
+    inline YamlValue(YamlValueType type, const char* anchor = NULL)
+        : anchor(anchor), type(type) {
         switch (this->type) {
             case YamlValueTypeAlias:
                 this->value.alias = NULL;
@@ -112,6 +116,7 @@ struct YamlValue {
     }
 
     inline ~YamlValue() {
+        if (this->anchor != NULL) delete[] this->anchor;
         switch (this->type) {
             case YamlValueTypeAlias:
                 delete[] this->value.alias;
@@ -133,6 +138,23 @@ struct YamlValue {
                 break;
         }
     }
+
+    inline const char* TypeAsString() const {
+        switch (this->type) {
+            case YamlValueTypeString:
+                return "string";
+            case YamlValueTypeAlias:
+                return "alias";
+            case YamlValueTypeMapping:
+                return "mapping";
+            case YamlValueTypeArray:
+                return "array";
+            case YamlValueTypeBoolean:
+                return "boolean";
+            case YamlValueTypeNumber:
+                return "number";
+        }
+    }
 };
 
 // See the comment on the struct definition.
@@ -142,6 +164,16 @@ inline YamlMappingEntry::~YamlMappingEntry() {
     delete[] this->name;
     delete this->value;
 }
+
+/**
+ * @details Same as ParseFile but deals with include entries in the toplevel.
+ * Each `include` parameter in the root of each file will be treated either as a
+ * file path or an array of file paths.
+ * @param configFile name of the root configuration file.
+ * @return NULL on error. If not NULL, the caller must delete the returned value
+ * sometime.
+ */
+YamlValue* ParseFileWithIncludes(const char* configFile);
 
 /**
  * @details Opens a configuration file by name and parses it, including it's

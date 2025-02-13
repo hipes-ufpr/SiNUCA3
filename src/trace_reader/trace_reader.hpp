@@ -1,5 +1,5 @@
-#ifndef SINUCA3_SIMPLE_MEMORY_HPP_
-#define SINUCA3_SIMPLE_MEMORY_HPP_
+#ifndef SINUCA3_TRACE_READER_HPP_
+#define SINUCA3_TRACE_READER_HPP_
 
 //
 // Copyright (C) 2024  HiPES - Universidade Federal do Paraná
@@ -19,26 +19,34 @@
 //
 
 /**
- * @file simple_memory.hpp
- * @details Public API of the SimpleMemory: component for SiNUCA3 which just
- * responds immediatly for every request. I.e., the perfect memory: big and
- * works at the light speed!
+ * @file trace_reader.hpp
+ * @brief Pure virtual TraceReader class, that all trace readers must implement.
  */
 
 #include "../sinuca3.hpp"
 
-/**
- * @details SimpleMemory is a MemoryComponent that just responds immediatly for
- * every request. I.e., it's the perfect memory: big and works at the light
- * speed!
- */
-class SimpleMemory : public sinuca::Component<sinuca::MemoryPacket> {
-  public:
-    virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter,
-                                   sinuca::config::ConfigValue value);
-    virtual void Clock();
-    ~SimpleMemory();
+namespace sinuca {
+namespace traceReader {
+
+enum FetchResult {
+    FetchResultOk,
+    FetchResultEnd,
+    FetchResultError,
 };
 
-#endif  // SINUCA3_SIMPLE_MEMORY_HPP_
+/**
+ * @brief TraceReader is a pure virtual class that all trace readers must
+ * implement.
+ */
+class TraceReader {
+  public:
+    /** @brief Return non-zero on failure. */
+    virtual int OpenTrace(const char* traceFileName) = 0;
+    virtual void PrintStatistics() = 0;
+    virtual FetchResult Fetch(InstructionPacket* ret) = 0;
+};
+
+}  // namespace traceReader
+}  // namespace sinuca
+
+#endif  // SINUCA3_TRACE_READER_HPP_

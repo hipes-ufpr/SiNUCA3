@@ -24,6 +24,7 @@
  */
 
 #include "../sinuca3.hpp"
+#include "../trace_reader/trace_reader.hpp"
 #include "component.hpp"
 #include "linkable.hpp"
 
@@ -34,11 +35,16 @@ namespace engine {
 class Engine {
   private:
     /**
-     * @brief This component receives the instruction packets from the engine.
+     * @brief This components receives the instruction packets from the engine.
      */
-    Component<InstructionPacket>* root;
+    Component<InstructionPacket>** cpus;
+    long numberOfCPUs;
+    Linkable** components;
+    long numberOfComponents;
 
   public:
+    inline Engine(Linkable** components, long numberOfComponents)
+        : components(components), numberOfComponents(numberOfComponents) {}
     /**
      * @brief Don't call this method.
      * @details After reading the configuration file, the simulator calls this
@@ -50,14 +56,26 @@ class Engine {
      * Component<InstructionPacket>. 0 otherwise. Trying to start the simulation
      * after this method returns non-zero is undefined behaviour.
      */
-    int AddRoot(Linkable* root);
+    int AddCPUs(Linkable** cpus, long numberOfCPUs);
     /**
      * @brief Self-explanatory. Should be called only after AddRoot returned 0.
      * Causes undefined behaviour otherwise.
      * @returns Non-zero if the simulation stopped because of a problem. 0 if it
      * stopped normally.
      */
-    int Simulate();
+    int Simulate(traceReader::TraceReader* traceReader);
+
+    inline ~Engine() {
+        for (long i = 0; i < this->numberOfComponents; ++i)
+            delete this->components[i];
+        delete[] this->components;
+
+        // We shall only delete the CPUs if the engine was properly initialized.
+        if (this->cpus != NULL) {
+            for (long i = 0; i < this->numberOfCPUs; ++i) delete this->cpus[i];
+            delete[] this->cpus;
+        }
+    }
 };
 
 }  // namespace engine

@@ -23,6 +23,8 @@
  * @brief Configuration public API for SiNUCA3.
  */
 
+#include <vector>
+
 namespace sinuca {
 
 // Pre-declaration for ConfigValue as Linkable should not be included here as it
@@ -39,19 +41,49 @@ namespace config {
 enum ConfigValueType {
     ConfigValueTypeInteger,
     ConfigValueTypeNumber,
+    ConfigValueTypeBoolean,
+    ConfigValueTypeArray,
     ConfigValueTypeComponentReference,
+};
+
+struct ConfigValue;
+struct ConfigArray {
+    ConfigValue* items;
+    long size;
 };
 
 /**
  * @brief A single configuration parameter.
  */
 struct ConfigValue {
-    ConfigValueType type;
     union {
         long integer;
         double number;
+        bool boolean;
+        std::vector<ConfigValue>* array;
         engine::Linkable* componentReference;
     } value;
+    ConfigValueType type;
+
+    inline ConfigValue() {}
+
+    inline ConfigValue(long integer) : type(ConfigValueTypeInteger) {
+        this->value.integer = integer;
+    }
+    inline ConfigValue(double number) : type(ConfigValueTypeNumber) {
+        this->value.number = number;
+    }
+    inline ConfigValue(bool boolean) : type(ConfigValueTypeBoolean) {
+        this->value.boolean = boolean;
+    }
+    inline ConfigValue(std::vector<ConfigValue>* array)
+        : type(ConfigValueTypeArray) {
+        this->value.array = array;
+    }
+    inline ConfigValue(engine::Linkable* componentReference)
+        : type(ConfigValueTypeComponentReference) {
+        this->value.componentReference = componentReference;
+    }
 };
 
 }  // namespace config

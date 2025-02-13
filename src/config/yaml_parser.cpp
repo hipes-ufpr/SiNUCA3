@@ -25,6 +25,7 @@
 
 #include <yaml.h>
 
+#include <cassert>
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -91,9 +92,17 @@ static inline sinuca::yaml::YamlMappingEntry* ParseMappingEntry(
     return new sinuca::yaml::YamlMappingEntry(newStrName, value);
 }
 
-static inline sinuca::yaml::YamlValue* ParseMapping(yaml_parser_t* parser) {
+static inline sinuca::yaml::YamlValue* ParseMapping(yaml_parser_t* parser,
+                                                    const char* anchor) {
+    if (anchor != NULL) {
+        long anchorSize = strlen(anchor);
+        char* newAnchor = new char[anchorSize + 1];
+        memcpy((void*)newAnchor, (const void*)anchor, anchorSize + 1);
+        anchor = newAnchor;
+    }
+
     sinuca::yaml::YamlValue* mapping =
-        new sinuca::yaml::YamlValue(sinuca::yaml::YamlValueTypeMapping);
+        new sinuca::yaml::YamlValue(sinuca::yaml::YamlValueTypeMapping, anchor);
 
     yaml_event_t event;
     yaml_event_type_t eventType;
@@ -125,9 +134,17 @@ static inline sinuca::yaml::YamlValue* ParseMapping(yaml_parser_t* parser) {
     return mapping;
 }
 
-static inline sinuca::yaml::YamlValue* ParseSequence(yaml_parser_t* parser) {
+static inline sinuca::yaml::YamlValue* ParseSequence(yaml_parser_t* parser,
+                                                     const char* anchor) {
+    if (anchor != NULL) {
+        long anchorSize = strlen(anchor);
+        char* newAnchor = new char[anchorSize + 1];
+        memcpy((void*)newAnchor, (const void*)anchor, anchorSize + 1);
+        anchor = newAnchor;
+    }
+
     sinuca::yaml::YamlValue* array =
-        new sinuca::yaml::YamlValue(sinuca::yaml::YamlValueTypeArray);
+        new sinuca::yaml::YamlValue(sinuca::yaml::YamlValueTypeArray, anchor);
 
     yaml_event_t event;
 
@@ -157,17 +174,25 @@ static inline sinuca::yaml::YamlValue* ParseSequence(yaml_parser_t* parser) {
 }
 
 static inline sinuca::yaml::YamlValue* ParseScalar(const char* scalar,
-                                                   long scalarSize) {
+                                                   long scalarSize,
+                                                   const char* anchor) {
+    if (anchor != NULL) {
+        long anchorSize = strlen(anchor);
+        char* newAnchor = new char[anchorSize + 1];
+        memcpy((void*)newAnchor, (const void*)anchor, anchorSize + 1);
+        anchor = newAnchor;
+    }
+
     double number;
     if (sscanf(scalar, "%lf", &number) == 1)
-        return new sinuca::yaml::YamlValue(number);
+        return new sinuca::yaml::YamlValue(number, anchor);
     if (!strcmp(scalar, "true") || !strcmp(scalar, "yes"))
-        return new sinuca::yaml::YamlValue(true);
+        return new sinuca::yaml::YamlValue(true, anchor);
     if (!strcmp(scalar, "false") || !strcmp(scalar, "no"))
-        return new sinuca::yaml::YamlValue(false);
+        return new sinuca::yaml::YamlValue(false, anchor);
 
     sinuca::yaml::YamlValue* value =
-        new sinuca::yaml::YamlValue(sinuca::yaml::YamlValueTypeString);
+        new sinuca::yaml::YamlValue(sinuca::yaml::YamlValueTypeString, anchor);
     value->value.string = new char[scalarSize + 1];
     memcpy((void*)value->value.string, (const void*)scalar, scalarSize + 1);
     return value;
@@ -188,13 +213,16 @@ static inline sinuca::yaml::YamlValue* ParseYamlValueFromEvent(
             break;
         case YAML_SCALAR_EVENT:
             value = ParseScalar((const char*)event->data.scalar.value,
-                                event->data.scalar.length);
+                                event->data.scalar.length,
+                                (const char*)event->data.scalar.anchor);
             break;
         case YAML_MAPPING_START_EVENT:
-            value = ParseMapping(parser);
+            value = ParseMapping(parser,
+                                 (const char*)event->data.mapping_start.anchor);
             break;
         case YAML_SEQUENCE_START_EVENT:
-            value = ParseSequence(parser);
+            value = ParseSequence(
+                parser, (const char*)event->data.sequence_start.anchor);
             break;
         default:
             SINUCA3_DEBUG_PRINTF(
@@ -202,6 +230,7 @@ static inline sinuca::yaml::YamlValue* ParseYamlValueFromEvent(
                 __FILE_NAME__, __LINE__, event->type);
             break;
     }
+
     return value;
 }
 
@@ -216,7 +245,10 @@ static inline sinuca::yaml::YamlValue* ParseYamlValue(yaml_parser_t* parser) {
 
 sinuca::yaml::YamlValue* sinuca::yaml::ParseFile(const char* configFile) {
     FILE* fp = fopen(configFile, "r");
-    if (fp == NULL) return NULL;
+    if (fp == NULL) {
+        SINUCA3_ERROR_PRINTF("No such config file: %s.\n", configFile);
+        return NULL;
+    }
 
     // This only fails on allocation failure, and we don't care about them lmao.
     yaml_parser_t parser;
@@ -226,12 +258,125 @@ sinuca::yaml::YamlValue* sinuca::yaml::ParseFile(const char* configFile) {
     // We need to make sure the top level is a mapping because another thing
     // would make no sense.
     YamlValue* yaml = NULL;
-    if (!EnsureFileIsYamlMapping(&parser)) yaml = ParseMapping(&parser);
+    if (!EnsureFileIsYamlMapping(&parser)) yaml = ParseMapping(&parser, NULL);
 
     yaml_parser_delete(&parser);
 
     fclose(fp);
     return yaml;
+}
+
+// Pre-declaration for IncludeString as they're mutually recursive.
+int ProcessIncludeEntries(sinuca::yaml::YamlValue* config,
+                          const char* configFile);
+
+int IncludeString(std::vector<sinuca::yaml::YamlMappingEntry*>* config,
+                  const char* string) {
+    sinuca::yaml::YamlValue* newFileValue = sinuca::yaml::ParseFile(string);
+    if (newFileValue == NULL) return 1;
+
+    assert(newFileValue->type == sinuca::yaml::YamlValueTypeMapping);
+    std::vector<sinuca::yaml::YamlMappingEntry*>* newValues =
+        newFileValue->value.mapping;
+
+    if (ProcessIncludeEntries(newFileValue, string)) {
+        delete newFileValue;
+        return 1;
+    }
+
+    config->reserve(config->size() + newValues->size());
+    for (unsigned int i = 0; i < newValues->size(); ++i) {
+        config->push_back((*newValues)[i]);
+    }
+
+    // We should call clear before destroying the value so it does not destroy
+    // the values we copied to the other vector.
+    newValues->clear();
+    delete newFileValue;
+
+    return 0;
+}
+
+int IncludeArray(std::vector<sinuca::yaml::YamlMappingEntry*>* config,
+                 std::vector<sinuca::yaml::YamlValue*>* array,
+                 const char* configFile) {
+    for (unsigned int i = 0; i < array->size(); ++i) {
+        if ((*array)[i]->type != sinuca::yaml::YamlValueTypeString) {
+            SINUCA3_ERROR_PRINTF(
+                "while reading configuration file %s: include array members "
+                "should all be string.",
+                configFile);
+            return 1;
+        }
+
+        if (IncludeString(config, (*array)[i]->value.string)) return 1;
+    }
+
+    return 0;
+}
+
+int ProcessIncludeEntries(sinuca::yaml::YamlValue* config,
+                          const char* configFile) {
+    assert(config->type == sinuca::yaml::YamlValueTypeMapping);
+
+    std::vector<sinuca::yaml::YamlMappingEntry*>* configMapping =
+        config->value.mapping;
+
+    // We got two iterators because we must iterate every original entry, but we
+    // remove include entries while iterating.
+    unsigned int origSize = configMapping->size();
+    unsigned int index = 0;
+    for (unsigned int i = 0; i < origSize; ++i) {
+        if (strcmp((*configMapping)[index]->name, "include") == 0) {
+            sinuca::yaml::YamlMappingEntry* entry = (*configMapping)[index];
+            switch (entry->value->type) {
+                case sinuca::yaml::YamlValueTypeString:
+                    if (IncludeString(configMapping,
+                                      entry->value->value.string)) {
+                        SINUCA3_ERROR_PRINTF(
+                            "while reading configuration file %s.\n",
+                            configFile);
+                        return 1;
+                    }
+                    break;
+                case sinuca::yaml::YamlValueTypeArray:
+                    if (IncludeArray(configMapping, entry->value->value.array,
+                                     configFile)) {
+                        SINUCA3_ERROR_PRINTF(
+                            "while reading configuration file %s.\n",
+                            configFile);
+                        return 1;
+                    }
+                    break;
+                default:
+                    SINUCA3_ERROR_PRINTF(
+                        "while reading configuration file %s: include should "
+                        "be a string or an array of strings.\n",
+                        configFile);
+                    return 1;
+            }
+
+            delete (*configMapping)[index];
+            configMapping->erase(configMapping->begin() + index);
+        } else {
+            ++index;
+        }
+    }
+
+    return 0;
+}
+
+sinuca::yaml::YamlValue* sinuca::yaml::ParseFileWithIncludes(
+    const char* configFile) {
+    sinuca::yaml::YamlValue* config = sinuca::yaml::ParseFile(configFile);
+    if (config == NULL) return NULL;
+
+    if (ProcessIncludeEntries(config, configFile)) {
+        delete config;
+        return NULL;
+    }
+
+    return config;
 }
 
 #ifndef NDEBUG
@@ -248,7 +393,7 @@ void sinuca::yaml::PrintYaml(YamlValue* value) {
             printf("%s\n", value->value.string);
             break;
         case sinuca::yaml::YamlValueTypeAlias:
-            printf("%s\n", value->value.alias);
+            printf("*%s\n", value->value.alias);
             break;
         case sinuca::yaml::YamlValueTypeArray:
             printf("[\n");

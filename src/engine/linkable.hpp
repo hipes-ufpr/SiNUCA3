@@ -96,8 +96,6 @@ class Linkable {
      */
     int RetrieveResponseLinkable(const char* message, int channelID);
 
-    ~Linkable();
-
   public:
     /* Usually engine methods. */
 
@@ -142,6 +140,8 @@ class Linkable {
      * clock cycles.
      */
     virtual void Clock() = 0;
+
+    virtual ~Linkable();
 };
 
 }  // namespace engine
