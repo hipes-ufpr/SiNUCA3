@@ -44,7 +44,7 @@
 #ifndef NDEBUG
 #define SINUCA3_DEBUG_PRINTF(...) \
     {                             \
-        printf("[DEBUG]");        \
+        printf("[DEBUG] ");       \
         printf(__VA_ARGS__);      \
     }
 #else
