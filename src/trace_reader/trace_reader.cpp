@@ -16,25 +16,10 @@
 //
 
 /**
- * @file std_components.cpp
- * @brief Declaration of the std components.
+ * @file trace_reader.cpp
+ * @brief TraceReader's destructor.
  */
 
-#include <cstdlib>
-#include <cstring>
+#include "trace_reader.hpp"
 
-#include "../sinuca3.hpp"
-#include "engine_debug_component.hpp"
-#include "simple_memory.hpp"
-
-using namespace sinuca;
-
-engine::Linkable* sinuca::CreateDefaultComponentByClass(const char* name) {
-#ifndef NDEBUG
-    COMPONENT(EngineDebugComponent);
-#endif
-
-    COMPONENT(SimpleMemory);
-
-    return NULL;
-}
+sinuca::traceReader::TraceReader::~TraceReader() {}

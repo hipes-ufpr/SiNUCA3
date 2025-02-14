@@ -44,6 +44,7 @@ class TraceReader {
     virtual int OpenTrace(const char* traceFileName) = 0;
     virtual void PrintStatistics() = 0;
     virtual FetchResult Fetch(InstructionPacket* ret) = 0;
+    virtual ~TraceReader();
 };
 
 }  // namespace traceReader

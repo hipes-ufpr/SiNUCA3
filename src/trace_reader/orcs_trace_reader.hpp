@@ -152,6 +152,12 @@ class OrCSTraceReader : public TraceReader {
         gzclose(this->gzStaticTraceFile);
         gzclose(this->gzDynamicTraceFile);
         gzclose(this->gzMemoryTraceFile);
+
+        for (uint32_t bbl = 1; bbl < this->binaryTotalBBLs; bbl++)
+            delete[] this->binaryDict[bbl];
+
+        delete[] this->binaryDict;
+        delete[] this->binaryBBLSize;
     }
 };
 

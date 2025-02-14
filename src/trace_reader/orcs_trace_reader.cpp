@@ -37,7 +37,7 @@ int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::OpenTrace(
     fileName[0] = '\0';
     snprintf(fileName, sizeof(fileName), "%s.tid%d.stat.out.gz", traceFileName,
              0);
-    SINUCA3_DEBUG_PRINTF("Static File = %s => READY !\n", fileName);
+    SINUCA3_DEBUG_PRINTF("orcs: Static File = %s => READY !\n", fileName);
 
     // Open the .gz file.
     this->gzStaticTraceFile = gzopen(fileName, "ro");
@@ -46,7 +46,7 @@ int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::OpenTrace(
         return 1;
     }
 
-    SINUCA3_DEBUG_PRINTF("Static File = %s => READY !\n", fileName);
+    SINUCA3_DEBUG_PRINTF("orcs: Static File = %s => READY !\n", fileName);
 
     // Open the Dynamic Trace File.
     fileName[0] = '\0';
@@ -60,7 +60,7 @@ int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::OpenTrace(
                              fileName);
         return 1;
     }
-    SINUCA3_DEBUG_PRINTF("Dynamic File = %s => READY !\n", fileName);
+    SINUCA3_DEBUG_PRINTF("orcs: Dynamic File = %s => READY !\n", fileName);
 
     // Open the Memory Trace File.
     fileName[0] = '\0';
@@ -73,7 +73,7 @@ int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::OpenTrace(
         SINUCA3_ERROR_PRINTF("Could not open the memory file.\n%s\n", fileName);
         return 1;
     }
-    SINUCA3_DEBUG_PRINTF("Memory File = %s => READY !\n", fileName);
+    SINUCA3_DEBUG_PRINTF("orcs: Memory File = %s => READY !\n", fileName);
 
     // Set the trace reader controls.
     this->isInsideBBL = false;
@@ -192,13 +192,13 @@ int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::
         gzgets(this->gzStaticTraceFile, file_line, TRACE_LINE_SIZE);
         file_eof = gzeof(this->gzStaticTraceFile);
 
-        SINUCA3_DEBUG_PRINTF("Read: %s\n", file_line);
+        SINUCA3_DEBUG_PRINTF("orcs: Read: %s\n", file_line);
         if (file_line[0] == '\0' || file_line[0] == '#') {
             // If Comment, then ignore.
             continue;
         } else if (file_line[0] == '@') {
             // If New BBL.
-            SINUCA3_DEBUG_PRINTF("BBL %u with %u instructions.\n", bbl,
+            SINUCA3_DEBUG_PRINTF("orcs: BBL %u with %u instructions.\n", bbl,
                                  opcode);  // Debug from previous BBL.
             opcode = 0;
 
@@ -211,7 +211,7 @@ int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::
             }
         } else {
             // If Inside BBL.
-            SINUCA3_DEBUG_PRINTF("Opcode %u = %s", opcode, file_line);
+            SINUCA3_DEBUG_PRINTF("orcs: Opcode %u = %s", opcode, file_line);
             if (this->TraceStringToOpcode(file_line,
                                           &this->binaryDict[bbl][opcode])) {
                 return 1;
@@ -354,17 +354,17 @@ int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::TraceNextDynamic(
 
         // Analyze the trace line.
         if (file_line[0] == '\0' || file_line[0] == '#') {
-            SINUCA3_DEBUG_PRINTF("Dynamic trace line (empty/comment): %s\n",
-                                 file_line);
+            SINUCA3_DEBUG_PRINTF(
+                "orcs: Dynamic trace line (empty/comment): %s\n", file_line);
             continue;
         } else if (file_line[0] == '$') {
-            SINUCA3_DEBUG_PRINTF("Dynamic trace line (synchronization): %s\n",
-                                 file_line);
+            SINUCA3_DEBUG_PRINTF(
+                "orcs: Dynamic trace line (synchronization): %s\n", file_line);
             continue;
         } else {
             // BBL is always greater than 0.
             // If strtoul==0 the line could not be converted.
-            SINUCA3_DEBUG_PRINTF("Dynamic trace line: %s\n", file_line);
+            SINUCA3_DEBUG_PRINTF("orcs: Dynamic trace line: %s\n", file_line);
 
             *next_bbl = strtoul(file_line, NULL, 10);
             if (*next_bbl == 0) {
@@ -420,8 +420,8 @@ int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::TraceNextMemory(
 
         // Analyze the trace line.
         if (file_line[0] == '\0' || file_line[0] == '#') {
-            SINUCA3_DEBUG_PRINTF("Memory trace line (empty/comment): %s\n",
-                                 file_line);
+            SINUCA3_DEBUG_PRINTF(
+                "orcs: Memory trace line (empty/comment): %s\n", file_line);
             continue;
         } else {
             char *sub_string = NULL;
@@ -438,7 +438,7 @@ int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::TraceNextMemory(
                     count);
                 return 1;
             }
-            SINUCA3_DEBUG_PRINTF("Memory trace line: %s\n", file_line);
+            SINUCA3_DEBUG_PRINTF("orcs: Memory trace line: %s\n", file_line);
 
             sub_string = strtok_r(file_line, " ", &tmp_ptr);
             *mem_is_read = strcmp(sub_string, "R") == 0;
@@ -476,7 +476,7 @@ sinuca::traceReader::orcsTraceReader::OrCSTraceReader::TraceFetch(
 
     // Fetch new INSTRUCTION inside the static file.
     newOpcode = this->binaryDict[this->currectBBL][this->currectOpcode];
-    SINUCA3_DEBUG_PRINTF("BBL:%u  OPCODE:%u = %s\n", this->currectBBL,
+    SINUCA3_DEBUG_PRINTF("orcs: BBL:%u  OPCODE:%u = %s\n", this->currectBBL,
                          this->currectOpcode, newOpcode.opcodeAssembly);
 
     this->currectOpcode++;

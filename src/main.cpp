@@ -69,10 +69,11 @@ void usage() {
     // TODO: Make this pretty.
     SINUCA3_LOG_PRINTF(
         "Use -h to see this text, -c to set a configuration file (required for "
-        "simulation) and -l to see license information.\n"
+        "simulation), -t to set a trace (also required for simulation) and -l "
+        "to see license information.\n"
         "\n"
         "Other simulation options:\n"
-        "   -t <string> sets the trace reader to use (orcs, foo, bar, "
+        "   -T <string> sets the trace reader to use (orcs, foo, bar, "
         "TODO...)\n");
 }
 
@@ -92,16 +93,20 @@ sinuca::traceReader::TraceReader* AllocTraceReader(const char* traceReader) {
  */
 int main(int argc, char* const argv[]) {
     const char* rootConfigFile = NULL;
-    const char* traceReader = NULL;
+    const char* traceReaderName = NULL;
+    const char* traceFileName = NULL;
     char nextOpt;
 
-    while ((nextOpt = getopt(argc, argv, "lc:t:")) != -1) {
+    while ((nextOpt = getopt(argc, argv, "lc:t:T:")) != -1) {
         switch (nextOpt) {
             case 'c':
                 rootConfigFile = optarg;
                 break;
             case 't':
-                traceReader = optarg;
+                traceFileName = optarg;
+                break;
+            case 'T':
+                traceReaderName = optarg;
                 break;
             case 'l':
                 license();
@@ -116,12 +121,23 @@ int main(int argc, char* const argv[]) {
         usage();
         return 1;
     }
+    if (traceFileName == NULL) {
+        usage();
+        return 1;
+    }
 
     sinuca::config::EngineBuilder builder;
     sinuca::engine::Engine* engine = builder.Instantiate(rootConfigFile);
     if (engine == NULL) return 1;
 
-    engine->Simulate(AllocTraceReader(traceReader));
+    sinuca::traceReader::TraceReader* traceReader =
+        AllocTraceReader(traceReaderName);
+    if (traceReader == NULL) return 1;
+    if (traceReader->OpenTrace(traceFileName)) return 1;
+
+    engine->Simulate(traceReader);
+    delete engine;
+    delete traceReader;
 
     return 0;
 }

@@ -36,10 +36,13 @@ int sinuca::engine::Engine::AddCPUs(sinuca::engine::Linkable** cpus,
     // this way we got a better error message. Me when C++.
     for (long i = 0; i < numberOfCPUs; ++i) {
         // Ensure the component passed was a Component<InstructionPacket>.
-        this->cpus[i] = dynamic_cast<Component<InstructionPacket>*>(cpus[i]);
+        this->cpus[i] =
+            dynamic_cast<Component<sinuca::InstructionPacket>*>(cpus[i]);
         // If it wasn't, we error out.
         if (this->cpus[i] == NULL) {
             delete[] this->cpus;
+            // This pointer must be grounded due to the destructor.
+            this->cpus = NULL;
             SINUCA3_ERROR_PRINTF(
                 "CPU number %ld is not of type Component<InstructionPacket>.\n",
                 i);
