@@ -22,25 +22,27 @@
 
 #include "linkable.hpp"
 
+#include <cstddef>
+
 /* Métodos a comentar */
-bool Buffer::isAllocated() const {
-    return (this->buffer != nullptr);
+bool sinuca::engine::Buffer::isAllocated() const {
+    return (this->buffer != NULL);
 };
 
-void Buffer::allocate(int bufferSize, int messageSize) {
+void sinuca::engine::Buffer::allocate(int bufferSize, int messageSize) {
     this->occupation = 0;
     this->startOfBuffer = 0;
     this->endOfBuffer = 0;
     this->bufferSize = bufferSize;
     this->messageSize = messageSize;
-    this->buffer = ::operator new(bufferSize * messageSize);
+    this->buffer = (void*)new char[bufferSize * messageSize];
 
     if (!(this->buffer)) {
-        this->buffer = nullptr;
+        this->buffer = NULL;
     }
 };
 
-int Buffer::enqueue(void* element) {
+int sinuca::engine::Buffer::enqueue(void* element) {
     if (occupation < bufferSize) {
         void* target = static_cast<char*>(buffer) + (endOfBuffer * messageSize);
         memcpy(target, element, messageSize);
@@ -57,10 +59,11 @@ int Buffer::enqueue(void* element) {
     return 0;
 };
 
-void* Buffer::dequeue() {
+void* sinuca::engine::Buffer::dequeue() {
     if (occupation > 0) {
-        void* element = static_cast<char*>(buffer) + (startOfBuffer * messageSize);
-    
+        void* element =
+            static_cast<char*>(buffer) + (startOfBuffer * messageSize);
+
         --occupation;
         ++startOfBuffer;
 
@@ -71,16 +74,12 @@ void* Buffer::dequeue() {
         return element;
     }
 
-    return nullptr;
+    return NULL;
 };
 
-int Buffer::getStart() {
-    return startOfBuffer;
-};
+int sinuca::engine::Buffer::getStart() { return startOfBuffer; };
 
-int Buffer::getEnd() {
-    return endOfBuffer;
-};
+int sinuca::engine::Buffer::getEnd() { return endOfBuffer; };
 
 sinuca::engine::Linkable::Linkable(long bufferSize, long numberOfBuffers)
     : bufferSize(bufferSize), numberOfBuffers(numberOfBuffers) {}

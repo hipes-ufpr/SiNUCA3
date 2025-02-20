@@ -23,45 +23,50 @@
  * @brief Public API of the Linkable class.
  */
 
-#include "../config/config.hpp"
-#include <new>
+#include <cstddef>
 #include <cstring>
 
-/* Documentar classe */
-class Buffer {
-	private:
-		void *buffer;
-		int occupation;
-		int bufferSize;
-		int messageSize;
-		int startOfBuffer;
-		int endOfBuffer;
-	
-	public:
-		Buffer() : buffer(nullptr), occupation(0), bufferSize(0), messageSize(0), startOfBuffer(0), endOfBuffer(0) {};
-
-		bool isAllocated() const;
-
-		void allocate(int bufferSize, int messageSize);
-		
-		int enqueue(void* element);
-
-		void* dequeue();
-
-		int getStart();
-
-		int getEnd();
-
-		~Buffer() {
-			if (this->buffer) {
-				::operator delete(this->buffer);
-			}
-		};
-};
+#include "../config/config.hpp"
 
 namespace sinuca {
 namespace engine {
+/* Documentar classe */
+class Buffer {
+  private:
+    void* buffer;
+    int occupation;
+    int bufferSize;
+    int messageSize;
+    int startOfBuffer;
+    int endOfBuffer;
 
+  public:
+    Buffer()
+        : buffer(NULL),
+          occupation(0),
+          bufferSize(0),
+          messageSize(0),
+          startOfBuffer(0),
+          endOfBuffer(0){};
+
+    bool isAllocated() const;
+
+    void allocate(int bufferSize, int messageSize);
+
+    int enqueue(void* element);
+
+    void* dequeue();
+
+    int getStart();
+
+    int getEnd();
+
+    ~Buffer() {
+        if (this->buffer) {
+            delete[] (char*)this->buffer;
+        }
+    };
+};
 /**
  * @brief Do not inherit directly from this class.
  * @details This class implements the message-passing of the components in a
