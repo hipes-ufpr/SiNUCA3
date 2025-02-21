@@ -24,28 +24,27 @@
 
 #include <cstddef>
 
-/* Métodos a comentar */
-inline bool sinuca::engine::CircularBuffer::isAllocated() const {
+inline bool sinuca::engine::CircularBuffer::IsAllocated() const {
     return (this->buffer != NULL);
 };
 
-inline int sinuca::engine::CircularBuffer::getSize() const {
+inline int sinuca::engine::CircularBuffer::GetSize() const {
     return (this->bufferSize);
 };
 
-inline int sinuca::engine::CircularBuffer::getOccupation() const {
+inline int sinuca::engine::CircularBuffer::GetOccupation() const {
     return (this->occupation);
 };
 
-inline bool sinuca::engine::CircularBuffer::isFull() const {
+inline bool sinuca::engine::CircularBuffer::IsFull() const {
     return (this->occupation == this->bufferSize);
 };
 
-inline bool sinuca::engine::CircularBuffer::isEmpty() const {
+inline bool sinuca::engine::CircularBuffer::IsEmpty() const {
     return (this->occupation == 0);
 };
 
-void sinuca::engine::CircularBuffer::allocate(int bufferSize, int messageSize) {
+void sinuca::engine::CircularBuffer::Allocate(int bufferSize, int messageSize) {
     this->occupation = 0;
     this->startOfBuffer = 0;
     this->endOfBuffer = 0;
@@ -58,8 +57,8 @@ void sinuca::engine::CircularBuffer::allocate(int bufferSize, int messageSize) {
     }
 };
 
-int sinuca::engine::CircularBuffer::enqueue(void* element) {
-    if (!(this->isFull())) {
+int sinuca::engine::CircularBuffer::Enqueue(void* element) {
+    if (!(this->IsFull())) {
         /*
          * Target stores the memory address where the element should be
          * inserted, based on pointer arithmetic. After its definition, memcpy
@@ -80,8 +79,8 @@ int sinuca::engine::CircularBuffer::enqueue(void* element) {
     return 0;
 };
 
-void* sinuca::engine::CircularBuffer::dequeue() {
-    if (!(this->isEmpty())) {
+void* sinuca::engine::CircularBuffer::Dequeue() {
+    if (!(this->IsEmpty())) {
         /*
          * Element stores the memory address of the oldest element in the Buffer
          * (the one that should be removed). Although there is no need to clear

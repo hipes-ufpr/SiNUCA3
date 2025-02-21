@@ -37,7 +37,7 @@ ou .c dentro de `src/` e ele será automaticamente detectado pelo sistema de
 build. Para criar seus próprios componentes, pode ser uma boa ideia manter tudo
 organizado e colocá-los no diretório `src/custom/`.
 
-Você também deverá adicionar seus commponentes ao arquivo `config.cpp`.
+Você também deverá adicionar seus componentes ao arquivo `config.cpp`.
 
 A maior parte da API é acessível pelo header `sinuca3.hpp`.
 

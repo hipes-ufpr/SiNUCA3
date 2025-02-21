@@ -57,45 +57,45 @@ class CircularBuffer {
     /**
      * @brief Returns a boolean indicating whether the Buffer is allocated.
      */
-    inline bool isAllocated() const;
+    inline bool IsAllocated() const;
 
     /**
      * @brief Returns the size of Buffer.
      */
-    inline int getSize() const;
+    inline int GetSize() const;
 
     /**
      * @brief Returns the occupation of Buffer.
      */
-    inline int getOccupation() const;
+    inline int GetOccupation() const;
 
     /**
      * @brief Returns a boolean indicating whether the Buffer is full.
      */
-    inline bool isFull() const;
+    inline bool IsFull() const;
 
     /**
      * @brief Returns a boolean indicating whether the Buffer is empty.
      */
-    inline bool isEmpty() const;
+    inline bool IsEmpty() const;
 
     /**
      * @brief Allocates the structure of a Circular Buffer.
      * @param bufferSize self-explanatory.
      * @param messageSize self-explanatory.
      */
-    void allocate(int bufferSize, int messageSize);
+    void Allocate(int bufferSize, int messageSize);
 
     /**
      * @brief Inserts the element at the "top" of the buffer.
      */
-    int enqueue(void* element);
+    int Enqueue(void* element);
 
     /**
      * @brief Removes and returns the element contained in the "base" of the
      * Buffer.
      */
-    void* dequeue();
+    void* Dequeue();
 
     ~CircularBuffer() {
         if (this->buffer) {
