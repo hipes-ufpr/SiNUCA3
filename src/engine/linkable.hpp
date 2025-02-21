@@ -30,7 +30,12 @@
 
 namespace sinuca {
 namespace engine {
-/* Documentar classe */
+
+/**
+ * @brief Circular Buffer Class
+ * @details This class implements a Circular Buffer, useful for several other
+ * classes within the simulator.
+ */
 class CircularBuffer {
   private:
     void* buffer;
@@ -49,20 +54,47 @@ class CircularBuffer {
           startOfBuffer(0),
           endOfBuffer(0){};
 
+    /**
+     * @brief Returns a boolean indicating whether the Buffer is allocated.
+     */
     inline bool isAllocated() const;
 
+    /**
+     * @brief Returns the size of Buffer.
+     */
     inline int getSize() const;
 
+    /**
+     * @brief Returns the occupation of Buffer.
+     */
     inline int getOccupation() const;
 
+    /**
+     * @brief Returns a boolean indicating whether the Buffer is full.
+     */
     inline bool isFull() const;
 
+    /**
+     * @brief Returns a boolean indicating whether the Buffer is empty.
+     */
     inline bool isEmpty() const;
 
+    /**
+     * @brief Allocates the structure of a Circular Buffer.
+     * @param bufferSize self-explanatory.
+     * @param messageSize self-explanatory.
+     */
     void allocate(int bufferSize, int messageSize);
 
+    /**
+     * @brief Inserts the element at the "top" of the buffer.
+     */
     int enqueue(void* element);
 
+    /**
+     * @brief Removes and returns the element contained in the "base" of the
+     * Buffer.
+     */
     void* dequeue();
 
     ~CircularBuffer() {

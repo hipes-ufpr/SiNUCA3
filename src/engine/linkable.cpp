@@ -59,7 +59,12 @@ void sinuca::engine::CircularBuffer::allocate(int bufferSize, int messageSize) {
 };
 
 int sinuca::engine::CircularBuffer::enqueue(void* element) {
-    if (occupation < bufferSize) {
+    if (!(this->isFull())) {
+        /*
+         * Target stores the memory address where the element should be
+         * inserted, based on pointer arithmetic. After its definition, memcpy
+         * stores the element in the most recent position in the buffer.
+         */
         void* target = static_cast<char*>(buffer) + (endOfBuffer * messageSize);
         memcpy(target, element, messageSize);
         ++occupation;
@@ -76,7 +81,13 @@ int sinuca::engine::CircularBuffer::enqueue(void* element) {
 };
 
 void* sinuca::engine::CircularBuffer::dequeue() {
-    if (occupation > 0) {
+    if (!(this->isEmpty())) {
+        /*
+         * Element stores the memory address of the oldest element in the Buffer
+         * (the one that should be removed). Although there is no need to clear
+         * the space of this element, the buffer limits are readjusted to avoid
+         * unauthorized access.
+         */
         void* element =
             static_cast<char*>(buffer) + (startOfBuffer * messageSize);
 
