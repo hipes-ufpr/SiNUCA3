@@ -1,3 +1,8 @@
+/**
+ * @file circularBuffer.cpp
+ * @brief Implementation of CircularBuffer class
+ */
+
 #include "circularBuffer.hpp"
 
 inline bool CircularBuffer::IsAllocated() const {

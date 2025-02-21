@@ -23,7 +23,6 @@
  * @brief Public API of the Linkable class.
  */
 
-#include <cstring>
 #include "../config/config.hpp"
 
 namespace sinuca {

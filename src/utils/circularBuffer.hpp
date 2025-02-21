@@ -1,4 +1,5 @@
 /**
+ * @file circularBuffer.hpp
  * @brief Circular Buffer Class
  * @details This class implements a Circular Buffer, useful for several other
  * classes within the simulator.
