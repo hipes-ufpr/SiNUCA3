@@ -53,6 +53,8 @@ sinuca::config::EngineBuilder::AddDummyInstance(const char* alias) {
 
 sinuca::builder::ComponentDefinition*
 sinuca::config::EngineBuilder::GetComponentDefinition(const char* name) {
+    if (name == NULL) return NULL;
+
     for (unsigned int i = 0; i < this->componentDefinitions.size(); ++i) {
         if (strcmp(this->componentDefinitions[i].name, name) == 0)
             return &this->componentDefinitions[i];
@@ -566,8 +568,21 @@ sinuca::engine::Engine* sinuca::config::EngineBuilder::Instantiate(
         if (this->SetupComponentConfig(&coresInstantiations[i]))
             return this->FreeSelfOnInstantiationFailure(yamlConfig);
     }
+    for (unsigned long i = 0; i < coresInstantiations.size(); ++i) {
+        coresInstantiations[i].component =
+            CreateComponent(coresInstantiations[i].definition->clazz);
 
-    return this->BuildEngine(&coresInstantiations);
+        // No such class.
+        if (coresInstantiations[i].component == NULL) {
+            SINUCA3_ERROR_PRINTF("No such component class: %s.",
+                                 coresInstantiations[i].definition->clazz);
+            return this->FreeSelfOnInstantiationFailure(yamlConfig);
+        }
+    }
+
+    engine::Engine* engine = this->BuildEngine(&coresInstantiations);
+    delete yamlConfig;
+    return engine;
 }
 
 sinuca::engine::Engine* sinuca::config::EngineBuilder::BuildEngine(
@@ -575,6 +590,9 @@ sinuca::engine::Engine* sinuca::config::EngineBuilder::BuildEngine(
     long numberOfComponents = this->components.size();
     engine::Linkable** components = new engine::Linkable*[numberOfComponents];
     engine::Linkable** cores = new engine::Linkable*[this->numberOfCores];
+
+    assert(components != NULL);
+    assert(cores != NULL);
 
     for (long i = 0; i < numberOfComponents; ++i)
         components[i] = this->components[i].component;

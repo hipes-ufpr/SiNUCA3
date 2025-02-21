@@ -42,8 +42,11 @@ class TraceReader {
   public:
     /** @brief Return non-zero on failure. */
     virtual int OpenTrace(const char* traceFileName) = 0;
+    virtual unsigned long GetTraceSize() = 0;
+    virtual unsigned long GetNumberOfFetchedInstructions() = 0;
     virtual void PrintStatistics() = 0;
     virtual FetchResult Fetch(InstructionPacket* ret) = 0;
+    virtual ~TraceReader();
 };
 
 }  // namespace traceReader

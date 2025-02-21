@@ -39,27 +39,27 @@ void EngineDebugComponent::PrintConfigValue(const char* parameter,
 
     switch (value.type) {
         case sinuca::config::ConfigValueTypeArray:
-            SINUCA3_DEBUG_PRINTF("%p: %s %s%s%s", this, parameter, indentChars,
-                                 indentChars, "array: ");
+            SINUCA3_DEBUG_PRINTF("%p: %s %s%s%s\n", this, parameter,
+                                 indentChars, indentChars, "array: ");
             for (unsigned long i = 0; i < value.value.array->size(); ++i)
                 this->PrintConfigValue(parameter, (*value.value.array)[i],
                                        indent + 1);
             return;
         case sinuca::config::ConfigValueTypeBoolean:
-            SINUCA3_DEBUG_PRINTF("%p: %s %s%sbool: %s", this, parameter,
+            SINUCA3_DEBUG_PRINTF("%p: %s %s%sbool: %s\n", this, parameter,
                                  indentChars, indentChars,
                                  value.value.boolean ? "true" : "false");
             return;
         case sinuca::config::ConfigValueTypeNumber:
-            SINUCA3_DEBUG_PRINTF("%p: %s %s%snumber: %f", this, parameter,
+            SINUCA3_DEBUG_PRINTF("%p: %s %s%snumber: %f\n", this, parameter,
                                  indentChars, indentChars, value.value.number);
             return;
         case sinuca::config::ConfigValueTypeInteger:
-            SINUCA3_DEBUG_PRINTF("%p: %s %s%sinteger: %ld", this, parameter,
+            SINUCA3_DEBUG_PRINTF("%p: %s %s%sinteger: %ld\n", this, parameter,
                                  indentChars, indentChars, value.value.integer);
             return;
         case sinuca::config::ConfigValueTypeComponentReference:
-            SINUCA3_DEBUG_PRINTF("%p: %s %s%sreference: %p", this, parameter,
+            SINUCA3_DEBUG_PRINTF("%p: %s %s%sreference: %p\n", this, parameter,
                                  indentChars, indentChars,
                                  value.value.componentReference);
             return;
