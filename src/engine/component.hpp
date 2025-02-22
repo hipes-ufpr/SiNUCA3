@@ -44,41 +44,65 @@ namespace sinuca {
 template <typename MessageType>
 class Component : public engine::Linkable {
   public:
-    /* Other component methods. */
+    /**
+     * @param messageSize The size of the message that will be used by the
+     * component.
+     */
+    inline Component() : engine::Linkable(sizeof(MessageType)) {}
 
     /**
-     * @brief This method should be called by other components to send a message
-     * to the component.
+     * @brief Connects to another component.
+     * @param component The component to connect to.
+     * @param bufferSize The size of the buffer to be used.
+     * @return The connection ID.
+     */
+    int ConnectTo(Linkable* component, int bufferSize) {
+        return component->Connect(bufferSize);
+    };
+
+    /**
+     * @brief Sends a request to another component.
+     * @param component The component to send the request to.
+     * @param connectionID The connection ID.
      * @param message The message to send.
-     * @param channelID The ID of the channel on which to send the message.
-     * @returns Non-zero if the message cannot be sent (i.e., there's no space
-     * left for buffering, case where the sender may want to buffer itself the
-     * message for trying again in the next cycles or just give up trying to
-     * send). 0 otherwise.
+     * @return 1 if successful, 0 otherwise.
      */
-    inline int SendMessage(const MessageType message, int channelID) {
-        return this->SendMessageLinkable((const char*)&message, channelID);
-    }
-    /**
-     * @brief This method should be called by other components to read the
-     * response buffered.
-     * @param message The buffer on which to copy the response message.
-     * @param channelID The ID of the channel from which to retrieve a response.
-     * @returns Non-zero if there's no response buffered yet. In this case,
-     * message is not touched. 0 otherwise, and message is populated with the
-     * response.
-     */
-    inline int RetrieveResponse(MessageType* message, int channelID) {
-        return this->RetrieveResponseLinkable((const char*)&message, channelID);
-    }
+    int SendRequestTo(Linkable* component, int connectionID, void* message) {
+        return component->ReceiveRequest(connectionID, message);
+    };
 
     /**
-     * @param numberOfBuffers 0 to allow an infinite amount of messages to be
-     * buffered (i.e., the simulation ignores the fact that messages have to be
-     * buffered at all). This is per connection.
+     * @brief Receives a response from another component.
+     * @param component The component to receive the response from.
+     * @param connectionID The connection ID.
+     * @param message The message to receive.
+     * @return 1 if successful, 0 otherwise.
      */
-    inline Component(long numberOfBuffers = 0)
-        : engine::Linkable(sizeof(MessageType), numberOfBuffers) {}
+    int ReceiveResponseFrom(Linkable* component, int connectionID,
+                            void* message) {
+        return component->GetResponse(connectionID, message);
+    };
+    
+    /**
+     * @brief Sends a response to another component.
+     * @param component The component to send the response to.
+     * @param connectionID The connection ID.
+     * @param message The message to send.
+     * @return 1 if successful, 0 otherwise.
+     */
+    int SendResponseToConnection(int connectionID, void* message) {
+        return this->SendResponse(connectionID, message);
+    };
+
+    /**
+     * @brief Receives a request from another component.
+     * @param connectionID The connection ID.
+     * @param message The message to receive.
+     * @return 1 if successful, 0 otherwise.
+     */
+    int ReceiveRequestFromConnection(int connectionID, void* message) {
+        return this->GetRequest(connectionID, message);
+    };
 
     inline ~Component() {}
 };

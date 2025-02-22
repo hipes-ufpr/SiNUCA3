@@ -134,15 +134,18 @@ int sinuca::config::EngineBuilder::Yaml2Parameter(const char* name,
             dest->value.referenceToDefinition =
                 this->AddComponentDefinitionFromYamlMapping(name,
                                                             src->value.mapping);
+                                                            dest->type = builder::ParameterTypeDefinitionReference;
             if (dest->value.referenceToDefinition == NULL) return 1;
             break;
         case yaml::YamlValueTypeString:
             dest->value.referenceToDefinition =
                 this->GetComponentDefinitionOrMakeDummy(src->value.string);
+                dest->type = builder::ParameterTypeDefinitionReference;
             break;
         case yaml::YamlValueTypeAlias:
             dest->value.referenceToInstance =
                 this->GetComponentInstantiationOrMakeDummy(src->value.alias);
+                dest->type = builder::ParameterTypeInstanceReference;
             break;
     }
 
@@ -179,7 +182,7 @@ int sinuca::config::EngineBuilder::FillParametersAndClass(
 
     definition->clazz = NULL;
 
-    if (config->size() == 0 || strcmp((*config)[0]->name, "class") != 0) {
+    if (config->size() == 0) {
         SINUCA3_ERROR_PRINTF(
             "While trying to define component %s: parameter `class` not "
             "provided.\n",
@@ -203,7 +206,7 @@ int sinuca::config::EngineBuilder::FillParametersAndClass(
 
         // If we're on the last item and class was not provided, appending would
         // overflow, but we know that class was not provided!
-        if (definition->clazz == NULL) {
+        if (i == config->size() && definition->clazz == NULL) {
             SINUCA3_ERROR_PRINTF(
                 "While trying to define component %s: parameter `class` was "
                 "not provided.\n",

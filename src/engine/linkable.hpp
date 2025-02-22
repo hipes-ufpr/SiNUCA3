@@ -24,9 +24,85 @@
  */
 
 #include "../config/config.hpp"
+#include "../utils/circularBuffer.hpp"
+
+static const int SOURCE_ID = 0;
+static const int DEST_ID = 1;
 
 namespace sinuca {
 namespace engine {
+
+struct Connection {
+  private:
+    int bufferSize;
+    int messageSize;
+    CircularBuffer requestBuffers[2];  /**<Array of the request buffers, swapped
+                                           each cycle.*/
+    CircularBuffer responseBuffers[2]; /**<Array of the response buffers,
+                                           swapped each cycle.*/
+
+  public:
+    Connection() : bufferSize(0), messageSize(0){};
+
+    /**
+     * @brief Allocate the buffers used to channels
+     * @param bufferSize self-explanatory.
+     * @param messageSize self-explanatory.
+     */
+    void CreateBuffers(int bufferSize, int messageSize);
+
+    /**
+     * @brief Free the memory allocated for the buffers.
+     */
+    void DeleteBuffers();
+
+    /**
+     * @brief Self-explanatory
+     */
+    inline int GetBufferSize() const;
+
+    /**
+     * @brief Self-explanatory
+     */
+    inline int GetMessageSize() const;
+
+    /**
+     * @brief Swap the buffers of the connection.
+     */
+    void swapBuffers();
+
+    /**
+     * @brief Insert a message into a requestBuffer.
+     * @param id The id of the buffer.
+     * @param messageInput A pointer to the message to send.
+     * @return 1 if successfuly, 0 otherwise.
+     */
+    bool InsertIntoRequestBuffer(int id, void* messageInput);
+
+    /**
+     * @brief Send a message into a responseBuffer.
+     * @param id The id of the buffer.
+     * @param messageInput A pointer to the message to send.
+     * @return 1 if successfuly, 0 otherwise.
+     */
+    bool InsertIntoResponseBuffer(int id, void* messageInput);
+
+    /**
+     * @brief Remove a request from a requestBuffer.
+     * @param id The id of the buffer.
+     * @param messageOutput Address where to send the message.
+     * @return 1 if successfuly, 0 otherwise.
+     */
+    bool RemoveFromARequestBuffer(int id, void* messageOutput);
+
+    /**
+     * @brief Remove a response from a responseBuffer.
+     * @param id The id of the  buffer.
+     * @param messageOutput Address where to send the message.
+     * @return 1 if successfuly, 0 otherwise.
+     */
+    bool RemoveFromAResponseBuffer(int id, void* messageOutput);
+};
 
 /**
  * @brief Do not inherit directly from this class.
@@ -40,65 +116,33 @@ namespace engine {
  */
 class Linkable {
   private:
-    /**
-     * @brief sizeof(MessageType).
-     */
-    long bufferSize;
-    /**
-     * @brief When zero, allows an infinite amount of messages to be buffered
-     * (bounded by your computer memory).
-     */
-    long numberOfBuffers;
-    /**
-     * @brief Counts how much connections other components have initialized.
-     */
-    long numberOfConnections;
-    /**
-     * @brief Array of all connections buffers.
-     */
-    char* buffers;  // No I'm not using vector for this.
-    /**
-     * @brief Array of the request buffers, swapped each cycle.
-     */
-    char* requestBuffers[2];
-    /**
-     * @brief Array of the response buffers, swapped each cycle.
-     */
-    char* responseBuffers[2];
+    long messageSize;
+    long numberOfConnections; /**< Counts how much connections other components
+                                  have initialized. */
+
+    std::vector<Connection*>
+        connections; /**< Array of all connections buffers.*/
 
   protected:
-    /**
-     * @brief Constructor.
-     * @param bufferSize self-explanatory (message buffer size).
-     * @param numberOfBuffers number of buffers per connection. When zero,
-     * allows an infinite amount of messages to be buffered.
-     */
-    Linkable(long bufferSize, long numberOfBuffers);
     /**
      * @brief Allocates the buffers with the specified number of connections.
      * @param numberOfConnections Self-explanatory.
      */
-    void AllocateBuffers(long numberOfConnections);
+    void AllocateConnectionsBuffer(long numberOfConnections);
+
     /**
-     * @brief Self-explanatory. The -Linkable suffix avoids clashes with the
-     * higher-level wrapper methods from the Component<T> children class
-     * template.
-     * @param message The buffer with the message to send.
-     * @param channelID The channel ID to which send the message.
+     * @brief Frees memory allocated for connections
      */
-    int SendMessageLinkable(const char* message, int channelID);
+    void DeallocateConnectionsBuffer();
+
     /**
-     * @brief Self-explanatory. The -Linkable suffix avoids clashes with the
-     * higher-level wrapper methods from the Component<T> children class
-     * template.
-     * @param message The buffer with the message to retrieve.
-     * @param channelID The channel ID from which to retrieve the message.
+     * @brief Add the new connection in the connections array.
+     * @param newConnection self-explanatory.
      */
-    int RetrieveResponseLinkable(const char* message, int channelID);
+    void AddConnection(Connection* newConnection);
 
   public:
-    /* Usually engine methods. */
-
+    Linkable(int messageSize);
     /**
      * @brief Don't call this method.
      * @details The engine calls this method before each clock cycle to swap the
@@ -121,6 +165,66 @@ class Linkable {
      * for printing a proper error message describing what happened.
      * @returns Non-zero on error, 0 otherwise.
      */
+
+    /**
+     * @brief Connect to *this* component.
+     * @param bufferSize The size of the buffer used in the connection.
+     * @param messageSize The size of the message stored in the buffer.
+     * @details Method used by other components to connect to *this* component,
+     * establishing a connection where *this* component is the one that responds
+     * to received messages.
+     * @return Returns the id of connection on the receiving component
+     */
+    int Connect(int bufferSize);
+
+    /**
+     * @brief Receive a request from other component. (The other calls this
+     * method)
+     * @details This method is called to send a request message to *this*
+     * linkable. Referencing the method name, this linkable *receives* a request
+     * in its own connection request buffer.
+     * @param connectionID The id of the connection.
+     * @param messageInput A pointer to the message to send.
+     * @return 1 if successfuly, 0 otherwise.
+     */
+    int ReceiveRequest(int connectionID, void* messageInput);
+
+    /**
+     * @brief Gets a request message in the parameter.
+     * @details This method is called to get a request message from a request
+     * buffer, so to receive the message, *this* linkable calls this method, and
+     * the message sent is inserted into the memory region pointed to by the
+     * messageOutput parameter.
+     * @param connectionID The id of the connection.
+     * @param messageOutput A pointer to the message to receive.
+     * @return 1 if successfuly, 0 otherwise.
+     */
+    int GetRequest(int connectionID, void* messageOutput);
+
+    /**
+     * @brief Sends a reply to the connection.
+     * @details This method is called to insert a reply message into the
+     * connection's reply buffer. Therefore, the linkable only inserts the
+     * response message into the buffer.
+     * @param connectionID The id of the connection.
+     * @param messageInput A pointer to the message to send.
+     * @return 1 if successfuly, 0 otherwise.
+     */
+    int SendResponse(int connectionID, void* messageInput);
+
+    /**
+     * @brief Gets a response message in the parameter. (The other calls this
+     * method)
+     * @details This method is called to get a response message from a response
+     * buffer, so to receive the message, the component calls this method, and
+     * the message sent is inserted into the memory region pointed to by the
+     * messageOutput parameter.
+     * @param connectionID The id of the connection.
+     * @param messageOutput A pointer to the message to receive.
+     * @return 1 if successfuly, 0 otherwise.
+     */
+    int GetResponse(int connectionID, void* messageOutput);
+
     virtual int FinishSetup() = 0;
     /**
      * @brief This method should be declared here so the simulator can send
