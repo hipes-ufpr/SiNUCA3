@@ -25,10 +25,11 @@
 
 #include <stdint.h>  // uint32_t
 #include <cstdio>
-
 #include <cstring>
-
 #include "trace_reader.hpp"
+
+#define MAX_REGISTERS 32
+#define MAX_MEM_OPERATIONS 16
 
 const int TRACE_LINE_SIZE = 512;
 
@@ -73,32 +74,36 @@ enum Branch {
 
 struct OpcodePackage {
     char opcodeAssembly[TRACE_LINE_SIZE];
-    uint64_t opcodeAddress;
-    uint32_t opcodeSize;
+    // instruction_operation_t opcode_operation; //
+    // uint32_t instruction_id; //
+    
+    long opcodeAddress;
+    unsigned int opcodeSize;
+    unsigned int baseReg;
+    unsigned int indexReg;
 
-    uint32_t readRegs[16];
-    uint32_t writeRegs[16];
+    int32_t readRegs[MAX_REGISTERS];
+    int32_t writeRegs[MAX_REGISTERS];
 
-    uint32_t baseReg;
-    uint32_t indexReg;
 
-    bool isRead;
-    uint64_t readAddress;
-    uint32_t readSize;
+    // long readsAddr[MAX_MEM_OPERATIONS]; //
+    unsigned int readsSize[MAX_MEM_OPERATIONS];
+    unsigned int numReads;
 
-    bool isRead2;
-    uint64_t read2Address;
-    uint32_t read2Size;
-
-    bool isWrite;
-    uint64_t writeAddress;
-    uint32_t writeSize;
+    // long writesAddr[MAX_MEM_OPERATIONS]; //
+    unsigned int writesSize[MAX_MEM_OPERATIONS];
+    unsigned int numWrites;
 
     Branch branchType;
+    bool isControlFlow;
     bool isIndirect;
-
     bool isPredicated;
     bool isPrefetch;
+    bool isHive;
+    int32_t hive_read1 = -1;
+    int32_t hive_read2 = -1;
+    int32_t hive_write = -1;
+    bool isVima;
 
     inline OpcodePackage() {
         memset(this, 0, sizeof(*this));
@@ -116,35 +121,35 @@ class SinucaTraceReader : public TraceReader {
 
     // Controls the trace reading.
     bool isInsideBBL;
-    uint32_t currentBBL;
-    uint32_t currentOpcode;
+    unsigned int currentBBL;
+    unsigned int currentOpcode;
 
     // Controls the static dictionary.
     // Total of BBLs for the static file.
     // Total of instructions for each BBL.
     unsigned int binaryTotalBBLs;
-    uint32_t *binaryBBLSize;
+    unsigned int *binaryBBLsSize;
     // Complete dictionary of BBLs and instructions.
     OpcodePackage **binaryDict;
 
-    uint64_t fetchInstructions;
+    unsigned long fetchInstructions;
 
     // Generate the static dictionary.
     int GetTotalBBLs();
-    //int DefineBinaryBBLSize();
-    //int GenerateBinaryDict();
+    int DefineBinaryBBLSize();
+    int GenerateBinaryDict();
 
-    //int TraceStringToOpcode(char *input_string, OpcodePackage *opcode);
-    //int TraceNextDynamic(uint32_t *next_bbl);
-    //int TraceNextMemory(uint64_t *next_address, uint32_t *operation_size,
-                       // bool *is_read);
+    int TraceStringToOpcode(char *input_string, OpcodePackage *opcode);
+    int TraceNextDynamic(uint32_t *next_bbl);
+    int TraceNextMemory(uint64_t *next_address, uint32_t *operation_size,
+                       bool *is_read);
 
-    //FetchResult TraceFetch(OpcodePackage *m);
+    FetchResult TraceFetch(OpcodePackage *m);
 
   public:
     virtual int OpenTrace(const char *traceFileName);
-    //virtual void PrintStatistics();
-    //virtual FetchResult Fetch(InstructionPacket *ret);
+    virtual void PrintStatistics();
+    virtual FetchResult Fetch(InstructionPacket *ret);
 
     inline ~SinucaTraceReader() {
         fclose(this->StaticTraceFile);

@@ -21,11 +21,11 @@
  */
 
 #include "sinuca3_trace_reader.hpp"
+#include <unistd.h>
 
 #include <cassert>
 #include <cstddef>
 #include <cstdio>   // NULL, SEEK_SET, snprintf
-#include <cstdlib>  // strtoul
 #include <cstring>  // strcmp, strcpy
 
 #include "../utils/logging.hpp"
@@ -79,20 +79,13 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
     // Obtain the number of BBLs.
     if (this->GetTotalBBLs()) return 1;
 
-    // this->binaryBBLSize = new uint32_t[this->binaryTotalBBLs];
-    // memset(this->binaryBBLSize, 0,
-    //        this->binaryTotalBBLs * sizeof(*this->binaryBBLSize));
+    this->binaryBBLsSize = new uint32_t[this->binaryTotalBBLs];
+    memset(this->binaryBBLsSize, 0,
+           this->binaryTotalBBLs * sizeof(*this->binaryBBLsSize));
 
-    // // Define the size of each specific BBL.
-    // if (this->DefineBinaryBBLSize()) return 1;
-
-    // // Create the opcode for each BBL.
-    // this->binaryDict = new OpcodePackage *[this->binaryTotalBBLs];
-    // for (uint32_t bbl = 1; bbl < this->binaryTotalBBLs; bbl++) {
-    //     this->binaryDict[bbl] = new OpcodePackage[this->binaryBBLSize[bbl]];
-    // }
-
-    // if (this->GenerateBinaryDict()) return 1;
+    // Create the opcode for each BBL.
+    this->binaryDict = new OpcodePackage* [this->binaryTotalBBLs];
+    if (this->GenerateBinaryDict()) return 1;
 
     return 0;
 }
@@ -104,336 +97,136 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::GetTotalBBLs() {
     unsigned int *count = &this->binaryTotalBBLs;
 
     // Go to the Begin of the File
-    std::fseek(this->StaticTraceFile, 0, SEEK_SET);
-    size_t readBytes = fread((void*)count, sizeof(*count), 1, StaticTraceFile);
-    if (readBytes == EOF) {return 1;}
+    rewind(this->StaticTraceFile);
+    size_t read = fread((void*)count, 1, sizeof(*count), StaticTraceFile);
+    if (read == 0) {return 1;}
     std::cout << *count << std::endl;
 
     return 0;
 }
 
-// int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::
-//     DefineBinaryBBLSize() {
-//     char file_line[TRACE_LINE_SIZE] = "";
-//     bool file_eof = false;
-//     uint32_t bbl = 0;
+#define BUFFER_SIZE 1 << 21
 
-//     // Go to the Begin of the File and Check is it's not EOF.
-//     gzclearerr(this->gzStaticTraceFile);
-//     gzseek(this->gzStaticTraceFile, 0, SEEK_SET);
-//     file_eof = gzeof(this->gzStaticTraceFile);
+int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
+    GenerateBinaryDict() {
+    //------------------//
+    unsigned int *count = &this->binaryTotalBBLs;
+    char line[BUFFER_SIZE], byte;
+    size_t read, strSize, cpySize, bufSize, bufPointer;
+    int numInstBbl, savedNumInst, bbl = 0;
+    OpcodePackage* package;
+    
+    fseek(this->StaticTraceFile, sizeof(*count), SEEK_SET);
+    read = fread(&bufSize, 1, sizeof(bufSize), this->StaticTraceFile);
+    while(read > 0) {
+        SINUCA3_DEBUG_PRINTF("BUFFER SIZE => %lu\n", bufSize);
+        fread(line, 1, bufSize, this->StaticTraceFile);
+        bufPointer = 0;
+        do {
+            memcpy(&numInstBbl, line+bufPointer, sizeof(numInstBbl));
+            SINUCA3_DEBUG_PRINTF("BBL SIZE => %d\n", numInstBbl);
+            this->binaryDict[bbl] = new OpcodePackage[numInstBbl];
+            savedNumInst = numInstBbl;
 
-//     if (file_eof) {
-//         SINUCA3_ERROR_PRINTF("Static File Unexpected EOF.\n");
-//         return 1;
-//     }
+            while (numInstBbl > 0) {
+                package = &this->binaryDict[bbl][savedNumInst-numInstBbl];
+                
+                strSize = snprintf(package->opcodeAssembly, 512, "%s", line+bufPointer);
+                bufPointer += strSize;
+                
+                cpySize = sizeof(package->opcodeAddress)+
+                    sizeof(package->opcodeSize)+
+                    sizeof(package->baseReg)+
+                    sizeof(package->indexReg);
+                memcpy(&package->opcodeAddress, line+bufPointer, cpySize);
+                bufPointer += cpySize;
+                
+                memcpy(&byte, line+bufPointer, 1);
+                if ((byte & 1) == 1) {package->isPrefetch = true;}
+                if ((byte & (1 << 1)) == (1 << 1)) {package->isPredicated = true;}
+                if ((byte & (1 << 2)) == (1 << 2)) {
+                    package->isControlFlow = true;
+                    if ((byte & (1 << 3)) == (1 << 3)) {package->isIndirect = true;}
+                    memcpy(&package->branchType, line+bufPointer, 1);
+                }
 
-//     while (!file_eof) {
-//         gzgets(this->gzStaticTraceFile, file_line, TRACE_LINE_SIZE);
-//         file_eof = gzeof(this->gzStaticTraceFile);
+                numInstBbl--;
+            }
 
-//         if (file_line[0] == '\0' || file_line[0] == '#') {
-//             // If Comment, then ignore
-//             continue;
-//         } else if (file_line[0] == '@') {
-//             bbl++;
-//             binaryBBLSize[bbl] = 0;
-//         } else {
-//             binaryBBLSize[bbl]++;
-//         }
-//     }
+            bbl++;
+        } while (bufPointer < bufSize);
 
-//     return 0;
-// }
+        read = fread(&bufSize, 1, sizeof(bufSize), this->StaticTraceFile);
+    }
 
-// int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::
-//     GenerateBinaryDict() {
-//     char file_line[TRACE_LINE_SIZE] = "";
-//     bool file_eof = false;
-//     uint32_t bbl = 0;  // Actual BBL (Index of the Vector).
-//     uint32_t opcode = 0;
-//     OpcodePackage NewOpcode;  // Actual Opcode.
 
-//     // Go to the Begin of the File and Check is it's not EOF.
-//     gzclearerr(this->gzStaticTraceFile);
-//     gzseek(this->gzStaticTraceFile, 0, SEEK_SET);
-//     file_eof = gzeof(this->gzStaticTraceFile);
+    return 0;
+}
 
-//     if (file_eof) {
-//         SINUCA3_ERROR_PRINTF("Static File Unexpected EOF.\n");
-//         return 1;
-//     }
+/**
+ * clang-format off
+ * @details
+ * Convert Static Trace line into Instruction
+ * Field #:   01 |   02   |   03  |  04   |   05  |  06  |  07    |  08   |  09
+ * |  10   |  11  |  12   |  13   |  14   |  15      |  16        | 17 Type: Asm
+ * | Opcode | Inst. | Inst. | #Read | Read | #Write | Write | Base | Index | Is
+ * | Is    | Is    | Cond. | Is       | Is         | Is Cmd | Number | Addr. |
+ * Size  | Regs  | Regs | Regs   | Regs  | Reg. | Reg.  | Read | Read2 | Write |
+ * Type  | Indirect | Predicated | Pfetch
+ *
+ * Static File Example:
+ *
+ * #
+ * # Compressed Trace Generated By Pin to SiNUCA
+ * #
+ * @1
+ * MOV 8 4345024 3 1 12 1 19 12 0 1 3 0 0 0 0 0
+ * ADD 1 4345027 4 1 12 2 12 34 0 0 3 0 0 0 0 0 0
+ * TEST 1 4345031 3 2 19 19 1 34 0 0 3 0 0 0 0 0 0
+ * JNZ 7 4345034 2 2 35 34 1 35 0 0 4 0 0 0 1 0 0
+ * @2
+ * CALL_NEAR 9 4345036 5 2 35 15 2 35 15 15 0 1 0 0 1 0 0 0
+ * clang-format on
+ */
+int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::TraceStringToOpcode(
+    char *input_string, OpcodePackage *opcode) {
+    
+    return 0;
+}
 
-//     while (!file_eof) {
-//         gzgets(this->gzStaticTraceFile, file_line, TRACE_LINE_SIZE);
-//         file_eof = gzeof(this->gzStaticTraceFile);
+// =============================================================================
+int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::TraceNextDynamic(
+    uint32_t *next_bbl) {
 
-//         SINUCA3_DEBUG_PRINTF("Read: %s\n", file_line);
-//         if (file_line[0] == '\0' || file_line[0] == '#') {
-//             // If Comment, then ignore.
-//             continue;
-//         } else if (file_line[0] == '@') {
-//             // If New BBL.
-//             SINUCA3_DEBUG_PRINTF("BBL %u with %u instructions.\n", bbl,
-//                                  opcode);  // Debug from previous BBL.
-//             opcode = 0;
+    return 0;
+}
 
-//             bbl = (uint32_t)strtoul(file_line + 1, NULL, 10);
-//             if (bbl >= this->binaryTotalBBLs) {
-//                 SINUCA3_ERROR_PRINTF(
-//                     "Static has more BBLs than previous analyzed static "
-//                     "file.\n");
-//                 return 1;
-//             }
-//         } else {
-//             // If Inside BBL.
-//             SINUCA3_DEBUG_PRINTF("Opcode %u = %s", opcode, file_line);
-//             if (this->TraceStringToOpcode(file_line,
-//                                           &this->binaryDict[bbl][opcode])) {
-//                 return 1;
-//             }
-//             if (this->binaryDict[bbl][opcode].opcodeAddress == 0) {
-//                 SINUCA3_ERROR_PRINTF(
-//                     "Static trace file generating opcode address equal to "
-//                     "zero.\n");
-//                 return 1;
-//             }
-//             ++opcode;
-//         }
-//     }
-
-//     return 0;
-// }
-
-// /**
-//  * clang-format off
-//  * @details
-//  * Convert Static Trace line into Instruction
-//  * Field #:   01 |   02   |   03  |  04   |   05  |  06  |  07    |  08   |  09
-//  * |  10   |  11  |  12   |  13   |  14   |  15      |  16        | 17 Type: Asm
-//  * | Opcode | Inst. | Inst. | #Read | Read | #Write | Write | Base | Index | Is
-//  * | Is    | Is    | Cond. | Is       | Is         | Is Cmd | Number | Addr. |
-//  * Size  | Regs  | Regs | Regs   | Regs  | Reg. | Reg.  | Read | Read2 | Write |
-//  * Type  | Indirect | Predicated | Pfetch
-//  *
-//  * Static File Example:
-//  *
-//  * #
-//  * # Compressed Trace Generated By Pin to SiNUCA
-//  * #
-//  * @1
-//  * MOV 8 4345024 3 1 12 1 19 12 0 1 3 0 0 0 0 0
-//  * ADD 1 4345027 4 1 12 2 12 34 0 0 3 0 0 0 0 0 0
-//  * TEST 1 4345031 3 2 19 19 1 34 0 0 3 0 0 0 0 0 0
-//  * JNZ 7 4345034 2 2 35 34 1 35 0 0 4 0 0 0 1 0 0
-//  * @2
-//  * CALL_NEAR 9 4345036 5 2 35 15 2 35 15 15 0 1 0 0 1 0 0 0
-//  * clang-format on
-//  */
-// int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::TraceStringToOpcode(
-//     char *input_string, OpcodePackage *opcode) {
-//     char *sub_string = NULL;
-//     char *tmp_ptr = NULL;
-//     uint32_t sub_fields, count, i;
-//     count = 0;
-
-//     for (i = 0; input_string[i] != '\0'; i++) count += (input_string[i] == ' ');
-
-//     if (count < 13) {
-//         SINUCA3_ERROR_PRINTF(
-//             "Error converting Text to Instruction (Wrong  number "
-//             "of fields %d), input_string = %s\n",
-//             count, input_string);
-//         return 1;
-//     }
-
-//     sub_string = strtok_r(input_string, " ", &tmp_ptr);
-//     strcpy(opcode->opcodeAssembly, sub_string);
-
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     opcode->opcodeOperation =
-//         InstructionOperation(strtoul(sub_string, NULL, 10));
-
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     opcode->opcodeAddress = strtoull(sub_string, NULL, 10);
-
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     opcode->opcodeSize = strtoul(sub_string, NULL, 10);
-
-//     // Number of Read Registers.
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     sub_fields = strtoul(sub_string, NULL, 10);
-
-//     for (i = 0; i < sub_fields; i++) {
-//         sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//         opcode->readRegs[i] = strtoul(sub_string, NULL, 10);
-//     }
-
-//     // Number of Write Registers.
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     sub_fields = strtoul(sub_string, NULL, 10);
-
-//     for (i = 0; i < sub_fields; i++) {
-//         sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//         opcode->writeRegs[i] = strtoul(sub_string, NULL, 10);
-//     }
-
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     opcode->baseReg = strtoull(sub_string, NULL, 10);
-
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     opcode->indexReg = strtoull(sub_string, NULL, 10);
-
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     opcode->isRead = (sub_string[0] == '1');
-
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     opcode->isRead2 = (sub_string[0] == '1');
-
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     opcode->isWrite = (sub_string[0] == '1');
-
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     opcode->branchType = Branch(strtoull(sub_string, NULL, 10));
-
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     opcode->isIndirect = (sub_string[0] == '1');
-
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     opcode->isPredicated = (sub_string[0] == '1');
-
-//     sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//     opcode->isPrefetch = (sub_string[0] == '1');
-
-//     return 0;
-// }
-
-// // =============================================================================
-// int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::TraceNextDynamic(
-//     uint32_t *next_bbl) {
-//     static char file_line[TRACE_LINE_SIZE];
-//     file_line[0] = '\0';
-
-//     bool valid_dynamic = false;
-//     *next_bbl = 0;
-
-//     while (!valid_dynamic) {
-//         // Obtain the next trace line.
-//         if (gzeof(this->gzDynamicTraceFile)) {
-//             return 1;
-//         }
-//         char *buffer =
-//             gzgets(this->gzDynamicTraceFile, file_line, TRACE_LINE_SIZE);
-//         if (buffer == NULL) {
-//             return 1;
-//         }
-
-//         // Analyze the trace line.
-//         if (file_line[0] == '\0' || file_line[0] == '#') {
-//             SINUCA3_DEBUG_PRINTF("Dynamic trace line (empty/comment): %s\n",
-//                                  file_line);
-//             continue;
-//         } else if (file_line[0] == '$') {
-//             SINUCA3_DEBUG_PRINTF("Dynamic trace line (synchronization): %s\n",
-//                                  file_line);
-//             continue;
-//         } else {
-//             // BBL is always greater than 0.
-//             // If strtoul==0 the line could not be converted.
-//             SINUCA3_DEBUG_PRINTF("Dynamic trace line: %s\n", file_line);
-
-//             *next_bbl = strtoul(file_line, NULL, 10);
-//             if (*next_bbl == 0) {
-//                 SINUCA3_ERROR_PRINTF(
-//                     "The BBL from the dynamic trace file should "
-//                     "not be zero. Dynamic line %s\n",
-//                     file_line);
-//                 return 1;
-//             }
-
-//             valid_dynamic = true;
-//         }
-//     }
-
-//     return 0;
-// }
-
-// /**
-//  * @details
-//  * clang-format off
-//  * Convert Dynamic Memory Trace line into Instruction Memory Operands
-//  * Field #:    1  |  2   |    3    |  4
-//  * Type:      R/W | R/W  | Memory  | BBL
-//  *            Op. | Size | Address | Number
-//  *
-//  * Memory File Example:
-//  *
-//  * #
-//  * # Compressed Trace Generated By Pin to SiNUCA
-//  * #
-//  * W 8 140735291283448 1238
-//  * W 8 140735291283440 1238
-//  * W 8 140735291283432 1238
-//  * clang-format on
-//  */
-// int sinuca::traceReader::orcsTraceReader::OrCSTraceReader::TraceNextMemory(
-//     uint64_t *mem_address, uint32_t *mem_size, bool *mem_is_read) {
-//     static char file_line[TRACE_LINE_SIZE];
-//     file_line[0] = '\0';
-
-//     bool valid_memory = false;
-
-//     while (!valid_memory) {
-//         // Obtain the next trace line.
-//         if (gzeof(this->gzMemoryTraceFile)) {
-//             return 1;
-//         }
-//         char *buffer =
-//             gzgets(this->gzMemoryTraceFile, file_line, TRACE_LINE_SIZE);
-//         if (buffer == NULL) {
-//             return 1;
-//         }
-
-//         // Analyze the trace line.
-//         if (file_line[0] == '\0' || file_line[0] == '#') {
-//             SINUCA3_DEBUG_PRINTF("Memory trace line (empty/comment): %s\n",
-//                                  file_line);
-//             continue;
-//         } else {
-//             char *sub_string = NULL;
-//             char *tmp_ptr = NULL;
-//             uint32_t count = 0, i = 0;
-//             while (file_line[i] != '\0') {
-//                 count += (file_line[i] == ' ');
-//                 i++;
-//             }
-//             if (count != 3) {
-//                 SINUCA3_ERROR_PRINTF(
-//                     "Error converting Text to Memory (Wrong  "
-//                     "number of fields %d)\n",
-//                     count);
-//                 return 1;
-//             }
-//             SINUCA3_DEBUG_PRINTF("Memory trace line: %s\n", file_line);
-
-//             sub_string = strtok_r(file_line, " ", &tmp_ptr);
-//             *mem_is_read = strcmp(sub_string, "R") == 0;
-
-//             sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//             *mem_size = strtoull(sub_string, NULL, 10);
-
-//             sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//             *mem_address = strtoull(sub_string, NULL, 10);
-
-//             sub_string = strtok_r(NULL, " ", &tmp_ptr);
-//             valid_memory = true;
-//         }
-//     }
-//     return 0;
-// }
+/**
+ * @details
+ * clang-format off
+ * Convert Dynamic Memory Trace line into Instruction Memory Operands
+ * Field #:    1  |  2   |    3    |  4
+ * Type:      R/W | R/W  | Memory  | BBL
+ *            Op. | Size | Address | Number
+ *
+ * Memory File Example:
+ *
+ * #
+ * # Compressed Trace Generated By Pin to SiNUCA
+ * #
+ * W 8 140735291283448 1238
+ * W 8 140735291283440 1238
+ * W 8 140735291283432 1238
+ * clang-format on
+ */
+int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::TraceNextMemory(
+    uint64_t *mem_address, uint32_t *mem_size, bool *mem_is_read) {
+    
+    return 0;
+}
 
 // sinuca::traceReader::FetchResult
-// sinuca::traceReader::orcsTraceReader::OrCSTraceReader::TraceFetch(
+// sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::TraceFetch(
 //     OpcodePackage *m) {
 //     OpcodePackage newOpcode;
 //     uint32_t new_BBL;
@@ -498,7 +291,7 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::GetTotalBBLs() {
 // }
 
 // sinuca::traceReader::FetchResult
-// sinuca::traceReader::orcsTraceReader::OrCSTraceReader::Fetch(
+// sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::Fetch(
 //     sinuca::InstructionPacket *ret) {
 //     OpcodePackage orcsOpcode;
 //     FetchResult result = this->TraceFetch(&orcsOpcode);
@@ -511,7 +304,7 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::GetTotalBBLs() {
 //     return FetchResultOk;
 // }
 
-// void sinuca::traceReader::orcsTraceReader::OrCSTraceReader::PrintStatistics() {
+// void sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::PrintStatistics() {
 //     SINUCA3_LOG_PRINTF(
 //         "######################################################\n");
 //     SINUCA3_LOG_PRINTF("trace_reader_t\n");

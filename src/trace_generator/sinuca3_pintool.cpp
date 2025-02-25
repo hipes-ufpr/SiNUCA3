@@ -7,7 +7,7 @@
 #include <cstring>
 #include <string>
 
-#define BUFFER_SIZE 1048576
+#define BUFFER_SIZE 1 << 21
 #define BBL_ID_BYTE_SIZE 2
 #define MEMREAD_EA IARG_MEMORYREAD_EA
 #define MEMREAD_SIZE IARG_MEMORYREAD_SIZE
@@ -16,31 +16,36 @@
 #define MEMREAD2_EA IARG_MEMORYREAD2_EA
 
 struct DataINS {
-    ADDRINT addr;
     char size;
-    REG baseReg;
-    REG indexReg;
     char byte;
+    long addr;
+    unsigned int baseReg;
+    unsigned int indexReg;
 };
 
-class Buffer {
-  public:
+struct Buffer {
     char store[BUFFER_SIZE];
     size_t numUsedBytes;
-    size_t minimumSpace;
+    size_t minSpaceNecessary;
 
     Buffer(size_t min) {
         numUsedBytes = 0;
-        this->minimumSpace = min;
+        this->minSpaceNecessary = min;
     }
-    ~Buffer() {};
+    
     inline void loadBufToFile(FILE* file) {
+        fwrite(&numUsedBytes, 1, sizeof(size_t), file);
         size_t written = fwrite(this->store, 1, this->numUsedBytes, file);
         if (written < this->numUsedBytes) {SINUCA3_ERROR_PRINTF("Buffer error");}
-        this->numUsedBytes=0;
+        this->numUsedBytes = 0;
     }
+
     inline bool isBufFull() {
-        return (BUFFER_SIZE - this->numUsedBytes < this->minimumSpace);    
+        return ((BUFFER_SIZE) - this->numUsedBytes < this->minSpaceNecessary);    
+    }
+
+    inline void setMinNecessary(size_t num) {
+        this->minSpaceNecessary = num;
     }
 };
 
@@ -79,11 +84,6 @@ VOID stopInstrumentation(unsigned int bblCount) {
     SINUCA3_DEBUG_PRINTF("Number of BBLs => %u\n", bblCount);
     isInstrumentationOn = false;
 
-    size_t savedPosition = ftell(staticTrace);
-    std::rewind(staticTrace);
-    std::fwrite((void*)&bblCount, 1, sizeof(bblCount), staticTrace);
-    std::fseek(staticTrace, savedPosition, SEEK_SET);
-
     if (staticBuffer->numUsedBytes>0) {
         staticBuffer->loadBufToFile(staticTrace);
     }
@@ -93,6 +93,9 @@ VOID stopInstrumentation(unsigned int bblCount) {
     if (memoryBuffer->numUsedBytes>0) {
         memoryBuffer->loadBufToFile(memoryTrace);
     }
+
+    std::rewind(staticTrace);
+    std::fwrite((void*)&bblCount, 1, sizeof(bblCount), staticTrace);
 }
 
 inline VOID copy(char* buf, size_t* used, void* src, size_t size) {
@@ -109,14 +112,19 @@ VOID x86ToStaticBuf(INS* ins) {
     static bool flag;
 
     std::string name = INS_Mnemonic(*ins);
-    data.addr = INS_Address(*ins);
+    staticBuffer->setMinNecessary(name.size()+20);
+    if (staticBuffer->isBufFull()) {
+        staticBuffer->loadBufToFile(staticTrace);
+    }
+
+    data.addr = static_cast<long>(INS_Address(*ins));
     data.size = static_cast<char>(INS_Size(*ins));
-    data.baseReg = INS_MemoryBaseReg(*ins);
-    data.indexReg = INS_MemoryIndexReg(*ins);
+    data.baseReg = static_cast<unsigned int>(INS_MemoryBaseReg(*ins));
+    data.indexReg = static_cast<unsigned int>(INS_MemoryIndexReg(*ins));
     data.byte = 0;
 
     if (INS_IsPredicated(*ins)) {data.byte |= 1;}
-    if (INS_IsPrefetch(*ins)) {data.byte |= 1 >> 1;}
+    if (INS_IsPrefetch(*ins)) {data.byte |= (1 << 1);}
     if ((flag = INS_IsCall(*ins))) {
         bT = orcs::BranchCall; 
     } else if ((flag = INS_IsRet(*ins))) {
@@ -124,20 +132,16 @@ VOID x86ToStaticBuf(INS* ins) {
     } else if ((flag = INS_IsSyscall(*ins))) {
         bT = orcs::BranchSyscall; 
     } else if ((flag = INS_IsControlFlow(*ins))) {
-        if (INS_IsIndirectControlFlow(*ins)) {data.byte |= 1 >> 3;}
+        if (INS_IsIndirectControlFlow(*ins)) {data.byte |= (1 << 3);}
         bT = INS_HasFallThrough(*ins) ? orcs::BranchCond : orcs::BranchUncond;
     }
 
     copy(buf, used, (void*)name.c_str(), name.size()+1);
     if (flag == true) {
-        data.byte |= 1 >> 2;
+        data.byte |= (1 << 2);
         copy(buf+sizeof(data), used, (void*)&bT, 1);
     }
     copy(buf-1, used, (void*)&data, sizeof(data));
-
-    if (staticBuffer->isBufFull() == true) {
-        staticBuffer->loadBufToFile(staticTrace);
-    }
 }
 
 VOID appendToMemoryTrace(ADDRINT addr, INT32 size) {
@@ -146,7 +150,7 @@ VOID appendToMemoryTrace(ADDRINT addr, INT32 size) {
 
     copy(buf, used, (void*)&addr, sizeof(addr));
     copy(buf, used, (void*)&size, sizeof(size));
-    if (memoryBuffer->isBufFull() == true) {
+    if (memoryBuffer->isBufFull()) {
         memoryBuffer->loadBufToFile(memoryTrace);
     }
 }
@@ -173,7 +177,7 @@ VOID trace(TRACE trace, VOID *ptr) {
     size_t *usedStatic=&staticBuffer->numUsedBytes, bblInit;
     static unsigned int bblCount = 0;
     int numInstBbl;
-    
+
     if (isInstrumentationOn == true) {
         if (std::strstr(RTN_Name(TRACE_Rtn(trace)).c_str(), "trace_stop")) {
             stopInstrumentation(bblCount);
@@ -193,7 +197,7 @@ VOID trace(TRACE trace, VOID *ptr) {
             x86ToStaticBuf(&ins);
             instrumentMem(&ins);
         }
-        std::memcpy(buf+bblInit, (void*)&numInstBbl, 1);
+        std::memcpy(buf+bblInit, (void*)&numInstBbl, sizeof(numInstBbl));
     }
 
     return;
