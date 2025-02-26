@@ -22,9 +22,6 @@
 
 #include "linkable.hpp"
 
-/* ============================================================== */
-// Connection Methods
-/* ============================================================== */
 void sinuca::engine::Connection::CreateBuffers(int bufferSize,
                                                int messageSize) {
     this->bufferSize = bufferSize;
@@ -53,18 +50,22 @@ void* sinuca::engine::Connection::RecieveResponse(char id) {
     return this->responseBuffers[id].Dequeue();
 };
 
-/* ============================================================== */
-// Linkable Methods
-/* ============================================================== */
+sinuca::engine::Linkable::Linkable() : messageSize(0), numberOfConnections(0){};
 
-sinuca::engine::Linkable::Linkable() : numberOfConnections(0){};
-
-void sinuca::engine::Linkable::AllocateBuffers(long numberOfConnections) {
+void sinuca::engine::Linkable::AllocateBuffers(long messageSize,
+                                               long numberOfConnections) {
+    this->messageSize = messageSize;
     this->numberOfConnections = numberOfConnections;
     this->connections.reserve(numberOfConnections);
 };
 
-void sinuca::engine::Linkable::AddConnection(Connection newConnection) {
+void sinuca::engine::Linkable::DeallocateBuffers () {
+    for (int i = 0; i < numberOfConnections; ++i) {
+        delete this->connections[i];
+    }
+};
+
+void sinuca::engine::Linkable::AddConnection(Connection* newConnection) {
     int connectionsSize = this->connections.size();
     this->connections.push_back(newConnection);
 
@@ -72,13 +73,14 @@ void sinuca::engine::Linkable::AddConnection(Connection newConnection) {
         this->numberOfConnections = connectionsSize;
 };
 
-sinuca::engine::Connection sinuca::engine::Linkable::Connect(int bufferSize,
-                                                             int messageSize) {
-    Connection newConnection;
-    newConnection.CreateBuffers(bufferSize, messageSize);
+int sinuca::engine::Linkable::Connect(int bufferSize) {
+    int index = this->connections.size();
+
+    Connection* newConnection = new Connection();
+    newConnection->CreateBuffers(bufferSize, this->messageSize);
     this->AddConnection(newConnection);
 
-    return newConnection;
+    return index;
 };
 
 void sinuca::engine::Linkable::PreClock() {}

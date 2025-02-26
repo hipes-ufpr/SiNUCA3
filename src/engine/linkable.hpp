@@ -96,10 +96,11 @@ struct Connection {
  */
 class Linkable {
   private:
+    long messageSize;
     long numberOfConnections; /**< Counts how much connections other components
                                   have initialized. */
 
-    std::vector<Connection>
+    std::vector<Connection*>
         connections; /**< Array of all connections buffers.*/
 
   protected:
@@ -107,13 +108,18 @@ class Linkable {
      * @brief Allocates the buffers with the specified number of connections.
      * @param numberOfConnections Self-explanatory.
      */
-    void AllocateBuffers(long numberOfConnections);
+    void AllocateBuffers(long messageSize, long numberOfConnections);
+
+    /**
+     * @brief Frees memory allocated for connections 
+     */
+    void DeallocateBuffers ();
 
     /**
      * @brief Add the new connection in the connections array.
      * @param newConnection self-explanatory.
      */
-    void AddConnection(Connection newConnection);
+    void AddConnection(Connection* newConnection);
 
     /**
      * @brief Connect to *this* component.
@@ -122,9 +128,9 @@ class Linkable {
      * @details Method used by other components to connect to *this* component,
      * establishing a connection where *this* component is the one that responds
      * to received messages.
-     * @return Returns the connection structure with *this* method.
+     * @return Returns the connection index of the receiving component
      */
-    Connection Connect(int bufferSize, int messageSize);
+    int Connect(int bufferSize);
 
     /**
      * @brief Self-explanatory. The -Linkable suffix avoids clashes with the
@@ -142,6 +148,7 @@ class Linkable {
      * @param channelID The channel ID from which to retrieve the message.
      */
     int RetrieveResponseLinkable(const char* message, int channelID);
+
 
   public:
     /* Usually engine methods. */
