@@ -82,8 +82,8 @@ struct OpcodePackage {
     unsigned int baseReg;
     unsigned int indexReg;
 
-    int32_t readRegs[MAX_REGISTERS];
-    int32_t writeRegs[MAX_REGISTERS];
+    unsigned short int readRegs[MAX_REGISTERS];
+    unsigned short int writeRegs[MAX_REGISTERS];
 
     // long readsAddr[MAX_MEM_OPERATIONS]; //
     unsigned int readsSize[MAX_MEM_OPERATIONS];

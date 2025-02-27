@@ -102,6 +102,17 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::GetTotalBBLs() {
     return 0;
 }
 
+void readRegs(const char* buf, size_t *read, unsigned short int *vet,
+            unsigned int numRegs) {
+    unsigned int it;
+    *read += sizeof(numRegs);
+    for (it = 0; it < numRegs; it++) {
+        vet[it] = *(unsigned short int*)(buf+*read);
+        *read += sizeof(*vet);
+    }
+    vet[it] = -1;
+}
+
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     GenerateBinaryDict() {
     //------------------//
@@ -149,7 +160,6 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
 
             package = &this->binaryDict[bbl][savedNumInst-numInstBbl];
             
-            //== sizeof(DataINS) written to Package ==//
             DataINS* data = (DataINS*)(buf + read);
             package->opcodeAddress = data->addr;
             package->opcodeSize = data->size;
@@ -175,7 +185,6 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
             }
             read += SIZE_DATA_INS;
 
-            //=== size of string written to Package ===//
             strSize = strlen(buf+read) + 1;
             if (strSize > TRACE_LINE_SIZE) {
                 SINUCA3_ERROR_PRINTF("INCOMPATIBLE STRING SIZE (BINARY DICT)\n");
@@ -186,7 +195,11 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
             SINUCA3_DEBUG_PRINTF("INS MNEMONIC => %s, BBL => %d, INS => %d\n",
                                 package->opcodeAssembly, bbl, numInstBbl);
 
-            //=========================================//
+            // copy read regs
+            readRegs(buf, &read, package->readRegs, *(unsigned int*)(buf+read));
+            // copy write regs
+            readRegs(buf, &read, package->writeRegs, *(unsigned int*)(buf+read));
+
             numInstBbl--;
         }
 
