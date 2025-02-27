@@ -73,6 +73,28 @@ struct Connection {
     void SendRequest(char id, void* message);
 
     /**
+     * @brief Send a response to a certain responseBuffer.
+     * @param id The id of the certain buffer.
+     * @param message A pointer to the message to send.
+     * @details The Linkable that connected to another through the Connect call
+     * becomes the SOURCE, so to send a response to the recipient it uses
+     * DEST_ID as a parameter. Otherwise, the recipient is sending a message to
+     * the source Linkable, so it uses SOURCE_ID as a parameter
+     */
+    void SendResponse(char id, void* message);
+
+    /**
+     * @brief Return a request of a certain requestBuffer.
+     * @param id The id of the certain buffer.
+     * @details The Linkable that connected to another through the Connect call
+     * becomes the SOURCE, so to receive a request from the recipient it uses
+     * SOURCE_ID as a parameter. Otherwise, the recipient is receiving a request
+     * from the source Linkable, so it uses DEST_ID as a parameter.
+     * @return A pointer to the received message
+     */
+    void* RecieveRequest(char id);
+
+    /**
      * @brief Return a response of a certain responseBuffer.
      * @param id The id of the certain buffer.
      * @details The Linkable that connected to another through the Connect call
@@ -111,9 +133,9 @@ class Linkable {
     void AllocateBuffers(long messageSize, long numberOfConnections);
 
     /**
-     * @brief Frees memory allocated for connections 
+     * @brief Frees memory allocated for connections
      */
-    void DeallocateBuffers ();
+    void DeallocateBuffers();
 
     /**
      * @brief Add the new connection in the connections array.
@@ -128,27 +150,50 @@ class Linkable {
      * @details Method used by other components to connect to *this* component,
      * establishing a connection where *this* component is the one that responds
      * to received messages.
-     * @return Returns the connection index of the receiving component
+     * @return Returns the id of connection on the receiving component
      */
     int Connect(int bufferSize);
 
-    /**
-     * @brief Self-explanatory. The -Linkable suffix avoids clashes with the
-     * higher-level wrapper methods from the Component<T> children class
-     * template.
-     * @param message The buffer with the message to send.
-     * @param channelID The channel ID to which send the message.
-     */
-    int SendMessageLinkable(const char* message, int channelID);
-    /**
-     * @brief Self-explanatory. The -Linkable suffix avoids clashes with the
-     * higher-level wrapper methods from the Component<T> children class
-     * template.
-     * @param message The buffer with the message to retrieve.
-     * @param channelID The channel ID from which to retrieve the message.
-     */
-    int RetrieveResponseLinkable(const char* message, int channelID);
+    /* Source Methods */
 
+    /**
+     * @brief This method is used by a Linkable Source to send a request to an
+     * Linkable that it has a reference to.
+     * @param dest The pointer to Linkable.
+     * @param connectionID The connection ID obtained by the Connect method with
+     * the desired Linkable.
+     * @param message The request message to be sent.
+     */
+    void SendRequestToLinkable(Linkable* dest, int connectionID, void* message);
+
+    /**
+     * @brief This method is used by a Linkable Source to send a response to an
+     * Linkable that it has a reference to.
+     * @param dest The pointer to Linkable.
+     * @param connectionID The connection ID obtained by the Connect method with
+     * the desired Linkable.
+     * @param message The response message to be sent.
+     */
+    void SendResponseToLinkable(Linkable* dest, int connectionID,
+                                void* message);
+
+    /**
+     * @brief This method is used by a Linkable Source to receive a request from
+     * an Linkable that it has a reference to.
+     * @param dest The pointer to Linkable.
+     * @param connectionID The connection ID obtained by the Connect method with
+     * the desired Linkable.
+     */
+    void* RecieveRequestFromLinkable(Linkable* dest, int connectionID);
+
+    /**
+     * @brief This method is used by a Linkable Source to receive a response
+     * from an Linkable that it has a reference to.
+     * @param dest The pointer to Linkable.
+     * @param connectionID The connection ID obtained by the Connect method with
+     * the desired Linkable.
+     */
+    void* RecieveResponseFromLinkable(Linkable* dest, int connectionID);
 
   public:
     /* Usually engine methods. */

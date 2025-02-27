@@ -46,6 +46,14 @@ void sinuca::engine::Connection::SendRequest(char id, void* message) {
     this->requestBuffers[id].Enqueue(message);
 };
 
+void sinuca::engine::Connection::SendResponse(char id, void* message) {
+    this->responseBuffers[id].Enqueue(message);
+};
+
+void* sinuca::engine::Connection::RecieveRequest(char id) {
+    return this->requestBuffers[id].Dequeue();
+};
+
 void* sinuca::engine::Connection::RecieveResponse(char id) {
     return this->responseBuffers[id].Dequeue();
 };
@@ -59,7 +67,7 @@ void sinuca::engine::Linkable::AllocateBuffers(long messageSize,
     this->connections.reserve(numberOfConnections);
 };
 
-void sinuca::engine::Linkable::DeallocateBuffers () {
+void sinuca::engine::Linkable::DeallocateBuffers() {
     for (int i = 0; i < numberOfConnections; ++i) {
         delete this->connections[i];
     }
@@ -81,6 +89,28 @@ int sinuca::engine::Linkable::Connect(int bufferSize) {
     this->AddConnection(newConnection);
 
     return index;
+};
+
+void sinuca::engine::Linkable::SendRequestToLinkable(Linkable* dest,
+                                                     int connectionID,
+                                                     void* message) {
+    dest->connections[connectionID]->SendRequest(DEST_ID, message);
+};
+
+void sinuca::engine::Linkable::SendResponseToLinkable(Linkable* dest,
+                                                      int connectionID,
+                                                      void* message) {
+    dest->connections[connectionID]->SendResponse(DEST_ID, message);
+};
+
+void* sinuca::engine::Linkable::RecieveRequestFromLinkable(Linkable* dest,
+                                                           int connectionID) {
+    return dest->connections[connectionID]->RecieveRequest(SOURCE_ID);
+};
+
+void* sinuca::engine::Linkable::RecieveResponseFromLinkable(Linkable* dest,
+                                                            int connectionID) {
+    return dest->connections[connectionID]->RecieveResponse(SOURCE_ID);
 };
 
 void sinuca::engine::Linkable::PreClock() {}
