@@ -2,11 +2,10 @@
 
 #include <cstddef> // size_t
 #include <cstring> // memcpy
-#include "src/trace_reader/sinuca3_trace_reader.hpp"
 
 // branchType are not written to struct
 #define SIZE_DATA_INS sizeof(DataINS) \
-                    - sizeof(sinuca::traceReader::sinuca3TraceReader::Branch)
+                    - sizeof(unsigned char)
 #define BUFFER_SIZE 1<<20
 
 inline void copy(char* buf, size_t* used, void* src, size_t size) {
@@ -20,12 +19,12 @@ inline void setBit(unsigned char *byte, int position) {
 
 struct DataINS {
     long addr;
-    unsigned int baseReg;
-    unsigned int indexReg;
+    unsigned short int baseReg;
+    unsigned short int indexReg;
     unsigned char size;
     unsigned char booleanValues;
-    unsigned char numReads;
-    unsigned char numWrites;
+    // unsigned char numReads;
+    // unsigned char numWrites;
     unsigned char branchType;
 } __attribute__((packed)); // no padding
 

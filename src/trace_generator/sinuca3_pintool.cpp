@@ -1,15 +1,15 @@
 #include "pin.H"
-#include "../utils/logging.hpp"
 #include <cstddef>
-#include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
-#include <string>
-#include "../../sinuca3_pintool.hpp"
-#include <types.h>
+extern "C" {
+    #include <sys/stat.h> // mkdir
+    #include <unistd.h>   // access
+}
 
-#define BBL_ID_BYTE_SIZE 2
+#include "sinuca3_pintool.hpp"
+#include "../utils/logging.hpp"
+
 #define MEMREAD_EA IARG_MEMORYREAD_EA
 #define MEMREAD_SIZE IARG_MEMORYREAD_SIZE
 #define MEMWRITE_EA IARG_MEMORYWRITE_EA
@@ -85,7 +85,7 @@ VOID appendToDynamicTrace(UINT32 bblId) {
     char* buf = dynamicBuffer->store;
     size_t* used = &dynamicBuffer->numUsedBytes;
 
-    copy(buf, used, &bblId, BBL_ID_BYTE_SIZE);
+    copy(buf, used, &bblId, sizeof(unsigned short));
     if(dynamicBuffer->isBufFull() == true) {
         dynamicBuffer->loadBufToFile(dynamicTrace);   
     }
@@ -123,8 +123,8 @@ VOID x86ToStaticBuf(const INS* ins, DataINS *data) {
 
     data->addr = static_cast<long>(INS_Address(*ins));
     data->size = static_cast<unsigned char>(INS_Size(*ins));
-    data->baseReg = static_cast<unsigned int>(INS_MemoryBaseReg(*ins));
-    data->indexReg = static_cast<unsigned int>(INS_MemoryIndexReg(*ins));
+    data->baseReg = static_cast<unsigned short int>(INS_MemoryBaseReg(*ins));
+    data->indexReg = static_cast<unsigned short int>(INS_MemoryIndexReg(*ins));
     data->booleanValues = 0;
 
     if (INS_IsPredicated(*ins)) {
@@ -156,6 +156,7 @@ VOID x86ToStaticBuf(const INS* ins, DataINS *data) {
 
     // copy data
     copy(buf, used, data, SIZE_DATA_INS);
+
     // copy branch type
     if (flag == true) {
         copy(buf, used, &data->branchType, sizeof(data->branchType));
@@ -211,7 +212,7 @@ VOID trace(TRACE trace, VOID *ptr) {
     size_t *usedStatic=&staticBuffer->numUsedBytes, bblInit;
     static unsigned int bblCount = 0;
     static DataINS data;
-    int numInstBbl;
+    unsigned short numInstBbl;
 
     if (isInstrumentationOn == false) {return;}
 
@@ -241,17 +242,24 @@ VOID trace(TRACE trace, VOID *ptr) {
 VOID imageLoad(IMG img, VOID* ptr) {    
     if (IMG_IsMainExecutable(img) == false) return; 
 
-    char fileName[64];
+    char fileName[64], parentPath[256] = "../../trace/";
     std::string nameImg = IMG_Name(img);
     size_t it = nameImg.find_last_of('/')+1;
     const char* subStr = &nameImg.c_str()[it];
+    size_t originalSize = strlen(parentPath);
 
+    if (access(parentPath, F_OK) != 0) {
+        mkdir(parentPath, S_IRWXU | S_IRWXG | S_IROTH);
+    }
+    
     snprintf(fileName, sizeof(fileName), "static_%s.trace", subStr);
-    staticTrace = fopen(fileName, "wb");
+    staticTrace = fopen(strcat(parentPath, fileName), "wb");
     snprintf(fileName, sizeof(fileName), "dynamic_%s.trace", subStr);
-    dynamicTrace = fopen(fileName, "wb");
+    parentPath[originalSize] = '\0';
+    dynamicTrace = fopen(strcat(parentPath, fileName), "wb");
     snprintf(fileName, sizeof(fileName), "memory_%s.trace", subStr);
-    memoryTrace = fopen(fileName, "wb");
+    parentPath[originalSize] = '\0';
+    memoryTrace = fopen(strcat(parentPath, fileName), "wb");
 
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
         for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn)) {
@@ -285,7 +293,7 @@ int main(int argc, char* argv[]) {
     SINUCA3_DEBUG_PRINTF("SIZE OF DataMEM => %lu\n", sizeof(DataMEM));
     
     staticBuffer = new Buffer(0);
-    dynamicBuffer = new Buffer(BBL_ID_BYTE_SIZE);
+    dynamicBuffer = new Buffer(sizeof(unsigned short));
     memoryBuffer = new Buffer(sizeof(ADDRINT)+sizeof(INT32));
     isInstrumentationOn = false;
 

@@ -23,7 +23,6 @@
  * @brief Port of the OrCS trace reader. https://github.com/mazalves/OrCS
  */
 
-#include <stdint.h>  // uint32_t
 #include <cstdio>
 #include <cstring>
 #include "trace_reader.hpp"
@@ -78,9 +77,9 @@ struct OpcodePackage {
     // uint32_t instruction_id; //
     
     long opcodeAddress;
-    unsigned int opcodeSize;
-    unsigned int baseReg;
-    unsigned int indexReg;
+    unsigned char opcodeSize;
+    unsigned short int baseReg;
+    unsigned short int indexReg;
 
     unsigned short int readRegs[MAX_REGISTERS];
     unsigned short int writeRegs[MAX_REGISTERS];
@@ -99,9 +98,9 @@ struct OpcodePackage {
     bool isPredicated;
     bool isPrefetch;
     bool isHive;
-    int32_t hive_read1 = -1;
-    int32_t hive_read2 = -1;
-    int32_t hive_write = -1;
+    int hive_read1 = -1;
+    int hive_read2 = -1;
+    int hive_write = -1;
     bool isVima;
 
     inline OpcodePackage() {
@@ -127,7 +126,7 @@ class SinucaTraceReader : public TraceReader {
     // Total of BBLs for the static file.
     // Total of instructions for each BBL.
     unsigned int binaryTotalBBLs;
-    unsigned int *binaryBBLsSize;
+    unsigned short *binaryBBLsSize;
     // Complete dictionary of BBLs and instructions.
     OpcodePackage **binaryDict;
 
@@ -135,19 +134,17 @@ class SinucaTraceReader : public TraceReader {
 
     // Generate the static dictionary.
     int GetTotalBBLs();
-    int DefineBinaryBBLSize(char* buf, size_t read);
     int GenerateBinaryDict();
 
-    int TraceNextDynamic(uint32_t *next_bbl);
-    int TraceNextMemory(uint64_t *next_address, uint32_t *operation_size,
-                       bool *is_read);
+    int TraceNextDynamic(unsigned int*);
+    int TraceNextMemory(long*, unsigned int*, bool*);
 
-    // FetchResult TraceFetch(OpcodePackage *m);
+    FetchResult TraceFetch(const OpcodePackage**);
 
   public:
-    virtual int OpenTrace(const char *traceFileName);
+    virtual int OpenTrace(const char*);
     virtual void PrintStatistics();
-    virtual FetchResult Fetch(InstructionPacket *ret);
+    virtual FetchResult Fetch(InstructionPacket*);
 
     inline ~SinucaTraceReader() {
         fclose(this->StaticTraceFile);
