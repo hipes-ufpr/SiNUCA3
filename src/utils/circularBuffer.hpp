@@ -30,12 +30,12 @@
 
 class CircularBuffer {
   private:
-    void* buffer;
-    int occupation;
-    int bufferSize;
-    int messageSize;
-    int startOfBuffer;
-    int endOfBuffer;
+    void* buffer;      /**<The Buffer. */
+    int occupation;    /**<Buffer's current occupancy */
+    int bufferSize;    /**<The maximum buffer capacity. */
+    int messageSize;   /**<The message size supported by the buffer. */
+    int startOfBuffer; /**<Sentinel to the start of the buffer. */
+    int endOfBuffer;   /*<Sentinel for the end of the buffer. */
 
   public:
     CircularBuffer()
@@ -80,14 +80,19 @@ class CircularBuffer {
 
     /**
      * @brief Inserts the element at the "top" of the buffer.
+     * @param elementInput A pointer to the element to be inserted.
+     * @return 1 if successfuly, 0 otherwise.
      */
-    int Enqueue(void* element);
+    bool Enqueue(void* elementInput);
 
     /**
      * @brief Removes and returns the element contained in the "base" of the
      * Buffer.
+     * @param elementOutput A pointer to the memory region where the element
+     * will be returned.
+     * @return 1 if successfuly, 0 otherwise.
      */
-    void* Dequeue();
+    bool Dequeue(void* elementOutput);
 
     ~CircularBuffer() {
         if (this->buffer) {

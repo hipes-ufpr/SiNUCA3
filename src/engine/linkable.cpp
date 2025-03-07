@@ -42,20 +42,20 @@ inline int sinuca::engine::Connection::GetMessageSize() const {
     return this->messageSize;
 };
 
-void sinuca::engine::Connection::SendRequest(char id, void* message) {
-    this->requestBuffers[id].Enqueue(message);
+bool sinuca::engine::Connection::SendRequest(char id, void* messageInput) {
+    return this->requestBuffers[id].Enqueue(messageInput);
 };
 
-void sinuca::engine::Connection::SendResponse(char id, void* message) {
-    this->responseBuffers[id].Enqueue(message);
+bool sinuca::engine::Connection::SendResponse(char id, void* messageInput) {
+    return this->responseBuffers[id].Enqueue(messageInput);
 };
 
-void* sinuca::engine::Connection::ReceiveRequest(char id) {
-    return this->requestBuffers[id].Dequeue();
+bool sinuca::engine::Connection::ReceiveRequest(char id, void* messageOutput) {
+    return this->requestBuffers[id].Dequeue(messageOutput);
 };
 
-void* sinuca::engine::Connection::ReceiveResponse(char id) {
-    return this->responseBuffers[id].Dequeue();
+bool sinuca::engine::Connection::ReceiveResponse(char id, void* messageOutput) {
+    return this->responseBuffers[id].Dequeue(messageOutput);
 };
 
 sinuca::engine::Linkable::Linkable(int messageSize)
@@ -91,45 +91,53 @@ int sinuca::engine::Linkable::Connect(int bufferSize) {
     return index;
 };
 
-void sinuca::engine::Linkable::SendRequestToLinkable(Linkable* dest,
+bool sinuca::engine::Linkable::SendRequestToLinkable(Linkable* dest,
                                                      int connectionID,
-                                                     void* message) {
-    dest->connections[connectionID]->SendRequest(DEST_ID, message);
+                                                     void* messageInput) {
+    return dest->connections[connectionID]->SendRequest(DEST_ID, messageInput);
 };
 
-void sinuca::engine::Linkable::SendResponseToLinkable(Linkable* dest,
+bool sinuca::engine::Linkable::SendResponseToLinkable(Linkable* dest,
                                                       int connectionID,
-                                                      void* message) {
-    dest->connections[connectionID]->SendResponse(DEST_ID, message);
+                                                      void* messageInput) {
+    return dest->connections[connectionID]->SendResponse(DEST_ID, messageInput);
 };
 
-void* sinuca::engine::Linkable::ReceiveRequestFromLinkable(Linkable* dest,
-                                                           int connectionID) {
-    return dest->connections[connectionID]->ReceiveRequest(SOURCE_ID);
+bool sinuca::engine::Linkable::ReceiveRequestFromLinkable(Linkable* dest,
+                                                          int connectionID,
+                                                          void* messageOutput) {
+    return dest->connections[connectionID]->ReceiveRequest(SOURCE_ID,
+                                                           messageOutput);
 };
 
-void* sinuca::engine::Linkable::ReceiveResponseFromLinkable(Linkable* dest,
-                                                            int connectionID) {
-    return dest->connections[connectionID]->ReceiveResponse(SOURCE_ID);
+bool sinuca::engine::Linkable::ReceiveResponseFromLinkable(
+    Linkable* dest, int connectionID, void* messageOutput) {
+    return dest->connections[connectionID]->ReceiveResponse(SOURCE_ID,
+                                                            messageOutput);
 };
 
-void sinuca::engine::Linkable::SendRequestToConnection(int connectionID,
-                                                       void* message) {
-    this->connections[connectionID]->SendRequest(SOURCE_ID, message);
+bool sinuca::engine::Linkable::SendRequestToConnection(int connectionID,
+                                                       void* messageInput) {
+    return this->connections[connectionID]->SendRequest(SOURCE_ID,
+                                                        messageInput);
 };
 
-void sinuca::engine::Linkable::SendResponseToConnection(int connectionID,
-                                                        void* message) {
-    this->connections[connectionID]->SendResponse(SOURCE_ID, message);
+bool sinuca::engine::Linkable::SendResponseToConnection(int connectionID,
+                                                        void* messageInput) {
+    return this->connections[connectionID]->SendResponse(SOURCE_ID,
+                                                         messageInput);
 };
 
-void* sinuca::engine::Linkable::ReceiveRequestFromConnection(int connectionID) {
-    return this->connections[connectionID]->ReceiveRequest(DEST_ID);
+bool sinuca::engine::Linkable::ReceiveRequestFromConnection(
+    int connectionID, void* messageOutput) {
+    return this->connections[connectionID]->ReceiveRequest(DEST_ID,
+                                                           messageOutput);
 };
 
-void* sinuca::engine::Linkable::ReceiveResponseFromConnection(
-    int connectionID) {
-    return this->connections[connectionID]->ReceiveResponse(DEST_ID);
+bool sinuca::engine::Linkable::ReceiveResponseFromConnection(
+    int connectionID, void* messageOutput) {
+    return this->connections[connectionID]->ReceiveResponse(DEST_ID,
+                                                            messageOutput);
 };
 
 void sinuca::engine::Linkable::PreClock() {}

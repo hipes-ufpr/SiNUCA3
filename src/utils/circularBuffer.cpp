@@ -5,6 +5,8 @@
 
 #include "circularBuffer.hpp"
 
+#include <cstring>
+
 inline bool CircularBuffer::IsAllocated() const {
     return (this->buffer != NULL);
 };
@@ -20,6 +22,8 @@ inline bool CircularBuffer::IsFull() const {
 inline bool CircularBuffer::IsEmpty() const { return (this->occupation == 0); };
 
 void CircularBuffer::Allocate(int bufferSize, int messageSize) {
+    if ((bufferSize == 0) || (messageSize == 0)) return;
+
     this->occupation = 0;
     this->startOfBuffer = 0;
     this->endOfBuffer = 0;
@@ -32,15 +36,17 @@ void CircularBuffer::Allocate(int bufferSize, int messageSize) {
     }
 };
 
-int CircularBuffer::Enqueue(void* element) {
+bool CircularBuffer::Enqueue(void* elementInput) {
     if (!(this->IsFull())) {
         /*
          * Target stores the memory address where the element should be
          * inserted, based on pointer arithmetic. After its definition, memcpy
          * stores the element in the most recent position in the buffer.
          */
-        void* target = static_cast<char*>(buffer) + (endOfBuffer * messageSize);
-        memcpy(target, element, messageSize);
+        void* memoryAddress =
+            static_cast<char*>(buffer) + (endOfBuffer * messageSize);
+
+        memcpy(memoryAddress, elementInput, messageSize);
         ++occupation;
         ++endOfBuffer;
 
@@ -54,7 +60,7 @@ int CircularBuffer::Enqueue(void* element) {
     return 0;
 };
 
-void* CircularBuffer::Dequeue() {
+bool CircularBuffer::Dequeue(void* elementOutput) {
     if (!(this->IsEmpty())) {
         /*
          * Element stores the memory address of the oldest element in the Buffer
@@ -62,9 +68,10 @@ void* CircularBuffer::Dequeue() {
          * the space of this element, the buffer limits are readjusted to avoid
          * unauthorized access.
          */
-        void* element =
+        void* memoryAddress =
             static_cast<char*>(buffer) + (startOfBuffer * messageSize);
 
+        memcpy(elementOutput, memoryAddress, messageSize);
         --occupation;
         ++startOfBuffer;
 
@@ -72,8 +79,8 @@ void* CircularBuffer::Dequeue() {
             startOfBuffer = 0;
         }
 
-        return element;
+        return 1;
     }
 
-    return NULL;
+    return 0;
 };
