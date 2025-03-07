@@ -55,7 +55,8 @@ class Component : public engine::Linkable {
      */
     inline bool SendRequestToComponent(Linkable* component, int connectionID,
                                        void* messageInput) {
-        return this->SendRequestToLinkable(component, connectionID, messageInput);
+        return this->SendRequestToLinkable(component, connectionID,
+                                           messageInput);
     };
 
     /**
@@ -63,23 +64,28 @@ class Component : public engine::Linkable {
      */
     inline bool SendResponseToComponent(Linkable* component, int connectionID,
                                         void* messageInput) {
-        return this->SendResponseToLinkable(component, connectionID, messageInput);
+        return this->SendResponseToLinkable(component, connectionID,
+                                            messageInput);
     };
 
     /**
      * @brief Wrapper to ReceiveRequestFromLinkable method
      */
     inline bool ReceiveRequestFromComponent(Linkable* component,
-                                                    int connectionID, void* messageOutput) {
-        return this->ReceiveRequestFromLinkable(component, connectionID, messageOutput);
+                                            int connectionID,
+                                            void* messageOutput) {
+        return this->ReceiveRequestFromLinkable(component, connectionID,
+                                                messageOutput);
     };
 
     /**
      * @brief Wrapper to ReceiveResponseFromLinkable method
      */
     inline bool ReceiveResponseFromComponent(Linkable* component,
-                                                     int connectionID, void* messageOutput) {
-        return this->ReceiveResponseFromLinkable(component, connectionID, messageOutput);
+                                             int connectionID,
+                                             void* messageOutput) {
+        return this->ReceiveResponseFromLinkable(component, connectionID,
+                                                 messageOutput);
     };
 
     /**
@@ -92,21 +98,24 @@ class Component : public engine::Linkable {
     /**
      * @brief Wrapper to SendResponseToConnection method
      */
-    inline bool SendResponseForConnection(int connectionID, void* messageInput) {
+    inline bool SendResponseForConnection(int connectionID,
+                                          void* messageInput) {
         return this->SendResponseToConnection(connectionID, messageInput);
     };
 
     /**
      * @brief Wrapper to ReceiveRequestFromConnection method
      */
-    inline bool ReceiveRequestForAConnection(int connectionID, void* messageOutput) {
+    inline bool ReceiveRequestForAConnection(int connectionID,
+                                             void* messageOutput) {
         return this->ReceiveRequestFromConnection(connectionID, messageOutput);
     };
 
     /**
      * @brief Wrapper to ReceiveResponseFromConnection method
      */
-    inline bool ReceiveResponseForAConnection(int connectionID, void* messageOutput) {
+    inline bool ReceiveResponseForAConnection(int connectionID,
+                                              void* messageOutput) {
         return this->ReceiveResponseFromConnection(connectionID, messageOutput);
     };
 
