@@ -42,19 +42,19 @@ inline int sinuca::engine::Connection::GetMessageSize() const {
     return this->messageSize;
 };
 
-bool sinuca::engine::Connection::SendRequest(char id, void* messageInput) {
+bool sinuca::engine::Connection::SendRequest(int id, void* messageInput) {
     return this->requestBuffers[id].Enqueue(messageInput);
 };
 
-bool sinuca::engine::Connection::SendResponse(char id, void* messageInput) {
+bool sinuca::engine::Connection::SendResponse(int id, void* messageInput) {
     return this->responseBuffers[id].Enqueue(messageInput);
 };
 
-bool sinuca::engine::Connection::ReceiveRequest(char id, void* messageOutput) {
+bool sinuca::engine::Connection::ReceiveRequest(int id, void* messageOutput) {
     return this->requestBuffers[id].Dequeue(messageOutput);
 };
 
-bool sinuca::engine::Connection::ReceiveResponse(char id, void* messageOutput) {
+bool sinuca::engine::Connection::ReceiveResponse(int id, void* messageOutput) {
     return this->responseBuffers[id].Dequeue(messageOutput);
 };
 

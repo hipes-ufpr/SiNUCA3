@@ -71,7 +71,7 @@ struct Connection {
      * source Linkable, so it uses SOURCE_ID as a parameter.
      * @return 1 if successfuly, 0 otherwise.
      */
-    bool SendRequest(char id, void* messageInput);
+    bool SendRequest(int id, void* messageInput);
 
     /**
      * @brief Send a response to a certain responseBuffer.
@@ -83,7 +83,7 @@ struct Connection {
      * the source Linkable, so it uses SOURCE_ID as a parameter.
      * @return 1 if successfuly, 0 otherwise.
      */
-    bool SendResponse(char id, void* messageInput);
+    bool SendResponse(int id, void* messageInput);
 
     /**
      * @brief Return a request of a certain requestBuffer.
@@ -95,7 +95,7 @@ struct Connection {
      * from the source Linkable, so it uses DEST_ID as a parameter.
      * @return 1 if successfuly, 0 otherwise.
      */
-    bool ReceiveRequest(char id, void* messageOutput);
+    bool ReceiveRequest(int id, void* messageOutput);
 
     /**
      * @brief Return a response of a certain responseBuffer.
@@ -107,7 +107,7 @@ struct Connection {
      * from the source Linkable, so it uses DEST_ID as a parameter.
      * @return 1 if successfuly, 0 otherwise.
      */
-    bool ReceiveResponse(char id, void* messageOutput);
+    bool ReceiveResponse(int id, void* messageOutput);
 };
 
 /**

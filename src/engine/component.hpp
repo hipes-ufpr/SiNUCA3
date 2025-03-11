@@ -48,7 +48,7 @@ class Component : public engine::Linkable {
      * @param messageSize The size of the message that will be used by the
      * component.
      */
-    inline Component(int messageSize) : engine::Linkable(messageSize) {}
+    inline Component() : engine::Linkable(sizeof(MessageType)) {}
 
     /**
      * @brief Wrapper to SendRequestToLinkable method
