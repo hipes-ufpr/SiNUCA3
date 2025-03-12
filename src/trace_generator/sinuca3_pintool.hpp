@@ -3,9 +3,6 @@
 #include <cstddef> // size_t
 #include <cstring> // memcpy
 
-// branchType are not written to struct
-#define SIZE_DATA_INS sizeof(DataINS) \
-                    - sizeof(unsigned char)
 #define BUFFER_SIZE 1<<20
 
 inline void copy(char* buf, size_t* used, void* src, size_t size) {
@@ -23,9 +20,10 @@ struct DataINS {
     unsigned short int indexReg;
     unsigned char size;
     unsigned char booleanValues;
-    // unsigned char numReads;
-    // unsigned char numWrites;
-    unsigned char branchType;
+    unsigned char numMemReads;
+    unsigned char numMemWrites;
+    unsigned char numReadregs;
+    unsigned char numWriteRegs;
 } __attribute__((packed)); // no padding
 
 struct DataMEM {

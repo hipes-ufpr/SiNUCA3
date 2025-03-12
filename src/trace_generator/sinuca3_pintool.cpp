@@ -8,6 +8,7 @@ extern "C" {
 }
 
 #include "sinuca3_pintool.hpp"
+#include "../trace_reader/sinuca3_trace_reader.hpp"
 #include "../utils/logging.hpp"
 
 #define MEMREAD_EA IARG_MEMORYREAD_EA
@@ -91,27 +92,26 @@ VOID appendToDynamicTrace(UINT32 bblId) {
     }
 }
 
-VOID copyRegs(const INS *ins, unsigned int maxRegs, REG (*func)(INS, UINT32)) {
-    char *buf = staticBuffer->store;
-    size_t *used = &staticBuffer->numUsedBytes;
-    size_t saveUsed = *used;
+VOID copyRegs(const INS *ins, unsigned short int *regs,
+    unsigned int maxRegs, REG (*func)(INS, UINT32)) {
+    //-----------------------//     
     unsigned short int reg, it, cont;
 
-    (*used) += sizeof(cont);
     for (it = 0, cont = 0; it < maxRegs; it++) {
         reg = static_cast<unsigned short int>(func(*ins, it));
         if (reg != REG_INVALID()) {
-            copy(buf, used, &reg, sizeof(reg));
+            regs[cont] = reg;
             cont++;
         }
     }
-    memcpy(buf+saveUsed, &it, sizeof(cont));
 }
 
 VOID x86ToStaticBuf(const INS* ins, DataINS *data) {
     namespace reader = sinuca::traceReader::sinuca3TraceReader;
+    reader::Branch branchType;
     char* buf = staticBuffer->store;
     size_t* used = &staticBuffer->numUsedBytes;
+    static unsigned short int regs[64];
     
     unsigned int maxRRegs = INS_MaxNumRRegs(*ins);
     unsigned int maxWRegs = INS_MaxNumWRegs(*ins);
@@ -135,16 +135,16 @@ VOID x86ToStaticBuf(const INS* ins, DataINS *data) {
     }
     bool flag;
     if ((flag = INS_IsCall(*ins))) {
-        data->branchType = reader::BranchCall; 
+        branchType = reader::BranchCall; 
     } else if ((flag = INS_IsRet(*ins))) {
-        data->branchType = reader::BranchReturn; 
+        branchType = reader::BranchReturn; 
     } else if ((flag = INS_IsSyscall(*ins))) {
-        data->branchType = reader::BranchSyscall; 
+        branchType = reader::BranchSyscall; 
     } else if ((flag = INS_IsControlFlow(*ins))) {
         if (INS_HasFallThrough(*ins)) {
-            data->branchType = reader::BranchCond;
+            branchType = reader::BranchCond;
         } else {
-            data->branchType = reader::BranchUncond;
+            branchType = reader::BranchUncond;
         }
     }
     if (flag == true) {
@@ -155,18 +155,18 @@ VOID x86ToStaticBuf(const INS* ins, DataINS *data) {
     }
 
     // copy data
-    copy(buf, used, data, SIZE_DATA_INS);
+    copy(buf, used, data, sizeof(*data));
 
     // copy branch type
     if (flag == true) {
-        copy(buf, used, &data->branchType, sizeof(data->branchType));
+        copy(buf, used, &branchType, sizeof(branchType));
     }
     // copy mnemonic
     copy(buf, used, (void*)name.c_str(), name.size()+1);
     // copy read regs
-    copyRegs(ins, maxRRegs, INS_RegR);
+    copyRegs(ins, regs, maxRRegs, INS_RegR);
     // copy write regs
-    copyRegs(ins, maxWRegs, INS_RegW);
+    copyRegs(ins, regs, maxWRegs, INS_RegW);
 }
 
 VOID appendToMemTraceStd(ADDRINT addr, INT32 size) {
