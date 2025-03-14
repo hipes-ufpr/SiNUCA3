@@ -1,5 +1,4 @@
 #include "pin.H"
-#include "types_vmapi.PH"
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -9,7 +8,7 @@ extern "C" {
 }
 
 #include "sinuca3_pintool.hpp"
-#include "../trace_reader/sinuca3_trace_reader.hpp"
+#include "../trace_reader/trace_reader.hpp"
 #include "../utils/logging.hpp"
 
 #define MEMREAD_EA IARG_MEMORYREAD_EA
@@ -74,6 +73,7 @@ VOID stopInstrumentation(unsigned int bblCount) {
     }
     if (dynamicBuffer->numUsedBytes>0) {
         dynamicBuffer->loadBufToFile(dynamicTrace);
+
     }
     if (memoryBuffer->numUsedBytes>0) {
         memoryBuffer->loadBufToFile(memoryTrace);
@@ -87,8 +87,9 @@ VOID appendToDynamicTrace(UINT32 bblId) {
     char* buf = dynamicBuffer->store;
     size_t* used = &dynamicBuffer->numUsedBytes;
 
-    copy(buf, used, &bblId, sizeof(unsigned short));
-    if(dynamicBuffer->isBufFull() == true) {
+    SINUCA3_DEBUG_PRINTF("BBL ID => %d\n", bblId);
+    copy(buf, used, &bblId, sizeof(bblId));
+    if (dynamicBuffer->isBufFull() == true) {
         dynamicBuffer->loadBufToFile(dynamicTrace);   
     }
 }
@@ -228,12 +229,12 @@ VOID x86ToStaticBuf(const INS* ins, DataINS *data) {
     copy(buf, used, readRegs, sizeof(*readRegs)*data->numReadRegs);
     // copy write regs
     copy(buf, used, writeRegs, sizeof(*writeRegs)*data->numWriteRegs);
+    // copy mnemonic
+    copy(buf, used, (void*)name.c_str(), name.size()+1);
     // copy branch type
     if (isBranch == true) {
         copy(buf, used, &branchType, sizeof(branchType));
     }
-    // copy mnemonic
-    copy(buf, used, (void*)name.c_str(), name.size()+1);
 }
 
 VOID trace(TRACE trace, VOID *ptr) {
@@ -246,9 +247,8 @@ VOID trace(TRACE trace, VOID *ptr) {
     if (isInstrumentationOn == false) {return;}
 
     if (std::strstr(RTN_Name(TRACE_Rtn(trace)).c_str(), "trace_stop")) {
-        stopInstrumentation(bblCount);
+        return stopInstrumentation(bblCount);
     }
-
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         BBL_InsertCall(bbl, IPOINT_BEFORE, (AFUNPTR)appendToDynamicTrace, 

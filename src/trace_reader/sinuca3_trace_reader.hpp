@@ -27,8 +27,8 @@
 #include <cstring>
 #include "trace_reader.hpp"
 
-inline void incReadPtr(size_t *read, size_t size) {
-    *read += size;
+inline void incBufPtr(size_t *bufPtr, size_t size) {
+    *bufPtr += size;
 }
 
 namespace sinuca {

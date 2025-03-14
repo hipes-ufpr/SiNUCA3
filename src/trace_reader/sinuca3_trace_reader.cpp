@@ -99,23 +99,16 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::GetTotalBBLs() {
 void readRegs(const char* buf, size_t *read, unsigned short *vet,
     unsigned short numRegs) {
     //---------------------//
-    SINUCA3_DEBUG_PRINTF("INS NUM REGS[R/W] => %u\n", numRegs);
-    unsigned int it;
     memcpy(vet, buf+*read, sizeof(*vet)*numRegs);
-    incReadPtr(read, sizeof(*vet)*numRegs);
+    incBufPtr(read, sizeof(*vet)*numRegs);
 }
 
-int readBuffer(char *buf, size_t *read, size_t *bufSize, FILE *file) {
-    size_t readFromFile = fread(bufSize, 1, sizeof(bufSize), file);
-    if (readFromFile <= 0) {
-        SINUCA3_ERROR_PRINTF("INCOMPATIBLE FILE SIZE (BINARY DICT)\n");
-        return 1;
-    }
-    if (*bufSize > BUFFER_SIZE) {
+int readBuffer(char *buf, size_t *read, size_t bufSize, FILE *file) {
+    if (bufSize > BUFFER_SIZE) {
         SINUCA3_ERROR_PRINTF("INCOMPATIBLE BUFFER SIZE (BINARY DICT)");
         return 1;
     }
-    fread(buf, 1, *bufSize, file);
+    fread(buf, 1, bufSize, file);
     *read = 0;
 
     return 0;
@@ -152,25 +145,57 @@ void readDataINSBytes(char *buf, size_t *read,
             package->numWritings++;
         }
     }
-    incReadPtr(read, sizeof(*data));
+    incBufPtr(read, sizeof(*data));
+
+    SINUCA3_DEBUG_PRINTF("INS ADDR => %p ", (void*)package->opcodeAddress);
+    SINUCA3_DEBUG_PRINTF("INS SIZE => %d ", package->opcodeSize);
+    SINUCA3_DEBUG_PRINTF("INS NUM R REGS => %d ", package->numReadRegs);
+    SINUCA3_DEBUG_PRINTF("INS NUM W REGS => %d ", package->numWriteRegs);
+}
+
+int readMnemonic(char *str, char *buf, size_t *read) {
+    size_t strSize = strlen(buf+*read)+1;
+    if (strSize > TRACE_LINE_SIZE) {
+        SINUCA3_ERROR_PRINTF("INCOMPATIBLE STRING SIZE (BINARY DICT)\n");
+        return 1;
+    }
+    memcpy(str, buf+*read, strSize);
+    incBufPtr(read, strSize);
+
+    return 0;
+}
+
+int readBufSizeFromFile(size_t *size, FILE *file) {
+    size_t read = fread(size, 1, sizeof(*size), file);
+    if (read <= 0) {
+        SINUCA3_ERROR_PRINTF("INCOMPATIBLE FILE SIZE (BINARY DICT)\n");
+        return 1;
+    }
+    
+    return 0;
 }
 
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     GenerateBinaryDict() {
     //------------------//
-    unsigned int *count = &this->binaryTotalBBLs, bbl = 0;
+    unsigned int bbl = 0;
     char buf[BUFFER_SIZE];
-    size_t read, strSize, bufSize;
     unsigned short numInstBbl, savedNumInst;
+    size_t read, bufSize;
     InstructionPacket* package;
     DataINS* data;
     
-    fseek(this->StaticTraceFile, sizeof(*count), SEEK_SET);
-    readBuffer(buf, &read, &bufSize, this->StaticTraceFile);
+    fseek(this->StaticTraceFile, sizeof(this->binaryTotalBBLs), SEEK_SET);
+    if (readBufSizeFromFile(&bufSize, this->StaticTraceFile)) {
+        return 1;
+    }
+    if (readBuffer(buf, &read, bufSize, this->StaticTraceFile)) {
+        return 1;
+    }
 
     while (bbl < this->binaryTotalBBLs) {
         numInstBbl = *(unsigned short*)(buf+read);
-        incReadPtr(&read, sizeof(numInstBbl));
+        incBufPtr(&read, sizeof(numInstBbl));
         SINUCA3_DEBUG_PRINTF("BBL SIZE => %d\n", numInstBbl);
 
         this->binaryBBLsSize[bbl] = numInstBbl;
@@ -179,31 +204,26 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
 
         while (numInstBbl > 0) {
             if (read == bufSize) {
-                if (readBuffer(buf, &read, &bufSize, this->StaticTraceFile)) {
+                if (readBufSizeFromFile(&bufSize, this->StaticTraceFile)) {
+                    return 1;
+                }
+                if (readBuffer(buf, &read, bufSize, this->StaticTraceFile)) {
                     return 1;
                 }
             }
             
+            package = &this->binaryDict[bbl][savedNumInst-numInstBbl];
             readDataINSBytes(buf, &read, package);
             readRegs(buf, &read, package->readRegs, package->numReadRegs);
             readRegs(buf, &read, package->writeRegs, package->numWriteRegs);
-
+            readMnemonic(package->opcodeAssembly, buf, &read);
             if (package->isControlFlow) {
                 package->branchType = *(Branch*)(buf+read);
-                read += sizeof(package->branchType);
+                incBufPtr(&read, sizeof(package->branchType));
             }
-
-            strSize = strlen(buf+read) + 1;
-            if (strSize > TRACE_LINE_SIZE) {
-                SINUCA3_ERROR_PRINTF("INCOMPATIBLE STRING SIZE (BINARY DICT)\n");
-                return 1;
-            }
-            memcpy(package->opcodeAssembly, buf+read, strSize);
-            read += strSize;
+            
             numInstBbl--;
 
-            SINUCA3_DEBUG_PRINTF("INS ADDR => %p ", (void*)package->opcodeAddress);
-            SINUCA3_DEBUG_PRINTF("INS SIZE => %u ", (int)package->opcodeAddress);
             SINUCA3_DEBUG_PRINTF("INS MNEMONIC => %s\n", package->opcodeAssembly);
             SINUCA3_DEBUG_PRINTF("BBL => %d ", bbl);
             SINUCA3_DEBUG_PRINTF("INS => %d\n", savedNumInst-numInstBbl);
@@ -243,16 +263,19 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
  * clang-format on
  */
 
-// =============================================================================
+// TODO
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::TraceNextDynamic(
-    unsigned int *next_bbl) {
-    //---------------------//
-    size_t read = fread(next_bbl, 1, sizeof(unsigned short), 
-                        this->StaticTraceFile);
+    unsigned int *nextBbl) {
+    //--------------------//
+    static size_t bufSize, readBuf = 0;
+    static char buf[BUFFER_SIZE];
+    size_t read = fread(nextBbl, 1, sizeof(*nextBbl), 
+                        this->DynamicTraceFile);
     if (read <= 0) {
         SINUCA3_ERROR_PRINTF("INCOMPATIBLE SIZE OF DYNAMIC TRACE FILE\n");
         return 1;
     }
+
     return 0;
 }
 
@@ -316,11 +339,12 @@ sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::TraceFetch(
     //--------------------------//
     if (!this->isInsideBBL) {
         if (this->TraceNextDynamic(&this->currentBBL)) {
-            this->isInsideBBL = true;
-            this->currentOpcode = 0;
-        } else {
             return FetchResultEnd;
         }
+        this->isInsideBBL = true;
+        this->currentOpcode = 0;
+
+        SINUCA3_DEBUG_PRINTF("CURRENT BBL => %d\n", this->currentBBL);
     }
 
     *package = &this->binaryDict[this->currentBBL][this->currentOpcode];
@@ -357,5 +381,11 @@ int main() {
 
     Reader::TraceReader* reader = new (Sinuca3Reader::SinucaTraceReader);
 
+    sinuca::traceReader::InstructionPacket* package;
     reader->OpenTrace("teste");
+    while (reader->Fetch(&package) != sinuca::traceReader::FetchResultEnd) {
+        SINUCA3_DEBUG_PRINTF("INS MNEMONIC => %s ", package->opcodeAssembly);
+        SINUCA3_DEBUG_PRINTF("INS NUM MEM L => %d ", package->numReadings);
+        SINUCA3_DEBUG_PRINTF("INS NUM MEM W => %d ", package->numWritings);
+    }
 }
