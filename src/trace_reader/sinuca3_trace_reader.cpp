@@ -79,6 +79,8 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
 
     // Obtain the number of BBLs
     if (this->GetTotalBBLs()) return 1;
+
+    // Initialize the binary dictionary containing all BBLs and their instructions.
     this->binaryBBLsSize = new unsigned short[this->binaryTotalBBLs];
     this->binaryDict = new InstructionPacket *[this->binaryTotalBBLs];
     if (this->GenerateBinaryDict()) return 1;
@@ -87,15 +89,14 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
 }
 
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::GetTotalBBLs() {
-    unsigned int *count = &this->binaryTotalBBLs;
-
     // Go to the Begin of the File
     rewind(this->StaticTraceFile);
-    size_t read = fread((void *)count, 1, sizeof(*count), StaticTraceFile);
+
+    size_t read = fread(&this->binaryTotalBBLs , 1, sizeof(this->binaryTotalBBLs), StaticTraceFile);
     if (read <= 0) {
         return 1;
     }
-    SINUCA3_DEBUG_PRINTF("NUMBER OF BBLs => %u\n", *count);
+    SINUCA3_DEBUG_PRINTF("NUMBER OF BBLs => %u\n", this->binaryTotalBBLs);
 
     return 0;
 }
@@ -107,13 +108,13 @@ void readRegs(const char *buf, size_t *offset, unsigned short *vet,
     increaseOffset(offset, sizeof(*vet) * numRegs);
 }
 
-int readBuffer(char *buf, size_t *read, size_t bufSize, FILE *file) {
+int readBuffer(char *buf, size_t *offset, size_t bufSize, FILE *file) {
     if (bufSize > BUFFER_SIZE) {
         SINUCA3_ERROR_PRINTF("INCOMPATIBLE BUFFER SIZE (BINARY DICT)");
         return 1;
     }
     fread(buf, 1, bufSize, file);
-    *read = 0;
+    *offset = 0;
 
     return 0;
 }
@@ -183,8 +184,8 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     GenerateBinaryDict() {
     //------------------//
     char buf[BUFFER_SIZE];
-    unsigned short bblSize;
     size_t offset, bufSize;
+    unsigned short bblSize;
     InstructionPacket *package;
     DataINS *data;
 
