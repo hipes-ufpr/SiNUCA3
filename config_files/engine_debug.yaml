@@ -1,4 +1,4 @@
-example:
+example: &example
   class: EngineDebugComponent
   pointer:
     class: EngineDebugComponent

@@ -134,15 +134,18 @@ int sinuca::config::EngineBuilder::Yaml2Parameter(const char* name,
             dest->value.referenceToDefinition =
                 this->AddComponentDefinitionFromYamlMapping(name,
                                                             src->value.mapping);
+                                                            dest->type = builder::ParameterTypeDefinitionReference;
             if (dest->value.referenceToDefinition == NULL) return 1;
             break;
         case yaml::YamlValueTypeString:
             dest->value.referenceToDefinition =
                 this->GetComponentDefinitionOrMakeDummy(src->value.string);
+                dest->type = builder::ParameterTypeDefinitionReference;
             break;
         case yaml::YamlValueTypeAlias:
             dest->value.referenceToInstance =
                 this->GetComponentInstantiationOrMakeDummy(src->value.alias);
+                dest->type = builder::ParameterTypeInstanceReference;
             break;
     }
 
