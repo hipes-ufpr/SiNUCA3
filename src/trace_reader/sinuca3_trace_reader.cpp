@@ -182,12 +182,14 @@ int readBufSizeFromFile(size_t *size, FILE *file) {
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     GenerateBinaryDict() {
     //------------------//
-    unsigned int bbl = 0;
     char buf[BUFFER_SIZE];
-    unsigned short numInstBbl, savedNumInst;
+    unsigned short bblSize;
     size_t offset, bufSize;
     InstructionPacket *package;
     DataINS *data;
+
+    unsigned int bblCounter = 0;
+    unsigned short instCounter;
 
     fseek(this->StaticTraceFile, sizeof(this->binaryTotalBBLs), SEEK_SET);
     if (readBufSizeFromFile(&bufSize, this->StaticTraceFile)) {
@@ -197,26 +199,25 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
         return 1;
     }
 
-    while (bbl < this->binaryTotalBBLs) {
-        numInstBbl = *(unsigned short *)(buf + offset);
-        increaseOffset(&offset, sizeof(numInstBbl));
-        SINUCA3_DEBUG_PRINTF("BBL SIZE => %d\n", numInstBbl);
+    while (bblCounter < this->binaryTotalBBLs) {
+        bblSize = *(unsigned short *)(buf + offset);
+        increaseOffset(&offset, sizeof(bblSize));
+        SINUCA3_DEBUG_PRINTF("BBL SIZE => %d\n", bblSize);
 
-        this->binaryBBLsSize[bbl] = numInstBbl;
-        this->binaryDict[bbl] = new InstructionPacket[numInstBbl];
-        savedNumInst = numInstBbl;
+        this->binaryBBLsSize[bblCounter] = bblSize;
+        this->binaryDict[bblCounter] = new InstructionPacket[bblSize];
 
-        while (numInstBbl > 0) {
+        instCounter = 0;
+        while (instCounter < bblSize) {
             if (offset == bufSize) {
-                if (readBufSizeFromFile(&bufSize, this->StaticTraceFile)) {
+                if (readBufSizeFromFile(&bufSize, this->StaticTraceFile))
                     return 1;
-                }
-                if (readBuffer(buf, &offset, bufSize, this->StaticTraceFile)) {
+
+                if (readBuffer(buf, &offset, bufSize, this->StaticTraceFile))
                     return 1;
-                }
             }
 
-            package = &this->binaryDict[bbl][savedNumInst - numInstBbl];
+            package = &this->binaryDict[bblCounter][instCounter];
             readDataINSBytes(buf, &offset, package);
             readRegs(buf, &offset, package->readRegs, package->numReadRegs);
             readRegs(buf, &offset, package->writeRegs, package->numWriteRegs);
@@ -226,15 +227,15 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
                 increaseOffset(&offset, sizeof(package->branchType));
             }
 
-            numInstBbl--;
-
             SINUCA3_DEBUG_PRINTF("INS MNEMONIC => %s\n",
                                  package->opcodeAssembly);
-            SINUCA3_DEBUG_PRINTF("BBL => %d ", bbl);
-            SINUCA3_DEBUG_PRINTF("INS => %d\n", savedNumInst - numInstBbl);
+            SINUCA3_DEBUG_PRINTF("BBL => %d ", bblCounter);
+            SINUCA3_DEBUG_PRINTF("INS => %d\n", instCounter);
+
+            instCounter++;
         }
 
-        bbl++;
+        bblCounter++;
     }
 
     SINUCA3_DEBUG_PRINTF("READ BYTES => %lu BUF SIZE => %lu\n", offset,
