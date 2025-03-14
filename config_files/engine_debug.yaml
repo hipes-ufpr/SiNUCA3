@@ -1,0 +1,14 @@
+example: &example
+  class: EngineDebugComponent
+  pointer:
+    class: EngineDebugComponent
+    pointer: *otherComponent
+
+otherComponent: &otherComponent
+  class: EngineDebugComponent
+  parameter1: 4.20
+  parameter2: 69
+  parameter3: true
+
+cores:
+  - class: EngineDebugComponent

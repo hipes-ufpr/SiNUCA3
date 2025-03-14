@@ -7,13 +7,17 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Debug",
+			"name": "engine_debug.yaml",
 			"program": "${workspaceFolder}/sinuca3-debug",
 			"args": [
 				"-c",
-				"test.yaml"
+				"config_files/engine_debug.yaml",
+				"-T",
+				"orcs",
+				"-t",
+				"${workspaceFolder}/traces/orcs/astar/astar.CINT.PP200M"
 			],
 			"cwd": "${workspaceFolder}"
-		}
+		},
 	]
 }

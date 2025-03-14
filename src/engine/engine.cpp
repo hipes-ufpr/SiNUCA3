@@ -22,6 +22,8 @@
 
 #include "engine.hpp"
 
+#include <ctime>
+
 #include "../trace_reader/trace_reader.hpp"
 #include "../utils/logging.hpp"
 #include "component.hpp"
@@ -36,10 +38,13 @@ int sinuca::engine::Engine::AddCPUs(sinuca::engine::Linkable** cpus,
     // this way we got a better error message. Me when C++.
     for (long i = 0; i < numberOfCPUs; ++i) {
         // Ensure the component passed was a Component<InstructionPacket>.
-        this->cpus[i] = dynamic_cast<Component<InstructionPacket>*>(cpus[i]);
+        this->cpus[i] =
+            dynamic_cast<Component<sinuca::InstructionPacket>*>(cpus[i]);
         // If it wasn't, we error out.
         if (this->cpus[i] == NULL) {
             delete[] this->cpus;
+            // This pointer must be grounded due to the destructor.
+            this->cpus = NULL;
             SINUCA3_ERROR_PRINTF(
                 "CPU number %ld is not of type Component<InstructionPacket>.\n",
                 i);
@@ -56,9 +61,32 @@ int sinuca::engine::Engine::Simulate(
     sinuca::traceReader::TraceReader* traceReader) {
     InstructionPacket packet;
     traceReader::FetchResult result;
+    const unsigned long traceSize = traceReader->GetTraceSize();
+    // Start at 1 to avoid a heartbeat in the first cycle.
+    unsigned long cycle = 1;
+
+    time_t start = time(NULL);
+
+    SINUCA3_LOG_PRINTF("engine: Simulation started at %s", ctime(&start));
+    SINUCA3_LOG_PRINTF("engine: Total instructions: %ld.\n", traceSize);
 
     while ((result = traceReader->Fetch(&packet)) ==
            traceReader::FetchResultOk) {
+        if (cycle % (1 << 8) == 0) {
+            const unsigned long fetched =
+                traceReader->GetNumberOfFetchedInstructions();
+            const unsigned long remaining = traceSize - fetched;
+            SINUCA3_LOG_PRINTF("engine: Heartbeat at cycle %ld.\n", cycle);
+            SINUCA3_LOG_PRINTF("engine: Remaining instructions: %ld.\n",
+                               remaining - 1);
+
+            time_t now = time(NULL);
+            time_t estimatedEnd =
+                (traceSize * (now - start) / remaining) + start;
+            SINUCA3_LOG_PRINTF("engine: Estimated simulation end: %s",
+                               ctime(&estimatedEnd));
+        }
+
         for (long i = 0; i < this->numberOfCPUs; ++i) this->cpus[i]->PreClock();
         for (long i = 0; i < this->numberOfComponents; ++i)
             this->components[i]->PreClock();
@@ -70,6 +98,8 @@ int sinuca::engine::Engine::Simulate(
         for (long i = 0; i < this->numberOfCPUs; ++i) this->cpus[i]->PosClock();
         for (long i = 0; i < this->numberOfComponents; ++i)
             this->components[i]->PosClock();
+
+        ++cycle;
     }
 
     return (result == traceReader::FetchResultError) ? 1 : 0;

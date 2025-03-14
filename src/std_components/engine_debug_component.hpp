@@ -37,7 +37,8 @@
  * It'll also log it's clock. Before each log, the pointer to the component is
  * printed to differentiate between multiple EngineDebugComponent.
  */
-class EngineDebugComponent : public sinuca::Component<char> {
+class EngineDebugComponent
+    : public sinuca::Component<sinuca::InstructionPacket> {
   private:
     bool shallFailOnFinish;
     void PrintConfigValue(const char* parameter,
