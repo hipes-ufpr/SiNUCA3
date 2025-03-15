@@ -27,8 +27,8 @@
 #include <cstring>
 #include "trace_reader.hpp"
 
-inline void incBufPtr(size_t *bufPtr, size_t size) {
-    *bufPtr += size;
+inline void increaseOffset(size_t *offset, size_t size) {
+    *offset += size;
 }
 
 namespace sinuca {

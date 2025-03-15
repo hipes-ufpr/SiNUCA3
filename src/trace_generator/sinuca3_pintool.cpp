@@ -43,7 +43,6 @@ struct Buffer {
     }
 };
 
-// globals
 KNOB<INT> KnobNumberIns(KNOB_MODE_WRITEONCE, "pintool", "number_max_inst", 
                         "-1", "Maximum number of instructions to be traced");
 FILE *staticTrace, *memoryTrace, *dynamicTrace;
@@ -52,7 +51,8 @@ static bool isInstrumentationOn;
 static const size_t ADDR_SIZE = sizeof(ADDRINT);
 
 int usage() {
-    SINUCA3_LOG_PRINTF("Tool knob summary: %s\n", KNOB_BASE::StringKnobSummary().c_str());
+    SINUCA3_LOG_PRINTF("Tool knob summary: %s\n", 
+                       KNOB_BASE::StringKnobSummary().c_str());
     return 1;
 }
 
@@ -115,8 +115,13 @@ VOID appendToMemTraceStd(ADDRINT addr, INT32 size) {
     size_t* used = &memoryBuffer->numUsedBytes;
     static DataMEM data;
 
-    data.addr = static_cast<long>(addr);
-    data.size = static_cast<int>(size);
+    memoryBuffer->setMinNecessary(sizeof(data));
+    if (memoryBuffer->isBufFull()) {
+        memoryBuffer->loadBufToFile(memoryTrace);
+    }
+
+    data.addr = addr;
+    data.size = size;
     copy(buf, used, &data, sizeof(data));
 
     if (memoryBuffer->isBufFull()) {
@@ -131,8 +136,15 @@ VOID appendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* acessInfo) {
     unsigned short numMemOps;
     PIN_MEM_ACCESS_INFO* memop;
     memOpType type;
+
     
-    numMemOps = static_cast<unsigned short>(acessInfo->numberOfMemops);
+    numMemOps = *(unsigned short*)(&acessInfo->numberOfMemops);
+    memoryBuffer->setMinNecessary(sizeof(numMemOps) +
+                                numMemOps*(sizeof(data)+sizeof(type)));
+    if (memoryBuffer->isBufFull()) {
+        memoryBuffer->loadBufToFile(memoryTrace);
+    }
+
     copy(buf, used, &numMemOps, sizeof(numMemOps));
     for (unsigned short it = 0; it < numMemOps; it++) {
         memop = &acessInfo->memop[it];
@@ -144,7 +156,15 @@ VOID appendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* acessInfo) {
     }
 }
 
+VOID setMinStdMemOp() {
+    memoryBuffer->setMinNecessary(sizeof(DataMEM)*3);
+    if (memoryBuffer->isBufFull()) {
+        memoryBuffer->loadBufToFile(memoryTrace);
+    }
+}
+
 VOID instrumentMem(const INS* ins, DataINS *data) {
+    bool isRead, hasRead2, isWrite;
     if (!INS_IsStandardMemop(*ins)) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)appendToMemTraceNonStd, 
                        IARG_MULTI_MEMORYACCESS_EA, IARG_END);
@@ -153,17 +173,24 @@ VOID instrumentMem(const INS* ins, DataINS *data) {
         return;
     }
 
-    if (INS_IsMemoryRead(*ins)) {
+    isRead = INS_IsMemoryRead(*ins);
+    hasRead2 = INS_HasMemoryRead2(*ins);
+    isWrite = INS_IsMemoryWrite(*ins);
+    if (isWrite || isRead || hasRead2) {
+        INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)setMinStdMemOp, IARG_END);
+    }
+
+    if (isRead) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)appendToMemTraceStd, 
                         MEMREAD_EA, MEMREAD_SIZE, IARG_END);
         setBit(&data->booleanValues, 5, true);
     }
-    if (INS_HasMemoryRead2(*ins)) {
+    if (hasRead2) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)appendToMemTraceStd, 
                         MEMREAD2_EA, MEMREAD_SIZE, IARG_END);
         setBit(&data->booleanValues, 6, true);
     }
-    if (INS_IsMemoryWrite(*ins)) {
+    if (isWrite) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)appendToMemTraceStd,
                         MEMWRITE_EA, MEMWRITE_SIZE, IARG_END);
         setBit(&data->booleanValues, 7, true);
