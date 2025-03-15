@@ -182,7 +182,7 @@ int sinuca::config::EngineBuilder::FillParametersAndClass(
 
     definition->clazz = NULL;
 
-    if (config->size() == 0 || strcmp((*config)[0]->name, "class") != 0) {
+    if (config->size() == 0) {
         SINUCA3_ERROR_PRINTF(
             "While trying to define component %s: parameter `class` not "
             "provided.\n",
@@ -206,7 +206,7 @@ int sinuca::config::EngineBuilder::FillParametersAndClass(
 
         // If we're on the last item and class was not provided, appending would
         // overflow, but we know that class was not provided!
-        if (definition->clazz == NULL) {
+        if (i == config->size() && definition->clazz == NULL) {
             SINUCA3_ERROR_PRINTF(
                 "While trying to define component %s: parameter `class` was "
                 "not provided.\n",
