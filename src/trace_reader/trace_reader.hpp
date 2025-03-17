@@ -48,7 +48,7 @@ class TraceReader {
     virtual unsigned long GetNumberOfFetchedInstructions() = 0;
     virtual void PrintStatistics() = 0;
     virtual FetchResult Fetch(const InstructionPacket** ret) = 0;
-    virtual ~TraceReader();
+    virtual ~TraceReader() {}
 };
 
 }  // namespace traceReader

@@ -1,56 +1,22 @@
-#include <types.h>
 #include "pin.H"
-#include "types_vmapi.PH"
-#include <cstddef>
 #include <cstdio>
-#include <cstring>
 extern "C" {
     #include <sys/stat.h> // mkdir
     #include <unistd.h>   // access
 }
 
 #include "sinuca3_pintool.hpp"
-#include "../trace_reader/trace_reader.hpp"
-#include "../utils/logging.hpp"
+#include "../sinuca3.hpp"
 
-#define MEMREAD_EA IARG_MEMORYREAD_EA
-#define MEMREAD_SIZE IARG_MEMORYREAD_SIZE
-#define MEMWRITE_EA IARG_MEMORYWRITE_EA
-#define MEMWRITE_SIZE IARG_MEMORYWRITE_SIZE
-#define MEMREAD2_EA IARG_MEMORYREAD2_EA
-
-struct Buffer {
-    char store[BUFFER_SIZE];
-    size_t numUsedBytes;
-    size_t minSpaceNecessary;
-
-    Buffer(size_t min) {
-        numUsedBytes = 0;
-        this->minSpaceNecessary = min;
-    }
-    
-    inline void loadBufToFile(FILE* file) {
-        fwrite(&numUsedBytes, 1, sizeof(size_t), file);
-        size_t written = fwrite(this->store, 1, this->numUsedBytes, file);
-        if (written < this->numUsedBytes) {SINUCA3_ERROR_PRINTF("Buffer error");}
-        this->numUsedBytes = 0;
-    }
-
-    inline bool isBufFull() {
-        return ((BUFFER_SIZE) - this->numUsedBytes < this->minSpaceNecessary);    
-    }
-
-    inline void setMinNecessary(size_t num) {
-        this->minSpaceNecessary = num;
-    }
-};
+FILE *staticTrace, *memoryTrace, *dynamicTrace;
+sinuca::traceGenerator::Buffer *staticBuffer, *memoryBuffer, *dynamicBuffer;
+static bool isInstrumentationOn;
 
 KNOB<INT> KnobNumberIns(KNOB_MODE_WRITEONCE, "pintool", "number_max_inst", 
                         "-1", "Maximum number of instructions to be traced");
-FILE *staticTrace, *memoryTrace, *dynamicTrace;
-Buffer *staticBuffer, *memoryBuffer, *dynamicBuffer;
-static bool isInstrumentationOn;
-static const size_t ADDR_SIZE = sizeof(ADDRINT);
+
+inline void copy(char* buf, size_t* used, void* src, size_t size);
+inline void setBit(unsigned char* byte, int position, bool value);
 
 int usage() {
     SINUCA3_LOG_PRINTF("Tool knob summary: %s\n", 
@@ -62,10 +28,10 @@ int usage() {
 VOID initInstrumentation() {
     SINUCA3_LOG_PRINTF("Start of tool instrumentation\n");
     isInstrumentationOn = true;
-    fseek(staticTrace, 4, SEEK_SET);
+    fseek(staticTrace, 2*sizeof(unsigned int), SEEK_SET);
 }
 
-VOID stopInstrumentation(unsigned int bblCount) {
+VOID stopInstrumentation(unsigned int bblCount, unsigned int instCount) {
     SINUCA3_LOG_PRINTF("End of tool instrumentation\n");
     SINUCA3_DEBUG_PRINTF("Number of BBLs => %u\n", bblCount);
     isInstrumentationOn = false;
@@ -81,8 +47,9 @@ VOID stopInstrumentation(unsigned int bblCount) {
         memoryBuffer->loadBufToFile(memoryTrace);
     }
 
-    std::rewind(staticTrace);
-    std::fwrite(&bblCount, 1, sizeof(bblCount), staticTrace);
+    rewind(staticTrace);
+    fwrite(&bblCount, 1, sizeof(bblCount), staticTrace);
+    fwrite(&instCount, 1, sizeof(instCount), staticTrace);
 }
 
 VOID appendToDynamicTrace(UINT32 bblId) {
@@ -114,7 +81,7 @@ UINT16 fillRegs(const INS *ins, unsigned short int *regs,
 VOID appendToMemTraceStd(ADDRINT addr, INT32 size) {
     char* buf = memoryBuffer->store;
     size_t* used = &memoryBuffer->numUsedBytes;
-    static DataMEM data;
+    static sinuca::traceGenerator::DataMEM data;
 
     data.addr = addr;
     data.size = size;
@@ -124,38 +91,45 @@ VOID appendToMemTraceStd(ADDRINT addr, INT32 size) {
 VOID appendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* acessInfo) {
     char* buf = memoryBuffer->store;
     size_t* used = &memoryBuffer->numUsedBytes;
-    static DataMEM data;
-    unsigned short numMemOps;
+    unsigned short numMemOps, numReadings, numWritings;
     PIN_MEM_ACCESS_INFO* memop;
-    memOpType type;
 
+    static sinuca::traceGenerator::DataMEM readings[MAX_MEM_OPERATIONS];
+    static sinuca::traceGenerator::DataMEM writings[MAX_MEM_OPERATIONS];
     
     numMemOps = *(unsigned short*)(&acessInfo->numberOfMemops);
-    memoryBuffer->setMinNecessary(sizeof(numMemOps) +
-                                numMemOps*(sizeof(data)+sizeof(type)));
+    memoryBuffer->setMinNecessary(sizeof(numMemOps) + numMemOps*sizeof(*readings));
     if (memoryBuffer->isBufFull()) {
         memoryBuffer->loadBufToFile(memoryTrace);
     }
 
-    copy(buf, used, &numMemOps, sizeof(numMemOps));
+    numReadings = numWritings = 0;
     for (unsigned short it = 0; it < numMemOps; it++) {
         memop = &acessInfo->memop[it];
-        data.addr = memop->memoryAddress;
-        data.size = memop->bytesAccessed;
-        copy(buf, used, &data, sizeof(data));
-        type = (memop->memopType == PIN_MEMOP_LOAD) ? LOAD : STORE;
-        copy(buf, used, &type, sizeof(type));
+        if (memop->memopType == PIN_MEMOP_LOAD) {
+            readings[numReadings].addr = memop->memoryAddress;
+            readings[numReadings].size = memop->bytesAccessed;
+            numReadings++;
+        } else {
+            writings[numWritings].addr = memop->memoryAddress;
+            writings[numWritings].size = memop->bytesAccessed;
+            numWritings++;
+        }
     }
+    copy(buf, used, &numReadings, sizeof(numReadings));
+    copy(buf, used, &numWritings, sizeof(numWritings));
+    copy(buf, used, readings, numReadings * sizeof(*readings));
+    copy(buf, used, writings, numWritings * sizeof(*writings));
 }
 
 VOID setMinStdMemOp() {
-    memoryBuffer->setMinNecessary(sizeof(DataMEM)*3);
+    memoryBuffer->setMinNecessary(sizeof(sinuca::traceGenerator::DataMEM)*3);
     if (memoryBuffer->isBufFull()) {
         memoryBuffer->loadBufToFile(memoryTrace);
     }
 }
 
-VOID instrumentMem(const INS* ins, DataINS *data) {
+VOID instrumentMem(const INS* ins, sinuca::traceGenerator::DataINS *data) {
     bool isRead, hasRead2, isWrite;
     if (!INS_IsStandardMemop(*ins)) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)appendToMemTraceNonStd, 
@@ -189,9 +163,8 @@ VOID instrumentMem(const INS* ins, DataINS *data) {
     }
 }
 
-VOID x86ToStaticBuf(const INS* ins, DataINS *data) {
-    namespace reader = sinuca::traceReader;
-    reader::Branch branchType;
+VOID x86ToStaticBuf(const INS* ins, sinuca::traceGenerator::DataINS *data) {
+    sinuca::Branch branchType;
     char* buf = staticBuffer->store;
     size_t* used = &staticBuffer->numUsedBytes;
     static unsigned short int readRegs[64];
@@ -219,16 +192,16 @@ VOID x86ToStaticBuf(const INS* ins, DataINS *data) {
     }
     bool isBranch;
     if ((isBranch = INS_IsCall(*ins))) {
-        branchType = reader::BranchCall; 
+        branchType = sinuca::BranchCall; 
     } else if ((isBranch = INS_IsRet(*ins))) {
-        branchType = reader::BranchReturn; 
+        branchType = sinuca::BranchReturn; 
     } else if ((isBranch = INS_IsSyscall(*ins))) {
-        branchType = reader::BranchSyscall; 
+        branchType = sinuca::BranchSyscall; 
     } else if ((isBranch = INS_IsControlFlow(*ins))) {
         if (INS_HasFallThrough(*ins)) {
-            branchType = reader::BranchCond;
+            branchType = sinuca::BranchCond;
         } else {
-            branchType = reader::BranchUncond;
+            branchType = sinuca::BranchUncond;
         }
     }
 
@@ -259,14 +232,14 @@ VOID x86ToStaticBuf(const INS* ins, DataINS *data) {
 VOID trace(TRACE trace, VOID *ptr) {
     char* buf = staticBuffer->store;
     size_t *usedStatic=&staticBuffer->numUsedBytes, bblInit;
-    static unsigned int bblCount = 0;
-    static DataINS data;
+    static unsigned int bblCount = 0, instCount = 0;
+    static sinuca::traceGenerator::DataINS data;
     unsigned short numInstBbl;
 
     if (isInstrumentationOn == false) {return;}
 
     if (std::strstr(RTN_Name(TRACE_Rtn(trace)).c_str(), "trace_stop")) {
-        return stopInstrumentation(bblCount);
+        return stopInstrumentation(bblCount, instCount);
     }
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
@@ -278,6 +251,7 @@ VOID trace(TRACE trace, VOID *ptr) {
         (*usedStatic) += sizeof(numInstBbl);
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
             numInstBbl++;
+            instCount++;
             x86ToStaticBuf(&ins, &data);
         }
         std::memcpy(buf+bblInit, &numInstBbl, sizeof(numInstBbl));
@@ -334,14 +308,11 @@ int main(int argc, char* argv[]) {
     PIN_InitSymbols();
     if (PIN_Init(argc, argv)) {
         return usage();
-    } 
-
-    SINUCA3_DEBUG_PRINTF("SIZE OF DataINS => %lu\n", sizeof(DataINS));
-    SINUCA3_DEBUG_PRINTF("SIZE OF DataMEM => %lu\n", sizeof(DataMEM));
+    }
     
-    staticBuffer = new Buffer(0);
-    dynamicBuffer = new Buffer(sizeof(unsigned short));
-    memoryBuffer = new Buffer(sizeof(ADDRINT)+sizeof(INT32));
+    staticBuffer = new sinuca::traceGenerator::Buffer(0);
+    dynamicBuffer = new sinuca::traceGenerator::Buffer(sizeof(unsigned short));
+    memoryBuffer = new sinuca::traceGenerator::Buffer(sizeof(ADDRINT)+sizeof(INT32));
     isInstrumentationOn = false;
 
     IMG_AddInstrumentFunction(imageLoad, NULL);
@@ -352,4 +323,17 @@ int main(int argc, char* argv[]) {
     PIN_StartProgram();
 
     return 0;
+}
+
+inline void copy(char* buf, size_t* used, void* src, size_t size) {
+    memcpy(buf + *used, src, size);
+    (*used) += size;
+}
+
+inline void setBit(unsigned char* byte, int position, bool value) {
+    if (value == true) {
+        *byte |= (1 << position);
+    } else {
+        *byte &= 0xff - (1 << position);
+    }
 }

@@ -84,8 +84,8 @@ enum Branch {
    long writesAddr[MAX_MEM_OPERATIONS];
    int readsSize[MAX_MEM_OPERATIONS];
    int writesSize[MAX_MEM_OPERATIONS];
-   short numReadings;
-   short numWritings;
+   unsigned short numReadings;
+   unsigned short numWritings;
 
    Branch branchType;
    bool isNonStdMemOp;

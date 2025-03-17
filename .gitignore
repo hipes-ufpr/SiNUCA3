@@ -3,5 +3,10 @@ build/
 sinuca3
 sinuca3-debug
 compile_commands.json
-traces/
+trace/
 ./docs
+*.so
+*.o
+test*
+sinuca3_trace_reader
+docs/

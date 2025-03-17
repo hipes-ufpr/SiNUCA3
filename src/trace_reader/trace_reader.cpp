@@ -22,4 +22,4 @@
 
 #include "trace_reader.hpp"
 
-sinuca::traceReader::TraceReader::~TraceReader() {}
+// sinuca::traceReader::TraceReader::~TraceReader() {}
