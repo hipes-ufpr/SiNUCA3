@@ -62,52 +62,41 @@ struct Connection {
     inline int GetMessageSize() const;
 
     /**
-     * @brief Send a request to a certain requestBuffer.
-     * @param id The id of the certain buffer.
+     * @brief Swap the buffers of the connection.
+     */
+    void swapBuffers();
+
+    /**
+     * @brief Insert a message into a requestBuffer.
+     * @param id The id of the buffer.
      * @param messageInput A pointer to the message to send.
-     * @details The Linkable that connected to another through the Connect call
-     * becomes the SOURCE, so to send a message to the recipient it uses DEST_ID
-     * as a parameter. Otherwise, the recipient is sending a message to the
-     * source Linkable, so it uses SOURCE_ID as a parameter.
      * @return 1 if successfuly, 0 otherwise.
      */
-    bool SendRequest(int id, void* messageInput);
+    bool InsertIntoRequestBuffer(int id, void* messageInput);
 
     /**
-     * @brief Send a response to a certain responseBuffer.
-     * @param id The id of the certain buffer.
+     * @brief Send a message into a responseBuffer.
+     * @param id The id of the buffer.
      * @param messageInput A pointer to the message to send.
-     * @details The Linkable that connected to another through the Connect call
-     * becomes the SOURCE, so to send a response to the recipient it uses
-     * DEST_ID as a parameter. Otherwise, the recipient is sending a message to
-     * the source Linkable, so it uses SOURCE_ID as a parameter.
      * @return 1 if successfuly, 0 otherwise.
      */
-    bool SendResponse(int id, void* messageInput);
+    bool InsertIntoResponseBuffer(int id, void* messageInput);
 
     /**
-     * @brief Return a request of a certain requestBuffer.
-     * @param id The id of the certain buffer.
+     * @brief Remove a request from a requestBuffer.
+     * @param id The id of the buffer.
      * @param messageOutput Address where to send the message.
-     * @details The Linkable that connected to another through the Connect call
-     * becomes the SOURCE, so to receive a request from the recipient it uses
-     * SOURCE_ID as a parameter. Otherwise, the recipient is receiving a request
-     * from the source Linkable, so it uses DEST_ID as a parameter.
      * @return 1 if successfuly, 0 otherwise.
      */
-    bool ReceiveRequest(int id, void* messageOutput);
+    bool RemoveFromARequestBuffer(int id, void* messageOutput);
 
     /**
-     * @brief Return a response of a certain responseBuffer.
-     * @param id The id of the certain buffer.
+     * @brief Remove a response from a responseBuffer.
+     * @param id The id of the  buffer.
      * @param messageOutput Address where to send the message.
-     * @details The Linkable that connected to another through the Connect call
-     * becomes the SOURCE, so to receive a message from the recipient it uses
-     * SOURCE_ID as a parameter. Otherwise, the recipient is receiving a message
-     * from the source Linkable, so it uses DEST_ID as a parameter.
      * @return 1 if successfuly, 0 otherwise.
      */
-    bool ReceiveResponse(int id, void* messageOutput);
+    bool RemoveFromAResponseBuffer(int id, void* messageOutput);
 };
 
 /**
@@ -158,98 +147,6 @@ class Linkable {
      */
     int Connect(int bufferSize);
 
-    /* Source Methods */
-
-    /**
-     * @brief This method is used by a Linkable Source to send a request to an
-     * Linkable that it has a reference to.
-     * @param dest The pointer to Linkable.
-     * @param connectionID The connection ID obtained by the Connect method with
-     * the desired Linkable.
-     * @param messageInput The request message to be sent.
-     * @return 1 if successfuly, 0 otherwise.
-     */
-    bool SendRequestToLinkable(Linkable* dest, int connectionID,
-                               void* messageInput);
-
-    /**
-     * @brief This method is used by a Linkable Source to send a response to an
-     * Linkable that it has a reference to.
-     * @param dest The pointer to Linkable.
-     * @param connectionID The connection ID obtained by the Connect method with
-     * the desired Linkable.
-     * @param messageInput The response message to be sent.
-     * @return 1 if successfuly, 0 otherwise.
-     */
-    bool SendResponseToLinkable(Linkable* dest, int connectionID,
-                                void* messageInput);
-
-    /**
-     * @brief This method is used by a Linkable Source to receive a request from
-     * an Linkable that it has a reference to.
-     * @param dest The pointer to Linkable.
-     * @param connectionID The connection ID obtained by the Connect method with
-     * the desired Linkable.
-     * @param messageOutput Address where to send the message.
-     * @return 1 if successfuly, 0 otherwise.
-     */
-    bool ReceiveRequestFromLinkable(Linkable* dest, int connectionID,
-                                    void* messageOutput);
-
-    /**
-     * @brief This method is used by a Linkable Source to receive a response
-     * from an Linkable that it has a reference to.
-     * @param dest The pointer to Linkable.
-     * @param connectionID The connection ID obtained by the Connect method with
-     * the desired Linkable.
-     * @param messageOutput Address where to send the message.
-     * @return 1 if successfuly, 0 otherwise.
-     */
-    bool ReceiveResponseFromLinkable(Linkable* dest, int connectionID,
-                                     void* messageOutput);
-
-    /* Recipient Methods */
-
-    /**
-     * @brief This method is used by a recipient Linkable to send a request to a
-     * connection.
-     * @param connectionID The connection ID of the connection that Linkable
-     * wants to send a request to.
-     * @param messageInput The request message to be sent.
-     * @return 1 if successfuly, 0 otherwise.
-     */
-    bool SendRequestToConnection(int connectionID, void* messageInput);
-
-    /**
-     * @brief This method is used by a recipient Linkable to send a response to
-     * a connection.
-     * @param connectionID The connection ID of the connection that Linkable
-     * wants to send a response to.
-     * @param messageInput The response message to be sent.
-     * @return 1 if successfuly, 0 otherwise.
-     */
-    bool SendResponseToConnection(int connectionID, void* messageInput);
-
-    /**
-     * @brief This method is used by a recipient Linkable to receive a request
-     * from a connection.
-     * @param connectionID The connection ID of the connection that Linkable
-     * wants to receive a request from.
-     * @param messageOutput Address where to send the message.
-     * @return 1 if successfuly, 0 otherwise.
-     */
-    bool ReceiveRequestFromConnection(int connectionID, void* messageOutput);
-
-    /**
-     * @brief This method is used by a recipient Linkable to receive a response
-     * from a connection.
-     * @param connectionID The connection ID of the connection that Linkable
-     * wants to receive a response from.
-     * @param messageOutput Address where to send the message.
-     * @return 1 if successfuly, 0 otherwise.
-     */
-    bool ReceiveResponseFromConnection(int connectionID, void* messageOutput);
-
   public:
     Linkable(int messageSize);
     /**
@@ -274,6 +171,15 @@ class Linkable {
      * for printing a proper error message describing what happened.
      * @returns Non-zero on error, 0 otherwise.
      */
+
+    int ReceiveRequest(int connectionID, void* messageInput);
+
+    int GetRequest(int connectionID, void* messageOutput);
+
+    int SendResponse(int connectionID, void* messageInput);
+
+    int GetResponse(int connectionID, void* messageOutput);
+
     virtual int FinishSetup() = 0;
     /**
      * @brief This method should be declared here so the simulator can send

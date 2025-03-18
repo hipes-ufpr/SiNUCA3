@@ -50,73 +50,21 @@ class Component : public engine::Linkable {
      */
     inline Component() : engine::Linkable(sizeof(MessageType)) {}
 
-    /**
-     * @brief Wrapper to SendRequestToLinkable method
-     */
-    inline bool SendRequestToComponent(Linkable* component, int connectionID,
-                                       void* messageInput) {
-        return this->SendRequestToLinkable(component, connectionID,
-                                           messageInput);
+    int SendRequestTo(Linkable* component, int connectionID, void* message) {
+        return component->ReceiveRequest(connectionID, message);
     };
 
-    /**
-     * @brief Wrapper to SendResponseToLinkable method
-     */
-    inline bool SendResponseToComponent(Linkable* component, int connectionID,
-                                        void* messageInput) {
-        return this->SendResponseToLinkable(component, connectionID,
-                                            messageInput);
+    int ReceiveResponseFrom(Linkable* component, int connectionID,
+                            void* message) {
+        return component->GetResponse(connectionID, message);
     };
 
-    /**
-     * @brief Wrapper to ReceiveRequestFromLinkable method
-     */
-    inline bool ReceiveRequestFromComponent(Linkable* component,
-                                            int connectionID,
-                                            void* messageOutput) {
-        return this->ReceiveRequestFromLinkable(component, connectionID,
-                                                messageOutput);
+    int SendResponseToConnection(int connectionID, void* message) {
+        return this->SendResponse(connectionID, message);
     };
 
-    /**
-     * @brief Wrapper to ReceiveResponseFromLinkable method
-     */
-    inline bool ReceiveResponseFromComponent(Linkable* component,
-                                             int connectionID,
-                                             void* messageOutput) {
-        return this->ReceiveResponseFromLinkable(component, connectionID,
-                                                 messageOutput);
-    };
-
-    /**
-     * @brief Wrapper to SendRequestToConnection method
-     */
-    inline bool SendRequestForConnection(int connectionID, void* messageInput) {
-        return this->SendRequestToConnection(connectionID, messageInput);
-    };
-
-    /**
-     * @brief Wrapper to SendResponseToConnection method
-     */
-    inline bool SendResponseForConnection(int connectionID,
-                                          void* messageInput) {
-        return this->SendResponseToConnection(connectionID, messageInput);
-    };
-
-    /**
-     * @brief Wrapper to ReceiveRequestFromConnection method
-     */
-    inline bool ReceiveRequestForAConnection(int connectionID,
-                                             void* messageOutput) {
-        return this->ReceiveRequestFromConnection(connectionID, messageOutput);
-    };
-
-    /**
-     * @brief Wrapper to ReceiveResponseFromConnection method
-     */
-    inline bool ReceiveResponseForAConnection(int connectionID,
-                                              void* messageOutput) {
-        return this->ReceiveResponseFromConnection(connectionID, messageOutput);
+    int ReceiveRequestFromConnection(int connectionID, void* message) {
+        return this->GetRequest(connectionID, message);
     };
 
     inline ~Component() {}
