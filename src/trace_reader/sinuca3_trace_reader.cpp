@@ -193,8 +193,6 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
         bblCounter++;
     }
 
-    fclose(this->StaticTraceFile);
-
     return 0;
 }
 
