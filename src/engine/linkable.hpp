@@ -172,12 +172,52 @@ class Linkable {
      * @returns Non-zero on error, 0 otherwise.
      */
 
+    /**
+     * @brief Receive a request from other component. (The other calls this
+     * method)
+     * @details This method is called to send a request message to *this*
+     * linkable. Referencing the method name, this linkable *receives* a request
+     * in its own connection request buffer.
+     * @param connectionID The id of the connection.
+     * @param messageInput A pointer to the message to send.
+     * @return 1 if successfuly, 0 otherwise.
+     */
     int ReceiveRequest(int connectionID, void* messageInput);
 
+    /**
+     * @brief Gets a request message in the parameter.
+     * @details This method is called to get a request message from a request
+     * buffer, so to receive the message, *this* linkable calls this method, and
+     * the message sent is inserted into the memory region pointed to by the
+     * messageOutput parameter.
+     * @param connectionID The id of the connection.
+     * @param messageOutput A pointer to the message to receive.
+     * @return 1 if successfuly, 0 otherwise.
+     */
     int GetRequest(int connectionID, void* messageOutput);
 
+    /**
+     * @brief Sends a reply to the connection.
+     * @details This method is called to insert a reply message into the
+     * connection's reply buffer. Therefore, the linkable only inserts the
+     * response message into the buffer.
+     * @param connectionID The id of the connection.
+     * @param messageInput A pointer to the message to send.
+     * @return 1 if successfuly, 0 otherwise.
+     */
     int SendResponse(int connectionID, void* messageInput);
 
+    /**
+     * @brief Gets a response message in the parameter. (The other calls this
+     * method)
+     * @details This method is called to get a response message from a response
+     * buffer, so to receive the message, the component calls this method, and
+     * the message sent is inserted into the memory region pointed to by the
+     * messageOutput parameter.
+     * @param connectionID The id of the connection.
+     * @param messageOutput A pointer to the message to receive.
+     * @return 1 if successfuly, 0 otherwise.
+     */
     int GetResponse(int connectionID, void* messageOutput);
 
     virtual int FinishSetup() = 0;
