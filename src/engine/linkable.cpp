@@ -34,6 +34,14 @@ void sinuca::engine::Connection::CreateBuffers(int bufferSize,
     this->responseBuffers[1].Allocate(bufferSize, messageSize);
 };
 
+void sinuca::engine::Connection::DeleteBuffers() {
+    this->requestBuffers[0].Deallocate();
+    this->requestBuffers[1].Deallocate();
+
+    this->responseBuffers[0].Deallocate();
+    this->responseBuffers[1].Deallocate();
+};
+
 inline int sinuca::engine::Connection::GetBufferSize() const {
     return this->bufferSize;
 };
@@ -84,9 +92,12 @@ void sinuca::engine::Linkable::AllocateConnectionsBuffer(
 };
 
 void sinuca::engine::Linkable::DeallocateConnectionsBuffer() {
-    for (int i = 0; i < numberOfConnections; ++i) {
-        delete this->connections[i];
+    for (unsigned int i = 0; i < this->connections.size(); ++i) {
+        this->connections[i]->DeleteBuffers();
+        delete connections[i];
     }
+    this->connections.clear();
+    this->numberOfConnections = 0;
 };
 
 void sinuca::engine::Linkable::AddConnection(Connection* newConnection) {
@@ -97,6 +108,10 @@ void sinuca::engine::Linkable::AddConnection(Connection* newConnection) {
         this->numberOfConnections = connectionsSize;
 };
 
+void sinuca::engine::Linkable::PreClock() {};
+
+void sinuca::engine::Linkable::PosClock() {};
+
 int sinuca::engine::Linkable::Connect(int bufferSize) {
     int index = this->connections.size();
 
@@ -106,10 +121,6 @@ int sinuca::engine::Linkable::Connect(int bufferSize) {
 
     return index;
 };
-
-void sinuca::engine::Linkable::PreClock() {};
-
-void sinuca::engine::Linkable::PosClock() {};
 
 int sinuca::engine::Linkable::ReceiveRequest(int connectionID,
                                              void* messageInput) {
@@ -135,4 +146,4 @@ int sinuca::engine::Linkable::GetResponse(int connectionID,
         SOURCE_ID, messageOutput);
 };
 
-sinuca::engine::Linkable::~Linkable(){};
+sinuca::engine::Linkable::~Linkable() { DeallocateConnectionsBuffer(); };

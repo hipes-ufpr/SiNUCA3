@@ -50,19 +50,56 @@ class Component : public engine::Linkable {
      */
     inline Component() : engine::Linkable(sizeof(MessageType)) {}
 
+    /**
+     * @brief Connects to another component.
+     * @param component The component to connect to.
+     * @param bufferSize The size of the buffer to be used.
+     * @return The connection ID.
+     */
+    int ConnectTo(Linkable* component, int bufferSize) {
+        return component->Connect(bufferSize);
+    };
+
+    /**
+     * @brief Sends a request to another component.
+     * @param component The component to send the request to.
+     * @param connectionID The connection ID.
+     * @param message The message to send.
+     * @return 1 if successful, 0 otherwise.
+     */
     int SendRequestTo(Linkable* component, int connectionID, void* message) {
         return component->ReceiveRequest(connectionID, message);
     };
 
+    /**
+     * @brief Receives a response from another component.
+     * @param component The component to receive the response from.
+     * @param connectionID The connection ID.
+     * @param message The message to receive.
+     * @return 1 if successful, 0 otherwise.
+     */
     int ReceiveResponseFrom(Linkable* component, int connectionID,
                             void* message) {
         return component->GetResponse(connectionID, message);
     };
-
+    
+    /**
+     * @brief Sends a response to another component.
+     * @param component The component to send the response to.
+     * @param connectionID The connection ID.
+     * @param message The message to send.
+     * @return 1 if successful, 0 otherwise.
+     */
     int SendResponseToConnection(int connectionID, void* message) {
         return this->SendResponse(connectionID, message);
     };
 
+    /**
+     * @brief Receives a request from another component.
+     * @param connectionID The connection ID.
+     * @param message The message to receive.
+     * @return 1 if successful, 0 otherwise.
+     */
     int ReceiveRequestFromConnection(int connectionID, void* message) {
         return this->GetRequest(connectionID, message);
     };

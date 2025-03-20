@@ -79,6 +79,13 @@ class CircularBuffer {
     void Allocate(int bufferSize, int messageSize);
 
     /**
+     * @brief Deallocates the Circular Buffer.
+     * @details This method is called by the class destructor or if buffer
+     * deallocation is necessary.
+     */
+    void Deallocate();
+
+    /**
      * @brief Inserts the element at the "top" of the buffer.
      * @param elementInput A pointer to the element to be inserted.
      * @return 1 if successfuly, 0 otherwise.
@@ -94,12 +101,7 @@ class CircularBuffer {
      */
     bool Dequeue(void* elementOutput);
 
-    ~CircularBuffer() {
-        if (this->buffer) {
-            delete[] (char*)this->buffer;
-            this->buffer = NULL;
-        }
-    };
+    ~CircularBuffer() { Deallocate(); };
 };
 
 #endif

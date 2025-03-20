@@ -28,6 +28,10 @@
 
 static const int SOURCE_ID = 0;
 static const int DEST_ID = 1;
+#include "../utils/circularBuffer.hpp"
+
+static const int SOURCE_ID = 0;
+static const int DEST_ID = 1;
 
 namespace sinuca {
 namespace engine {
@@ -50,6 +54,11 @@ struct Connection {
      * @param messageSize self-explanatory.
      */
     void CreateBuffers(int bufferSize, int messageSize);
+
+    /**
+     * @brief Free the memory allocated for the buffers.
+     */
+    void DeleteBuffers();
 
     /**
      * @brief Self-explanatory
@@ -136,17 +145,6 @@ class Linkable {
      */
     void AddConnection(Connection* newConnection);
 
-    /**
-     * @brief Connect to *this* component.
-     * @param bufferSize The size of the buffer used in the connection.
-     * @param messageSize The size of the message stored in the buffer.
-     * @details Method used by other components to connect to *this* component,
-     * establishing a connection where *this* component is the one that responds
-     * to received messages.
-     * @return Returns the id of connection on the receiving component
-     */
-    int Connect(int bufferSize);
-
   public:
     Linkable(int messageSize);
     /**
@@ -171,6 +169,17 @@ class Linkable {
      * for printing a proper error message describing what happened.
      * @returns Non-zero on error, 0 otherwise.
      */
+
+    /**
+     * @brief Connect to *this* component.
+     * @param bufferSize The size of the buffer used in the connection.
+     * @param messageSize The size of the message stored in the buffer.
+     * @details Method used by other components to connect to *this* component,
+     * establishing a connection where *this* component is the one that responds
+     * to received messages.
+     * @return Returns the id of connection on the receiving component
+     */
+    int Connect(int bufferSize);
 
     /**
      * @brief Receive a request from other component. (The other calls this

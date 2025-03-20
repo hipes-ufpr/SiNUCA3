@@ -34,6 +34,13 @@ void CircularBuffer::Allocate(int bufferSize, int messageSize) {
     }
 };
 
+void CircularBuffer::Deallocate() {
+    if (this->buffer) {
+        delete[] (char*)this->buffer;
+        this->buffer = NULL;
+    }
+};
+
 bool CircularBuffer::Enqueue(void* elementInput) {
     if (!(this->IsFull())) {
         /*
@@ -41,15 +48,15 @@ bool CircularBuffer::Enqueue(void* elementInput) {
          * inserted, based on pointer arithmetic. After its definition, memcpy
          * stores the element in the most recent position in the buffer.
          */
-        void* memoryAddress =
-            static_cast<char*>(buffer) + (endOfBuffer * messageSize);
+        void* memoryAddress = static_cast<char*>(this->buffer) +
+                              (this->endOfBuffer * this->messageSize);
 
-        memcpy(memoryAddress, elementInput, messageSize);
-        ++occupation;
-        ++endOfBuffer;
+        memcpy(memoryAddress, elementInput, this->messageSize);
+        ++this->occupation;
+        ++this->endOfBuffer;
 
-        if (endOfBuffer == bufferSize) {
-            endOfBuffer = 0;
+        if (this->endOfBuffer == this->bufferSize) {
+            this->endOfBuffer = 0;
         }
 
         return 1;
@@ -66,19 +73,21 @@ bool CircularBuffer::Dequeue(void* elementOutput) {
          * the space of this element, the buffer limits are readjusted to avoid
          * unauthorized access.
          */
-        void* memoryAddress =
-            static_cast<char*>(buffer) + (startOfBuffer * messageSize);
+        void* memoryAddress = static_cast<char*>(this->buffer) +
+                              (this->startOfBuffer * this->messageSize);
 
-        memcpy(elementOutput, memoryAddress, messageSize);
-        --occupation;
-        ++startOfBuffer;
+        memcpy(elementOutput, memoryAddress, this->messageSize);
+        --this->occupation;
+        ++this->startOfBuffer;
 
-        if (startOfBuffer == bufferSize) {
-            startOfBuffer = 0;
+        if (this->startOfBuffer == this->bufferSize) {
+            this->startOfBuffer = 0;
         }
 
         return 1;
     }
+
+    memset(elementOutput, 0, this->messageSize);
 
     return 0;
 };
