@@ -1,5 +1,5 @@
-#ifndef SINUCA3_ORCS_TRACE_READER_HPP
-#define SINUCA3_ORCS_TRACE_READER_HPP
+#ifndef SINUCA3_TRACE_READER_HPP
+#define SINUCA3_TRACE_READER_HPP
 
 //
 // Copyright (C) 2024  HiPES - Universidade Federal do Paraná
@@ -65,7 +65,7 @@ class SinucaTraceReader : public TraceReader {
     int GenerateBinaryDict();
 
     int TraceNextDynamic(unsigned int *);
-    /** 
+    /**
      * @brief Get memory addresses accessed and number of bytes
      * read/written by the current instruction
      * @param package Add to package its memory accesses
@@ -96,4 +96,4 @@ class SinucaTraceReader : public TraceReader {
 }  // namespace traceReader
 }  // namespace sinuca
 
-#endif  // SINUCA3_ORCS_TRACE_READER_HPP
+#endif  // SINUCA3_TRACE_READER_HPP
