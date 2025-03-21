@@ -2,7 +2,7 @@ example: &example
   class: EngineDebugComponent
   pointer:
     class: EngineDebugComponent
-    pointer: *otherComponent
+    pointerOther: *otherComponent
 
 otherComponent: &otherComponent
   class: EngineDebugComponent

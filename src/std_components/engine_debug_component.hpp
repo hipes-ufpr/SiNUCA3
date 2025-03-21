@@ -40,13 +40,16 @@
 class EngineDebugComponent
     : public sinuca::Component<sinuca::InstructionPacket> {
   private:
+    bool send;
+    int connectionID;
+    EngineDebugComponent* other;
     bool shallFailOnFinish;
     void PrintConfigValue(const char* parameter,
                           sinuca::config::ConfigValue value,
                           unsigned char indent = 0);
 
   public:
-    inline EngineDebugComponent() : shallFailOnFinish(true) {}
+    inline EngineDebugComponent() : send(false), connectionID(-1), other(NULL), shallFailOnFinish(true) {}
 
     virtual int FinishSetup();
     virtual int SetConfigParameter(const char* parameter,
