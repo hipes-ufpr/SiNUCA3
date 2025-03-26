@@ -134,18 +134,18 @@ int sinuca::config::EngineBuilder::Yaml2Parameter(const char* name,
             dest->value.referenceToDefinition =
                 this->AddComponentDefinitionFromYamlMapping(name,
                                                             src->value.mapping);
-                                                            dest->type = builder::ParameterTypeDefinitionReference;
+            dest->type = builder::ParameterTypeDefinitionReference;
             if (dest->value.referenceToDefinition == NULL) return 1;
             break;
         case yaml::YamlValueTypeString:
             dest->value.referenceToDefinition =
                 this->GetComponentDefinitionOrMakeDummy(src->value.string);
-                dest->type = builder::ParameterTypeDefinitionReference;
+            dest->type = builder::ParameterTypeDefinitionReference;
             break;
         case yaml::YamlValueTypeAlias:
             dest->value.referenceToInstance =
                 this->GetComponentInstantiationOrMakeDummy(src->value.alias);
-                dest->type = builder::ParameterTypeInstanceReference;
+            dest->type = builder::ParameterTypeInstanceReference;
             break;
     }
 
@@ -604,6 +604,7 @@ sinuca::engine::Engine* sinuca::config::EngineBuilder::BuildEngine(
 
     engine::Engine* engine = new engine::Engine(components, numberOfComponents);
     if (engine->AddCPUs(cores, this->numberOfCores)) {
+        for (long i = 0; i < this->numberOfCores; ++i) delete cores[i];
         delete[] cores;
         delete engine;
         return NULL;

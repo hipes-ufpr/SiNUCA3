@@ -22,6 +22,7 @@
 
 #include "engine.hpp"
 
+#include <cstdio>
 #include <ctime>
 
 #include "../trace_reader/trace_reader.hpp"
