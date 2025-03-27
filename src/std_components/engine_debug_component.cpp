@@ -25,6 +25,7 @@
  * CALLED BY CODE PATHS THAT ONLY COMPILE IN DEBUG MODE.
  */
 
+#include "../sinuca3.hpp"
 #include "../utils/logging.hpp"
 #include "engine_debug_component.hpp"
 
@@ -78,8 +79,8 @@ int EngineDebugComponent::SetConfigParameter(
     if (strcmp(parameter, "failOnFinish") == 0) {
         SINUCA3_DEBUG_PRINTF("%p: Will fail on finish.\n", this);
         this->shallFailOnFinish = true;
+        return 0;
     }
-
     if (strcmp(parameter, "pointerOther") == 0) {
         this->other =
             dynamic_cast<EngineDebugComponent*>(value.value.componentReference);
@@ -90,6 +91,11 @@ int EngineDebugComponent::SetConfigParameter(
             return 1;
         }
         connectionID = this->other->Connect(4);
+        return 0;
+    }
+    if (strcmp(parameter, "flush") == 0) {
+        this->flush = value.value.integer;
+        return 0;
     }
 
     return 0;
@@ -102,9 +108,16 @@ int EngineDebugComponent::FinishSetup() {
 }
 
 void EngineDebugComponent::Clock() {
+    SINUCA3_DEBUG_PRINTF("%p: Clock!\n", this);
+
+    if (this->flush > 0) {
+        --this->flush;
+        if (this->flush == 0) sinuca::ENGINE->Flush();
+    }
+
     sinuca::InstructionPacket messageInput = {0, 0, 0};
     sinuca::InstructionPacket messageOutput = {0, 0, 0};
-    SINUCA3_DEBUG_PRINTF("%p: Clock!\n", this);
+
     if (this->other) {
         if (!(this->send)) {
             messageInput.address = 0xcafebabe;
@@ -136,6 +149,10 @@ void EngineDebugComponent::Clock() {
             }
         }
     }
+}
+
+void EngineDebugComponent::Flush() {
+    SINUCA3_DEBUG_PRINTF("%p: A flush happened!\n", this);
 }
 
 EngineDebugComponent::~EngineDebugComponent() {}

@@ -1,3 +1,6 @@
+#ifndef SINUCA3_DEFAULT_PACKETS_HPP_
+#define SINUCA3_DEFAULT_PACKETS_HPP_
+
 //
 // Copyright (C) 2024  HiPES - Universidade Federal do Paraná
 //
@@ -16,24 +19,34 @@
 //
 
 /**
- * @file simple_memory.cpp
- * @brief Implementation of the SimpleMemory.
+ * @file default_packets.hpp
+ * @brief Standard message types.
  */
 
-#include "simple_memory.hpp"
+#include <cstdlib>
 
-int SimpleMemory::SetConfigParameter(const char* parameter,
-                                     sinuca::config::ConfigValue value) {
-    (void)parameter;
-    (void)value;
+namespace sinuca {
 
-    return 1;
-}
+/**
+ * @brief Exchanged between the engine and components.
+ */
+struct InstructionPacket {
+    const char* opcode;
+    unsigned long address;
+    unsigned char size;
+};
 
-int SimpleMemory::FinishSetup() { return 0; }
+/**
+ * @brief The core shall respond this to inform the engine to stall the
+ * fetching for the next cycle.
+ */
+const InstructionPacket STALL_FETCHING = {NULL, 0, 0};
 
-void SimpleMemory::Clock() {}
+/**
+ * @brief Used by SimpleMemory.
+ */
+struct MemoryPacket {};
 
-void SimpleMemory::Flush() {}
+}  // namespace sinuca
 
-SimpleMemory::~SimpleMemory() {}
+#endif  // SINUCA3_DEFAULT_PACKETS_HPP_

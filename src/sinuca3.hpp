@@ -27,11 +27,18 @@
 
 // These pragmas make clangd don't warn about unused includes when using just
 // sinuca3.hpp to include the below files.
-#include "config/config.hpp"     // IWYU pragma: export
-#include "engine/component.hpp"  // IWYU pragma: export
+#include "config/config.hpp"           // IWYU pragma: export
+#include "engine/component.hpp"        // IWYU pragma: export
+#include "engine/default_packets.hpp"  // IWYU pragma: export
+#include "engine/engine.hpp"
 #include "engine/linkable.hpp"
 
 namespace sinuca {
+
+/**
+ * Global engine so everyone can call it's methods.
+ */
+extern engine::Engine* ENGINE;
 
 #define COMPONENT(type) \
     if (!strcmp(name, #type)) return new type
@@ -48,26 +55,6 @@ namespace sinuca {
 engine::Linkable* CreateDefaultComponentByClass(const char* name);
 /** @brief Don't call, used by the SimulatorBuilder. */
 engine::Linkable* CreateCustomComponentByClass(const char* name);
-
-/**
- * @brief Exchanged between the engine and components.
- */
-struct InstructionPacket {
-    const char* opcode;
-    unsigned long address;
-    unsigned char size;
-};
-
-/**
- * @brief The core shall respond this to inform the engine to stall the
- * fetching for the next cycle.
- */
-const InstructionPacket STALL_FETCHING = {NULL, 0, 0};
-
-/**
- * @brief Used by SimpleMemory.
- */
-struct MemoryPacket {};
 
 }  // namespace sinuca
 

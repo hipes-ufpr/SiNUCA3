@@ -64,4 +64,6 @@ int SimpleCore::FinishSetup() { return 0; }
 
 void SimpleCore::Clock() {}
 
+void SimpleCore::Flush() {}
+
 SimpleCore::~SimpleCore() {}
