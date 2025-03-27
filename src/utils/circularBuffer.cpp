@@ -4,7 +4,6 @@
  */
 
 #include "circularBuffer.hpp"
-#include <cstdio>
 
 inline bool CircularBuffer::IsAllocated() const {
     return (this->buffer != NULL);
@@ -91,4 +90,11 @@ bool CircularBuffer::Dequeue(void* elementOutput) {
     memset(elementOutput, 0, this->messageSize);
 
     return 0;
+};
+
+void CircularBuffer::Flush() {
+    this->occupation = 0;
+    this->startOfBuffer = 0;
+    this->endOfBuffer = 0;
+    memset(this->buffer, 0, this->bufferSize * this->messageSize);
 };

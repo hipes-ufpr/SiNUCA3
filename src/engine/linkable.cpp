@@ -67,6 +67,13 @@ void sinuca::engine::Connection::SwapBuffers() {
     this->responseBuffers[1] = aux;
 };
 
+void sinuca::engine::Connection::FlushConnection() {
+    this->requestBuffers[0]->Flush();
+    this->requestBuffers[1]->Flush();
+    this->responseBuffers[0]->Flush();
+    this->responseBuffers[1]->Flush();
+};
+
 bool sinuca::engine::Connection::InsertIntoRequestBuffer(int id,
                                                          void* messageInput) {
     return this->requestBuffers[id]->Enqueue(messageInput);
