@@ -23,7 +23,7 @@
  * @brief Pure virtual TraceReader class, that all trace readers must implement.
  */
 
-#include "../sinuca3.hpp"
+#include "../engine/default_packets.hpp"
 
 namespace sinuca {
 namespace traceReader {

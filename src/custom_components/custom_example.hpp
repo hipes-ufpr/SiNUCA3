@@ -53,7 +53,13 @@ class CustomExample : public sinuca::Component<int> {
      * @returns Non-zero on error, 0 otherwise.
      */
     virtual int SetConfigParameter(const char* parameter,
-                           sinuca::config::ConfigValue value);
+                                   sinuca::config::ConfigValue value);
+    /**
+     * @brief This method is called by the engine when a flush should occur.
+     * It's always called at the beggining of the cycle. Components can request
+     * a flush calling sinuca::ENGINE->flush().
+     */
+    virtual void Flush();
 };
 
 #endif  // SINUCA3_CUSTOM_EXAMPLE_HPP_

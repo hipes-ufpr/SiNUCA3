@@ -256,6 +256,12 @@ class Linkable {
      */
     virtual void Clock() = 0;
 
+    /**
+     * @brief This method is called by the engine when a flush should occur.
+     * It's always called at the beggining of the cycle.
+     */
+    virtual void Flush() = 0;
+
     virtual ~Linkable();
 };
 

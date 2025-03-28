@@ -33,9 +33,11 @@
  * @details The component will log with SINUCA3_DEBUG_PRINTF it's parameters
  * along with their values. If passed the parameter "failNow" with any value,
  * the method SetConfigParameter will return with failure. If passed the
- * parameter "failOnFinish", the method FinishSetup will return with failure.
- * It'll also log it's clock. Before each log, the pointer to the component is
- * printed to differentiate between multiple EngineDebugComponent.
+ * parameter "failOnFinish", the method FinishSetup will return with failure. If
+ * passed the parameter "flush" with an integer n, it'll ask the engine to flush
+ * after n cycles. It'll also log it's clock. Before each log, the pointer to
+ * the component is printed to differentiate between multiple
+ * EngineDebugComponent.
  */
 class EngineDebugComponent
     : public sinuca::Component<sinuca::InstructionPacket> {
@@ -44,17 +46,26 @@ class EngineDebugComponent
     int connectionID;
     EngineDebugComponent* other;
     bool shallFailOnFinish;
+    /** @brief If >0, asks the engine for a flush at this cycle. */
+    long flush;
+
     void PrintConfigValue(const char* parameter,
                           sinuca::config::ConfigValue value,
                           unsigned char indent = 0);
 
   public:
-    inline EngineDebugComponent() : send(false), connectionID(-1), other(NULL), shallFailOnFinish(true) {}
+    inline EngineDebugComponent()
+        : send(false),
+          connectionID(-1),
+          other(NULL),
+          shallFailOnFinish(true),
+          flush(-1) {}
 
     virtual int FinishSetup();
     virtual int SetConfigParameter(const char* parameter,
                                    sinuca::config::ConfigValue value);
     virtual void Clock();
+    virtual void Flush();
 
     virtual ~EngineDebugComponent();
 };
