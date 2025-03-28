@@ -42,6 +42,7 @@ class SimpleCore : public sinuca::Component<sinuca::InstructionPacket> {
     virtual int SetConfigParameter(const char* parameter,
                                    sinuca::config::ConfigValue value);
     virtual void Clock();
+    virtual void Flush();
     ~SimpleCore();
 };
 

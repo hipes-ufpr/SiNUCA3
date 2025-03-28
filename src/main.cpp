@@ -28,9 +28,13 @@
 #include <cstring>
 
 #include "config/engine_builder.hpp"
+#include "engine/engine.hpp"
+#include "sinuca3.hpp"
 #include "trace_reader/orcs_trace_reader.hpp"
 #include "trace_reader/trace_reader.hpp"
 #include "utils/logging.hpp"
+
+sinuca::engine::Engine* sinuca::ENGINE;
 
 /**
  * @brief Prints licensing information.
@@ -127,16 +131,16 @@ int main(int argc, char* const argv[]) {
     }
 
     sinuca::config::EngineBuilder builder;
-    sinuca::engine::Engine* engine = builder.Instantiate(rootConfigFile);
-    if (engine == NULL) return 1;
+    sinuca::ENGINE = builder.Instantiate(rootConfigFile);
+    if (sinuca::ENGINE == NULL) return 1;
 
     sinuca::traceReader::TraceReader* traceReader =
         AllocTraceReader(traceReaderName);
     if (traceReader == NULL) return 1;
     if (traceReader->OpenTrace(traceFileName)) return 1;
 
-    engine->Simulate(traceReader);
-    delete engine;
+    sinuca::ENGINE->Simulate(traceReader);
+    delete sinuca::ENGINE;
     delete traceReader;
 
     return 0;

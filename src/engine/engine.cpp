@@ -88,9 +88,13 @@ int sinuca::engine::Engine::Simulate(
                                ctime(&estimatedEnd));
         }
 
-        for (long i = 0; i < this->numberOfCPUs; ++i) this->cpus[i]->PreClock();
-        for (long i = 0; i < this->numberOfComponents; ++i)
-            this->components[i]->PreClock();
+        if (this->flush) {
+            for (long i = 0; i < this->numberOfCPUs; ++i)
+                this->cpus[i]->Flush();
+            for (long i = 0; i < this->numberOfComponents; ++i)
+                this->components[i]->Flush();
+            this->flush = false;
+        }
 
         for (long i = 0; i < this->numberOfCPUs; ++i) this->cpus[i]->Clock();
         for (long i = 0; i < this->numberOfComponents; ++i)

@@ -23,9 +23,9 @@
  * @brief Public API of the simulation engine.
  */
 
-#include "../sinuca3.hpp"
 #include "../trace_reader/trace_reader.hpp"
 #include "component.hpp"
+#include "default_packets.hpp"
 #include "linkable.hpp"
 
 namespace sinuca {
@@ -41,10 +41,17 @@ class Engine {
     long numberOfCPUs;
     Linkable** components;
     long numberOfComponents;
+    /**
+     * @brief This variable tells wether a flush should occur in the beggining
+     * of the next clock.
+     */
+    bool flush;
 
   public:
     inline Engine(Linkable** components, long numberOfComponents)
-        : components(components), numberOfComponents(numberOfComponents) {}
+        : components(components),
+          numberOfComponents(numberOfComponents),
+          flush(false) {}
     /**
      * @brief Don't call this method.
      * @details After reading the configuration file, the simulator calls this
@@ -64,6 +71,12 @@ class Engine {
      * stopped normally.
      */
     int Simulate(traceReader::TraceReader* traceReader);
+
+    /**
+     * @brief A flush call is forward for all components before the next clock.
+     *
+     */
+    inline void Flush() { this->flush = true; }
 
     inline ~Engine() {
         for (long i = 0; i < this->numberOfComponents; ++i)
