@@ -4,9 +4,6 @@ sinuca3
 sinuca3-debug
 compile_commands.json
 trace/
-./docs
+docs/
 *.so
 *.o
-test*
-sinuca3_trace_reader
-docs/

@@ -28,7 +28,6 @@
 #include <cstring>
 
 #include "config/engine_builder.hpp"
-#include "trace_reader/orcs_trace_reader.hpp"
 #include "trace_reader/sinuca3_trace_reader.hpp"
 #include "trace_reader/trace_reader.hpp"
 #include "utils/logging.hpp"
@@ -84,8 +83,6 @@ void usage() {
 sinuca::traceReader::TraceReader* AllocTraceReader(const char* traceReader) {
     if (strcmp(traceReader, "sinuca3") == 0)
         return new sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader;
-    if (strcmp(traceReader, "orcs") == 0)
-        return new sinuca::traceReader::orcsTraceReader::OrCSTraceReader;
     else
         return NULL;
 }

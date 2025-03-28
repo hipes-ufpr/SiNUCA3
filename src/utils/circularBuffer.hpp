@@ -1,3 +1,23 @@
+#ifndef SINUCA3_UTILS_CIRCULAR_BUFFER_HPP_
+#define SINUCA3_UTILS_CIRCULAR_BUFFER_HPP_
+
+//
+// Copyright (C) 2024  HiPES - Universidade Federal do Paraná
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
 /**
  * @file circularBuffer.hpp
  * @brief Circular Buffer Class
@@ -10,12 +30,12 @@
 
 class CircularBuffer {
   private:
-    void* buffer;
-    int occupation;
-    int bufferSize;
-    int messageSize;
-    int startOfBuffer;
-    int endOfBuffer;
+    void* buffer;      /**<The Buffer. */
+    int occupation;    /**<Buffer's current occupancy */
+    int bufferSize;    /**<The maximum buffer capacity. */
+    int messageSize;   /**<The message size supported by the buffer. */
+    int startOfBuffer; /**<Sentinel to the start of the buffer. */
+    int endOfBuffer;   /**<Sentinel for the end of the buffer. */
 
   public:
     CircularBuffer()
@@ -59,19 +79,29 @@ class CircularBuffer {
     void Allocate(int bufferSize, int messageSize);
 
     /**
-     * @brief Inserts the element at the "top" of the buffer.
+     * @brief Deallocates the Circular Buffer.
+     * @details This method is called by the class destructor or if buffer
+     * deallocation is necessary.
      */
-    int Enqueue(void* element);
+    void Deallocate();
+
+    /**
+     * @brief Inserts the element at the "top" of the buffer.
+     * @param elementInput A pointer to the element to be inserted.
+     * @return 1 if successfuly, 0 otherwise.
+     */
+    bool Enqueue(void* elementInput);
 
     /**
      * @brief Removes and returns the element contained in the "base" of the
      * Buffer.
+     * @param elementOutput A pointer to the memory region where the element
+     * will be returned.
+     * @return 1 if successfuly, 0 otherwise.
      */
-    void* Dequeue();
+    bool Dequeue(void* elementOutput);
 
-    ~CircularBuffer() {
-        if (this->buffer) {
-            delete[] (char*)this->buffer;
-        }
-    };
+    ~CircularBuffer() { this->Deallocate(); };
 };
+
+#endif

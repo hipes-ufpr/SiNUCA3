@@ -32,6 +32,15 @@ namespace sinuca {
 namespace traceReader {
 namespace sinuca3TraceReader {
 
+struct InstructionInfo {
+
+    sinuca::StaticInstructionInfo staticInfo;
+
+    // Fields reserved for trace_reader internal use.
+    unsigned short staticNumReadings;
+    unsigned short staticNumWritings;
+};
+
 class SinucaTraceReader : public TraceReader {
   private:
     FILE *StaticTraceFile;
@@ -47,7 +56,7 @@ class SinucaTraceReader : public TraceReader {
     /** @brief Vector to store instructions per basic block */
     unsigned short *binaryBBLsSize;
     /** @brief Array containing all instructions */
-    InstructionPacket **binaryDict;
+    InstructionInfo **binaryDict;
 
     /** @brief Current number of fetched instructions */
     unsigned long fetchInstructions;
@@ -64,26 +73,24 @@ class SinucaTraceReader : public TraceReader {
      */
     int GenerateBinaryDict();
 
+    void readDataINSBytes(char *buf, size_t *offset, InstructionInfo *package);
+    int readMnemonic(char *str, char *buf, size_t *offset);
+    int readBufSizeFromFile(size_t *size, FILE *file);
+
     int TraceNextDynamic(unsigned int *);
     /**
      * @brief Get memory addresses accessed and number of bytes
      * read/written by the current instruction
      * @param package Add to package its memory accesses
      */
-    int TraceNextMemory(InstructionPacket *package);
-    /**
-     * @brief Identify next instruction to fetch considering size of
-     * current basic block
-     * @param ret Return instruction in pointer to InstructionPacket
-     */
-    FetchResult TraceFetch(InstructionPacket **ret);
+    int TraceNextMemory(InstructionPacket *ret, InstructionInfo *packageInfo);
 
   public:
     virtual int OpenTrace(const char *);
     virtual unsigned long GetTraceSize();
     virtual unsigned long GetNumberOfFetchedInstructions();
     virtual void PrintStatistics();
-    virtual FetchResult Fetch(const InstructionPacket **);
+    virtual FetchResult Fetch(InstructionPacket *);
 
     inline ~SinucaTraceReader() {
         fclose(this->StaticTraceFile);
