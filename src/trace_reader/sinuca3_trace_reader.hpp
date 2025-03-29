@@ -28,6 +28,8 @@
 
 #include "trace_reader.hpp"
 
+#define BUFFER_SIZE 1 << 20
+
 namespace sinuca {
 namespace traceReader {
 namespace sinuca3TraceReader {
