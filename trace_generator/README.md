@@ -1,3 +1,5 @@
+Pintool compile command: make PIN_ROOT="./pin"
+
 To use the trace generator, you need to load the program via the Intel Pin.
 Example command:
 

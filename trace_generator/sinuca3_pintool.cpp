@@ -16,17 +16,14 @@ extern "C" {
 #include "../src/sinuca3.hpp"
 
 static bool isInstrumentationOn;
+static unsigned int numThreads = 0;
 
 sinuca::traceGenerator::TraceFileHandler tfHandler;
 
-unsigned int numThreads = 0;
 PIN_LOCK pinLock;
 
 KNOB<INT> KnobNumberIns(KNOB_MODE_WRITEONCE, "pintool", "number_max_inst",
                         "-1", "Maximum number of instructions to be traced");
-
-inline void copy(char* buf, size_t* used, void* src, size_t size);
-inline void setBit(unsigned char* byte, int position, bool value);
 
 int usage() {
     SINUCA3_LOG_PRINTF("Tool knob summary: %s\n",
@@ -77,9 +74,7 @@ void sinuca::traceGenerator::TraceFileHandler::openNewTraceFile(sinuca::traceGen
             SINUCA3_DEBUG_PRINTF("TRACE_DYNAMIC %s\n", tfHandler.imgName);
             snprintf(fileName, sizeof(fileName), "dynamic_%s_tid%d.trace", tfHandler.imgName, threadID);
 
-            // I am using resize to avoid push_back
-            // push_back can be problematic if threadID are not sequential.
-            // Maybe it is, but I won't risk it.
+            // push_back is problematic if threadIDs are not sequential
             if(tfHandler.dynamicTraceFiles.size() <= threadID){
                 tfHandler.dynamicTraceFiles.resize(threadID);
                 tfHandler.dynamicBuffers.resize(threadID);
@@ -93,9 +88,7 @@ void sinuca::traceGenerator::TraceFileHandler::openNewTraceFile(sinuca::traceGen
         case sinuca::traceGenerator::TRACE_MEMORY:
             snprintf(fileName, sizeof(fileName), "memory_%s_tid%d.trace", tfHandler.imgName, threadID);
 
-            // I am using resize to avoid push_back
-            // push_back can be problematic if threadID are not sequential.
-            // Maybe it is, but I won't risk it.
+            // push_back is problematic if threadIDs are not sequential
             if(tfHandler.memoryTraceFiles.size() <= threadID){
                 tfHandler.memoryTraceFiles.resize(threadID);
                 tfHandler.memoryBuffers.resize(threadID);
@@ -131,8 +124,8 @@ void sinuca::traceGenerator::TraceFileHandler::closeTraceFile(sinuca::traceGener
 VOID ThreadStart(THREADID threadid, CONTEXT* ctxt, INT32 flags, VOID* v){
     PIN_GetLock(&pinLock, threadid);
 
-    SINUCA3_DEBUG_PRINTF("New thread created! N = %u\n", threadid);
-    numThreads += 1;
+    SINUCA3_DEBUG_PRINTF("New thread created! N => %d\n", threadid);
+    numThreads++;
 
     tfHandler.openNewTraceFile(sinuca::traceGenerator::TRACE_DYNAMIC, threadid);
     tfHandler.openNewTraceFile(sinuca::traceGenerator::TRACE_MEMORY, threadid);
@@ -143,12 +136,12 @@ VOID ThreadStart(THREADID threadid, CONTEXT* ctxt, INT32 flags, VOID* v){
 VOID ThreadFini(THREADID threadid, const CONTEXT* ctxt, INT32 code, VOID* v){
     PIN_GetLock(&pinLock, threadid);
 
-    SINUCA3_DEBUG_PRINTF("A thread have finalized! N = %u\n", threadid);
+    SINUCA3_DEBUG_PRINTF("A thread has finalized! N => %d\n", threadid);
 
     tfHandler.closeTraceFile(sinuca::traceGenerator::TRACE_DYNAMIC, threadid);
     tfHandler.closeTraceFile(sinuca::traceGenerator::TRACE_MEMORY , threadid);
 
-    numThreads -= 1;
+    numThreads--;
 
     PIN_ReleaseLock(&pinLock);
 }
@@ -156,32 +149,16 @@ VOID ThreadFini(THREADID threadid, const CONTEXT* ctxt, INT32 code, VOID* v){
 VOID initInstrumentation() {
     SINUCA3_LOG_PRINTF("Start of tool instrumentation\n");
 
-    // if(isInstrumentationOn){
-    //     SINUCA3_ERROR_PRINTF("Pintool has initiated instrumentation twice. Did your program called \"trace_start()\" again before a \"trace_stop()\"?");
-    //     _exit(-1);
-    // }
-
     isInstrumentationOn = true;
 }
 
 VOID stopInstrumentation(unsigned int bblCount, unsigned int instCount) {
     THREADID tid = PIN_ThreadId();
-    SINUCA3_DEBUG_PRINTF("TRACE ENDED FROM THREAD %d\n", tid);
 
+    SINUCA3_LOG_PRINTF("Trace ended from thread %d\n", tid);
     SINUCA3_LOG_PRINTF("End of tool instrumentation\n");
     SINUCA3_DEBUG_PRINTF("Number of BBLs => %u\n", bblCount);
     isInstrumentationOn = false;
-
-    if (tfHandler.staticBuffer->numUsedBytes>0) {
-        tfHandler.staticBuffer->loadBufToFile(tfHandler.staticTraceFile);
-    }
-    if (tfHandler.dynamicBuffers[tid]->numUsedBytes>0) {
-        tfHandler.dynamicBuffers[tid]->loadBufToFile(tfHandler.dynamicTraceFiles[tid]);
-
-    }
-    if (tfHandler.memoryBuffers[tid]->numUsedBytes>0) {
-        tfHandler.memoryBuffers[tid]->loadBufToFile(tfHandler.memoryTraceFiles[tid]);
-    }
 
     rewind(tfHandler.staticTraceFile); // TODO NEED FIX
     fwrite(&bblCount, 1, sizeof(bblCount), tfHandler.staticTraceFile);
@@ -200,8 +177,8 @@ VOID appendToDynamicTrace(UINT32 bblId) {
 }
 
 UINT16 fillRegs(const INS *ins, unsigned short int *regs,
-    unsigned int maxRegs, REG (*func)(INS, UINT32)) {
-    //---------------------------------------------//
+                unsigned int maxRegs, REG (*func)(INS, UINT32)) {
+    //---------------------------------------------------------//
     unsigned short int reg, it, cont;
 
     for (it = 0, cont = 0; it < maxRegs; it++) {
@@ -244,7 +221,7 @@ VOID appendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* acessInfo) {
 
     numReadings = numWritings = 0;
     for (unsigned short it = 0; it < numMemOps; it++) {
-        memop = &acessInfo->memop[it];
+        memop = &acessInfo->memop[it];mMemOps
         if (memop->memopType == PIN_MEMOP_LOAD) {
             readings[numReadings].addr = memop->memoryAddress;
             readings[numReadings].size = memop->bytesAccessed;
@@ -310,7 +287,7 @@ VOID x86ToStaticBuf(const INS* ins) {
     sinuca::traceGenerator::DataINS data;
     static unsigned short int readRegs[64];
     static unsigned short int writeRegs[64];
-
+    
     unsigned int maxRRegs = INS_MaxNumRRegs(*ins);
     unsigned int maxWRegs = INS_MaxNumWRegs(*ins);
     std::string name = INS_Mnemonic(*ins);
@@ -321,8 +298,8 @@ VOID x86ToStaticBuf(const INS* ins) {
 
     data.addr = static_cast<long>(INS_Address(*ins));
     data.size = static_cast<unsigned char>(INS_Size(*ins));
-    data.baseReg = static_cast<unsigned short int>(INS_MemoryBaseReg(*ins));
-    data.indexReg = static_cast<unsigned short int>(INS_MemoryIndexReg(*ins));
+    data.baseReg = static_cast<unsigned short>(INS_MemoryBaseReg(*ins));
+    data.indexReg = static_cast<unsigned short>(INS_MemoryIndexReg(*ins));
     data.booleanValues = 0;
 
     if (INS_IsPredicated(*ins)) {
@@ -371,7 +348,6 @@ VOID x86ToStaticBuf(const INS* ins) {
 }
 
 VOID trace(TRACE trace, VOID *ptr) {
-
     THREADID tid = PIN_ThreadId();
 
     char* buf = tfHandler.staticBuffer->store;
@@ -383,14 +359,14 @@ VOID trace(TRACE trace, VOID *ptr) {
 
     PIN_GetLock(&pinLock, tid);
 
-    if (std::strstr(RTN_Name(TRACE_Rtn(trace)).c_str(), "trace_stop")) {
+    if (strstr(RTN_Name(TRACE_Rtn(trace)).c_str(), "trace_stop")) {
         stopInstrumentation(bblCount, instCount);
         PIN_ReleaseLock(&pinLock);
         return;
     }
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
-        BBL_InsertCall(bbl, IPOINT_BEFORE, (AFUNPTR)appendToDynamicTrace,
+        BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)appendToDynamicTrace,
                       IARG_UINT32, bblCount, IARG_END);
         bblCount++;
         numInstBbl = 0;
@@ -401,7 +377,7 @@ VOID trace(TRACE trace, VOID *ptr) {
             instCount++;
             x86ToStaticBuf(&ins);
         }
-        std::memcpy(buf+bblInit, &numInstBbl, sizeof(numInstBbl));
+        memcpy(buf+bblInit, &numInstBbl, sizeof(numInstBbl));
     }
 
     PIN_ReleaseLock(&pinLock);
@@ -419,7 +395,7 @@ VOID imageLoad(IMG img, VOID* ptr) {
     SINUCA3_DEBUG_PRINTF("IMAGE LOADED!\n");
 
     unsigned int fileNameSize = strlen(imgName);
-    assert(fileNameSize < MAX_IMAGE_NAME_SIZE && "Trace file name is too long. Max=64 chars (You used %u chars)");
+    assert(fileNameSize < MAX_IMAGE_NAME_SIZE && "Trace file name is too long. Max of 64 chars");
 
     tfHandler.initTraceFileHandler(imgName);
     tfHandler.openNewTraceFile(sinuca::traceGenerator::TRACE_STATIC , 0);
@@ -439,8 +415,6 @@ VOID imageLoad(IMG img, VOID* ptr) {
 
 VOID fini(INT32 code, VOID* ptr) {
     SINUCA3_LOG_PRINTF("End of tool execution\n");
-
-    assert(numThreads == 0 && "If this happen, you need to fix. All threads need to execute ThreadFini().");
 
     tfHandler.closeTraceFile(sinuca::traceGenerator::TRACE_STATIC, 0);
 }
@@ -467,3 +441,4 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
