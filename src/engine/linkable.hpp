@@ -72,6 +72,12 @@ struct Connection {
     void SwapBuffers();
 
     /**
+     * @brief Flush the connection, clearing the buffers.
+     * @details This method is called to clear the buffers of the connection.
+     */
+    void FlushConnection();
+
+    /**
      * @brief Insert a message into a requestBuffer.
      * @param id The id of the buffer.
      * @param messageInput A pointer to the message to send.
