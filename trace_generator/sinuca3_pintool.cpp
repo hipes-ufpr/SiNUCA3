@@ -221,7 +221,7 @@ VOID appendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* acessInfo) {
 
     numReadings = numWritings = 0;
     for (unsigned short it = 0; it < numMemOps; it++) {
-        memop = &acessInfo->memop[it];mMemOps
+        memop = &acessInfo->memop[it];
         if (memop->memopType == PIN_MEMOP_LOAD) {
             readings[numReadings].addr = memop->memoryAddress;
             readings[numReadings].size = memop->bytesAccessed;
@@ -287,7 +287,7 @@ VOID x86ToStaticBuf(const INS* ins) {
     sinuca::traceGenerator::DataINS data;
     static unsigned short int readRegs[64];
     static unsigned short int writeRegs[64];
-    
+
     unsigned int maxRRegs = INS_MaxNumRRegs(*ins);
     unsigned int maxWRegs = INS_MaxNumWRegs(*ins);
     std::string name = INS_Mnemonic(*ins);
@@ -441,4 +441,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-
