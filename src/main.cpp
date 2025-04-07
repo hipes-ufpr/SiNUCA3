@@ -30,7 +30,7 @@
 #include "config/engine_builder.hpp"
 #include "engine/engine.hpp"
 #include "sinuca3.hpp"
-#include "trace_reader/orcs_trace_reader.hpp"
+#include "trace_reader/sinuca3_trace_reader.hpp"
 #include "trace_reader/trace_reader.hpp"
 #include "utils/logging.hpp"
 
@@ -85,8 +85,8 @@ void usage() {
  * @brief Returns a TraceReader from it's name. TODO: add default trace reader.
  */
 sinuca::traceReader::TraceReader* AllocTraceReader(const char* traceReader) {
-    if (strcmp(traceReader, "orcs") == 0)
-        return new sinuca::traceReader::orcsTraceReader::OrCSTraceReader;
+    if (strcmp(traceReader, "sinuca3") == 0)
+        return new sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader;
     else
         return NULL;
 }
@@ -96,8 +96,8 @@ sinuca::traceReader::TraceReader* AllocTraceReader(const char* traceReader) {
  * @returns Non-zero on error.
  */
 int main(int argc, char* const argv[]) {
+    const char* traceReaderName = "sinuca3";
     const char* rootConfigFile = NULL;
-    const char* traceReaderName = NULL;
     const char* traceFileName = NULL;
     char nextOpt;
 
@@ -136,7 +136,10 @@ int main(int argc, char* const argv[]) {
 
     sinuca::traceReader::TraceReader* traceReader =
         AllocTraceReader(traceReaderName);
-    if (traceReader == NULL) return 1;
+    if (traceReader == NULL) {
+        SINUCA3_ERROR_PRINTF("The trace reader %s does not exist.", traceReaderName);
+        return 1;
+    }
     if (traceReader->OpenTrace(traceFileName)) return 1;
 
     sinuca::ENGINE->Simulate(traceReader);

@@ -115,21 +115,25 @@ void EngineDebugComponent::Clock() {
         if (this->flush == 0) sinuca::ENGINE->Flush();
     }
 
-    sinuca::InstructionPacket messageInput = {0, 0, 0};
-    sinuca::InstructionPacket messageOutput = {0, 0, 0};
+    sinuca::InstructionPacket messageInput = {NULL,
+                                              sinuca::DynamicInstructionInfo()};
+    sinuca::InstructionPacket messageOutput = {
+        NULL, sinuca::DynamicInstructionInfo()};
 
     if (this->other) {
         if (!(this->send)) {
-            messageInput.address = 0xcafebabe;
-            SINUCA3_DEBUG_PRINTF("%p: Sending message (%lx) to %p.\n", this,
-                                 messageInput.address, this->other);
+            messageInput.staticInfo =
+                (const sinuca::StaticInstructionInfo*)0xcafebabe;
+            SINUCA3_DEBUG_PRINTF("%p: Sending message (%p) to %p.\n", this,
+                                 messageInput.staticInfo, this->other);
             this->other->SendRequest(this->connectionID, &messageInput);
             this->send = true;
         } else {
             if (this->other->ReceiveResponse(this->connectionID,
                                              &messageOutput)) {
-                SINUCA3_DEBUG_PRINTF("%p: Received response (%lx) from %p.\n",
-                                     this, messageOutput.address, this->other);
+                SINUCA3_DEBUG_PRINTF("%p: Received response (%p) from %p.\n",
+                                     this, messageOutput.staticInfo,
+                                     this->other);
             } else {
                 SINUCA3_DEBUG_PRINTF("%p: No response from %p.\n", this,
                                      this->other);
@@ -140,11 +144,11 @@ void EngineDebugComponent::Clock() {
             this->GetConnections();
         for (unsigned int i = 0; i < connections.size(); ++i) {
             if (this->ReceiveRequestFromConnection(i, &messageOutput)) {
-                SINUCA3_DEBUG_PRINTF("%p: Received message (%lx)\n", this,
-                                     messageOutput.address);
-                messageInput.address = messageOutput.address + 1;
-                SINUCA3_DEBUG_PRINTF("%p: Sending response (%lx)\n", this,
-                                     messageInput.address);
+                SINUCA3_DEBUG_PRINTF("%p: Received message (%p)\n", this,
+                                     messageOutput.staticInfo);
+                messageInput.staticInfo = messageOutput.staticInfo + 1;
+                SINUCA3_DEBUG_PRINTF("%p: Sending response (%p)\n", this,
+                                     messageInput.staticInfo);
                 this->SendResponseToConnection(i, &messageInput);
             }
         }

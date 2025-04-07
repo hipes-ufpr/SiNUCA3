@@ -24,23 +24,104 @@
  */
 
 #include <cstdlib>
+#include <cstring>
 
 namespace sinuca {
 
+#define MAX_REGISTERS 32
+#define MAX_MEM_OPERATIONS 16
+#define TRACE_LINE_SIZE 512
+
+/** @brief Enumerates the types of branches. */
+enum Branch {
+    BranchSyscall,
+    BranchCall,
+    BranchReturn,
+    BranchUncond,
+    BranchCond
+};
+
+/**
+ * @brief Stores details of an instruction.
+ * These details are static and cannot be changed during program execution.
+ */
+struct StaticInstructionInfo {
+    char opcodeAssembly[TRACE_LINE_SIZE];
+    // instruction_operation_t opcode_operation;
+    // uint32_t instruction_id;
+
+    long opcodeAddress;
+    unsigned char opcodeSize;
+    unsigned short int baseReg;
+    unsigned short int indexReg;
+
+    unsigned short readRegs[MAX_REGISTERS];
+    unsigned char numReadRegs;
+    unsigned short writeRegs[MAX_REGISTERS];
+    unsigned char numWriteRegs;
+
+    Branch branchType;
+    bool isNonStdMemOp;
+    bool isControlFlow;
+    bool isIndirect;
+    bool isPredicated;
+    bool isPrefetch;
+    bool isHive;
+    bool isVima;
+    int hive_read1;
+    int hive_read2;
+    int hive_write;
+
+    inline StaticInstructionInfo() {
+        memset(this, 0, sizeof(*this));
+        memcpy(this->opcodeAssembly, "N/A", 4);
+        this->branchType = BranchUncond;
+
+        this->hive_read1 = -1;
+        this->hive_read2 = -1;
+        this->hive_write = -1;
+    }
+};
+
+/**
+ * @brief Stores details of an instruction.
+ * These details are dynamic and will vary during program execution.
+ *
+ * An example of instructions that can change this value are non-standard memory
+ * instructions, such as vgather and vscatter.
+ */
+struct DynamicInstructionInfo {
+    long readsAddr[MAX_MEM_OPERATIONS];
+    long writesAddr[MAX_MEM_OPERATIONS];
+    int readsSize[MAX_MEM_OPERATIONS];
+    int writesSize[MAX_MEM_OPERATIONS];
+    unsigned short numReadings;
+    unsigned short numWritings;
+
+    inline DynamicInstructionInfo() { memset(this, 0, sizeof(*this)); }
+};
+
 /**
  * @brief Exchanged between the engine and components.
+ *
+ * @param staticInfo Stores details that are static and cannot vary during
+ * program execution. It is a constant pointer to avoid unnecessary copying.
+ *
+ * @param DynamicInstructionInfo Stores details that are dynamic and will vary
+ * during program execution. The idea is that it is allocated on the simulator
+ * stack to avoid malloc for each instruction.
  */
 struct InstructionPacket {
-    const char* opcode;
-    unsigned long address;
-    unsigned char size;
+    const StaticInstructionInfo* staticInfo;
+    DynamicInstructionInfo dynamicInfo;
 };
 
 /**
  * @brief The core shall respond this to inform the engine to stall the
  * fetching for the next cycle.
  */
-const InstructionPacket STALL_FETCHING = {NULL, 0, 0};
+// TODO: Deve ser atualizado para o formato mais completo do InstructionPacket
+// const InstructionPacket STALL_FETCHING = {NULL, 0, 0};
 
 /**
  * @brief Used by SimpleMemory.

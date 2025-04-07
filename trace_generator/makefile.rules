@@ -1,0 +1,16 @@
+#
+# Copyright (C) 2012-2020 Intel Corporation.
+# SPDX-License-Identifier: MIT
+#
+
+##############################################################
+#
+# Build rules
+#
+##############################################################
+
+# This section contains the build rules for all binaries that have special build rules.
+# See makefile.default.rules for the default build rules.
+
+$(OBJDIR)sinuca3_pintool$(PINTOOL_SUFFIX): $(OBJDIR)sinuca3_pintool$(OBJ_SUFFIX) $(CONTROLLERLIB)
+	$(LINKER) $(TOOL_LDFLAGS) $(LINK_EXE)$@ $^ $(TOOL_LPATHS) $(TOOL_LIBS)
