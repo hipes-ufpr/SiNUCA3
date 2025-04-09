@@ -128,6 +128,49 @@ struct InstructionPacket {
  */
 struct MemoryPacket {};
 
+enum PredictorPacketType {
+    RequestQuery,
+    RequestUpdate,
+    ResponseUnknown,
+    ResponseTake,
+    ResponseTakeToAddress,
+    ResponseDontTake,
+};
+
+/**
+ * @brief Message exchanged between components and branch predictors such as
+ * BTBs, RASs, etc.
+ *
+ * @details When a component wishes to query the predictor about a newly-arrived
+ * instruction, it sends a RequestQuery message with the address of the
+ * instruction, it's branch type (if known) and wether the branch type is known
+ * or not (some fetchers may not know the type at the prediction stage). When
+ * the query is performed, the predictor will anwser with a ResponseUnknown
+ * message if has no prediction, a ResponseTake if the prediction is to take but
+ * the target is not known, a ResponseTakeToAddress if the prediction is to take
+ * and the address is known (data is filled with responseAddress), and a
+ * ResponseDontTake if the prediction is to not take the branch.
+ */
+struct PredictorPacket {
+    union {
+        struct {
+            unsigned long address;
+            Branch branchType;
+            bool isBranchTypeKnown;
+        } requestQuery;
+
+        struct {
+            unsigned long address;
+            unsigned long targetAddress;
+            Branch branchType;
+            bool wasTaken;
+        } requestUpdate;
+
+        unsigned long responseAddress;
+    } data;
+    PredictorPacketType type;
+};
+
 }  // namespace sinuca
 
 #endif  // SINUCA3_DEFAULT_PACKETS_HPP_
