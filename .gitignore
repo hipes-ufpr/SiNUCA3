@@ -11,11 +11,6 @@ trace_generator/pin/**/*.a
 
 # The Intel Pin comes with some .o files already compiled.
 # So they should not be ignored by git.
-!trace_generator/pin/intel64/runtime/pincrt/crtendS.o
-!trace_generator/pin/intel64/runtime/pincrt/crtbeginS.o
-!trace_generator/pin/intel64/runtime/pincrt/crtend.o
-!trace_generator/pin/intel64/runtime/pincrt/crtbegin.o
-!trace_generator/pin/ia32/runtime/pincrt/crtendS.o
-!trace_generator/pin/ia32/runtime/pincrt/crtbeginS.o
-!trace_generator/pin/ia32/runtime/pincrt/crtend.o
-!trace_generator/pin/ia32/runtime/pincrt/crtbegin.o
+!trace_generator/pin/intel64/**
+!trace_generator/pin/ia32/**
+!trace_generator/pin/extras/**
