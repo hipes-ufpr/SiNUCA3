@@ -1,8 +1,6 @@
 #ifndef __BUFFER__
 #define __BUFFER__
 
-#define BUFFER_SIZE 1 << 20
-
 #include <cstddef>
 #include <cstdio>
 
@@ -11,7 +9,7 @@
 class Buffer {
   public:
     int readBuffer(FILE *file) {
-        if (bufSize > BUFFER_SIZE) {
+        if (this->bufSize > BUFFER_SIZE) {
             return 1;
         }
         fread(this->store, 1, this->bufSize, file);
