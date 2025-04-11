@@ -25,6 +25,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <vector>
 
 #include "trace_reader.hpp"
 
@@ -46,8 +47,11 @@ struct InstructionInfo {
 class SinucaTraceReader : public TraceReader {
   private:
     FILE *StaticTraceFile;
-    FILE *DynamicTraceFile;
-    FILE *MemoryTraceFile;
+    std::vector<FILE*> ThreadsDynFiles;
+    std::vector<FILE*> ThreadsMemFiles;
+
+    char* mmapPtr;
+    size_t mmapSize;
 
     bool isInsideBBL;
     unsigned int currentBBL;
@@ -75,10 +79,6 @@ class SinucaTraceReader : public TraceReader {
      */
     int GenerateBinaryDict();
 
-    void readDataINSBytes(char *buf, size_t *offset, InstructionInfo *package);
-    int readMnemonic(char *str, char *buf, size_t *offset);
-    int readBufSizeFromFile(size_t *size, FILE *file);
-
     int TraceNextDynamic(unsigned int *);
     /**
      * @brief Get memory addresses accessed and number of bytes
@@ -96,8 +96,11 @@ class SinucaTraceReader : public TraceReader {
 
     inline ~SinucaTraceReader() {
         fclose(this->StaticTraceFile);
-        fclose(this->DynamicTraceFile);
-        fclose(this->MemoryTraceFile);
+        // ==> TODO <==
+        for (int i = 0; i < 1; i++) {
+          fclose(this->ThreadsDynFiles[i]);
+          fclose(this->ThreadsMemFiles[i]);
+        }
     }
 };
 

@@ -14,7 +14,6 @@
 
 #define MAX_IMAGE_NAME_SIZE 64
 
-namespace sinuca {
 namespace traceGenerator {
 
 const char traceFolderPath[] = "../trace/";
@@ -40,8 +39,10 @@ struct __attribute__((aligned(CACHE_LINE_SIZE))) Buffer {
         PIN_InitLock(&(this->bufferPinLock));
     }
 
-    inline void loadBufToFile(FILE* file) {
-        fwrite(&numUsedBytes, 1, sizeof(size_t), file);
+    inline void LoadBufToFile(FILE* file, bool writeBufSize) {
+        if (writeBufSize == true) {
+            fwrite(&numUsedBytes, 1, sizeof(size_t), file);
+        }
         size_t written = fwrite(this->store, 1, this->numUsedBytes, file);
         if (written < this->numUsedBytes) {
             SINUCA3_ERROR_PRINTF("Buffer error\n");
@@ -49,13 +50,12 @@ struct __attribute__((aligned(CACHE_LINE_SIZE))) Buffer {
         this->numUsedBytes = 0;
     }
 
-    inline bool isBufFull() {
+    inline bool IsBufFull() {
         return ((BUFFER_SIZE) - this->numUsedBytes < this->minSpacePerOperation);
     }
 };
 
 struct TraceFileHandler {
-
     char imgName[MAX_IMAGE_NAME_SIZE];
 
     FILE *staticTraceFile;
@@ -67,7 +67,7 @@ struct TraceFileHandler {
     std::vector<Buffer *> memoryBuffers;
 
     TraceFileHandler(){
-        SINUCA3_DEBUG_PRINTF("TraceFileHandler CREATED!!!\n");
+        SINUCA3_DEBUG_PRINTF("TraceFileHandler created\n");
         this->imgName[0] = '\0';
 
         //32 is an arbitrary value, just to avoid reallocation
@@ -78,16 +78,15 @@ struct TraceFileHandler {
         this->memoryBuffers  = std::vector<Buffer *>(32, NULL);
     }
 
-    void initTraceFileHandler(const char* _imgName){
+    void InitTraceFileHandler(const char* _imgName){
         std::strcpy(this->imgName, _imgName);
     }
 
-    void openNewTraceFile(sinuca::traceGenerator::TraceType type, unsigned int threadID);
-    void closeTraceFile(sinuca::traceGenerator::TraceType type, unsigned int threadID);
+    void OpenNewTraceFile(traceGenerator::TraceType type, unsigned int threadID);
+    void CloseTraceFile(traceGenerator::TraceType type, unsigned int threadID);
 
 };
 
 }  // namespace traceGenerator
-}  // namespace sinuca
 
 #endif
