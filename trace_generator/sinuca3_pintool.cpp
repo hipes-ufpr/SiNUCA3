@@ -390,28 +390,31 @@ VOID trace(TRACE trace, VOID *ptr) {
     char* buf = tfHandler.staticBuffer->store;
     size_t *usedStatic=&tfHandler.staticBuffer->numUsedBytes, bblInit;
     unsigned short numInstBbl;
-    const char *traceRtnName = RTN_Name(TRACE_Rtn(trace)).c_str();
+    RTN traceRtn = TRACE_Rtn(trace);
 
     if ( !isGlobalInstrumentating && !isThreadInstrumentating[tid] )
         return;
 
-    if (strcmp(traceRtnName, "trace_stop_global") == 0) {
-        stopInstrumentationGlobally();
-        return;
-    }
-
-    if (strcmp(traceRtnName, "trace_stop_thread") == 0) {
-        stopInstrumentationInThread(tid);
-        return;
-    }
-
-    // This will make every function call from libgomp that have a
-    // PAUSE instruction to be ignored.
-    // I still not sure if this is fully corret.
-    for(size_t i=0; i<OMP_ignore.size(); ++i){
-        if (strcmp(traceRtnName, OMP_ignore[i]) == 0) {
-            // has SPIN_LOCK
+    if(RTN_Valid(traceRtn)){
+        const char *traceRtnName = RTN_Name(traceRtn).c_str();
+        if (strcmp(traceRtnName, "trace_stop_global") == 0) {
+            stopInstrumentationGlobally();
             return;
+        }
+
+        if (strcmp(traceRtnName, "trace_stop_thread") == 0) {
+            stopInstrumentationInThread(tid);
+            return;
+        }
+
+        // This will make every function call from libgomp that have a
+        // PAUSE instruction to be ignored.
+        // I still not sure if this is fully corret.
+        for(size_t i=0; i<OMP_ignore.size(); ++i){
+            if (strcmp(traceRtnName, OMP_ignore[i]) == 0) {
+                // has SPIN_LOCK
+                return;
+            }
         }
     }
 
