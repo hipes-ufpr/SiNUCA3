@@ -98,6 +98,7 @@ class SinucaTraceReader : public TraceReader {
           fclose(this->ThreadsDynFiles[i]);
           fclose(this->ThreadsMemFiles[i]);
         }
+        fclose(this->StaticTraceFile);
 
         delete[] binaryBBLsSize;
         delete[] pool;

@@ -96,7 +96,6 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
     this->binaryTotalBBLs = 0;
 
     if (this->GenerateBinaryDict()) return 1;
-    fclose(this->StaticTraceFile);
 
     return 0;
 }
