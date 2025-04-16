@@ -33,7 +33,7 @@ class CircularBuffer {
     void* buffer;      /**<The Buffer. */
     int occupation;    /**<Buffer's current occupancy */
     int bufferSize;    /**<The maximum buffer capacity. */
-    int messageSize;   /**<The message size supported by the buffer. */
+    int elementSize;   /**<The element size supported by the buffer. */
     int startOfBuffer; /**<Sentinel to the start of the buffer. */
     int endOfBuffer;   /**<Sentinel for the end of the buffer. */
 
@@ -42,7 +42,7 @@ class CircularBuffer {
         : buffer(NULL),
           occupation(0),
           bufferSize(0),
-          messageSize(0),
+          elementSize(0),
           startOfBuffer(0),
           endOfBuffer(0){};
 
@@ -74,9 +74,9 @@ class CircularBuffer {
     /**
      * @brief Allocates the structure of a Circular Buffer.
      * @param bufferSize self-explanatory.
-     * @param messageSize self-explanatory.
+     * @param elementSize self-explanatory.
      */
-    void Allocate(int bufferSize, int messageSize);
+    void Allocate(int bufferSize, int elementSize);
 
     /**
      * @brief Deallocates the Circular Buffer.
