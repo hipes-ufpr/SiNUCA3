@@ -1,5 +1,5 @@
-#ifndef SINUCA3_TRACE_READER_HPP
-#define SINUCA3_TRACE_READER_HPP
+#ifndef SINUCA3_TRACE_READER_TRACE_READER_HPP_
+#define SINUCA3_TRACE_READER_TRACE_READER_HPP_
 
 //
 // Copyright (C) 2025  HiPES - Universidade Federal do Paraná
@@ -35,7 +35,7 @@ namespace sinuca {
 namespace traceReader {
 namespace sinuca3TraceReader {
 
-struct InstructionInfo {  
+struct InstructionInfo {
     sinuca::StaticInstructionInfo staticInfo;
 
     /** @brief Fields reserved for reader internal use */
@@ -109,4 +109,4 @@ class SinucaTraceReader : public TraceReader {
 }  // namespace traceReader
 }  // namespace sinuca
 
-#endif  // SINUCA3_TRACE_READER_HPP
+#endif  // SINUCA3_TRACE_READER_TRACE_READER_HPP_

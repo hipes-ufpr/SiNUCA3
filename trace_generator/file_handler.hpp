@@ -7,12 +7,12 @@
 
 #include "../src/utils/logging.hpp"
 
-#define BUFFER_SIZE 1 << 20
+const unsigned long BUFFER_SIZE = 1 << 20;
 
 // Used in alignas to avoid false sharing
-#define CACHE_LINE_SIZE 64
+const unsigned long CACHE_LINE_SIZE = 64;
 
-#define MAX_IMAGE_NAME_SIZE 64
+const unsigned long MAX_IMAGE_NAME_SIZE = 64;
 
 namespace traceGenerator {
 

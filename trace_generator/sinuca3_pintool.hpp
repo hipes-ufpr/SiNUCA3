@@ -10,6 +10,19 @@
 
 namespace traceGenerator {
 
+static inline void CopyToBuf(char* buf, size_t* used, void* src, size_t size) {
+    memcpy(buf + *used, src, size);
+    (*used) += size;
+}
+
+static inline void SetBit(unsigned char* byte, int position, bool value) {
+    if (value == true) {
+        *byte |= (1 << position);
+    } else {
+        *byte &= 0xff - (1 << position);
+    }
+}
+
 struct DataINS {
     long addr;
     unsigned short int baseReg;

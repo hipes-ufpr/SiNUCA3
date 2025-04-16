@@ -21,6 +21,8 @@
 
 #include "sinuca3_trace_reader.hpp"
 
+#include <alloca.h>
+
 #include <cassert>
 #include <cstddef>
 #include <cstdio>  // FILE*
@@ -36,35 +38,39 @@ extern "C" {
 #include <unistd.h>    // lseek
 }
 
-inline void IncreaseOffset(size_t *offset, size_t size) { *offset += size; }
+static inline void IncreaseOffset(size_t *offset, size_t size) {
+    *offset += size;
+}
 
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTraceFile(
     TraceFileType ft, const char *name) {
     //---------------------------------//
-    int numThreads;
     std::vector<FILE *> *vec;
-    char fileName[256], fileType[32];
-    char killMsg[] = "Could not open => ";
+    int numThreads;
+    unsigned long fileNameSize = strlen(name) + 128;
+    char *fileName = (char *)alloca(fileNameSize);
+    static const char *fileTypes[] = {"dynamic", "memory"};
+    const char *fileType;
 
     fileName[0] = '\0';
     numThreads = 1;
     switch (ft) {
         case DynamicFile:
             vec = &this->ThreadsDynFiles;
-            snprintf(fileType, sizeof(fileType), "dynamic");
+            fileType = fileTypes[0];
             break;
         case MemoryFile:
             vec = &this->ThreadsMemFiles;
-            snprintf(fileType, sizeof(fileType), "memory");
+            fileType = fileTypes[1];
             break;
     }
 
     for (int i = 0; i < numThreads; i++) {
-        snprintf(fileName, sizeof(fileName), "../../trace/%s_%s_tid%d.trace",
+        snprintf(fileName, fileNameSize, "../../trace/%s_%s_tid%d.trace",
                  fileType, name, i);
-        (*vec).push_back(fopen(fileName, "rb"));
-        if ((*vec).back() == NULL) {
-            SINUCA3_ERROR_PRINTF("%s%s\n", killMsg, fileName);
+        vec->push_back(fopen(fileName, "rb"));
+        if (vec->back() == NULL) {
+            SINUCA3_ERROR_PRINTF("Could not open => %s\n", fileName);
             return 1;
         }
         fileName[0] = '\0';
@@ -75,8 +81,9 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTraceFile(
 
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
     const char *executableName) {
-    //------------------------//
-    char staticFileName[256];
+    //-------------------------//
+    unsigned long staticFileNameSize = strlen(executableName) + 64;
+    char *staticFileName = (char *)alloca(staticFileNameSize);
 
     /* Open Trace Files */
     if (OpenTraceFile(DynamicFile, executableName)) return 1;
@@ -86,8 +93,8 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
     this->currentBBL = 0;
     this->binaryTotalBBLs = 0;
 
-    snprintf(staticFileName, sizeof(staticFileName),
-             "../../trace/static_%s.trace", executableName);
+    snprintf(staticFileName, staticFileNameSize, "../../trace/static_%s.trace",
+             executableName);
     if (this->GenerateBinaryDict(staticFileName)) return 1;
 
     return 0;
@@ -128,21 +135,26 @@ bool GetBitBool(unsigned char byte, int pos) {
 
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     GenerateBinaryDict(char *staticFileName) {
-    //------------------//
+    //--------------------------------------//
     traceGenerator::DataINS *data;
-    size_t mmapOffset = 0, mmapSize, bytes;
-    unsigned short bblSize, instCounter;
-    unsigned int totalIns, bblCounter = 0;
-    InstructionInfo *package, *poolPointer;
+    size_t mmapOffset = 0;
+    size_t mmapSize;
+    size_t bytes;
+    unsigned short bblSize;
+    unsigned short instCounter;
+    unsigned int totalIns;
+    unsigned int bblCounter = 0;
+    InstructionInfo *package;
+    InstructionInfo *poolPointer;
     StaticInstructionInfo *info;
-    char *mmapPtr, killMsg[] = "Could not open => ";
+    char *mmapPtr;
 
     int fd = open(staticFileName, O_RDONLY);
     if (fd == -1) {
-      SINUCA3_ERROR_PRINTF("%s%s\n", killMsg, staticFileName);
-      return 1;
+        SINUCA3_ERROR_PRINTF("Could not open => %s\n", staticFileName);
+        return 1;
     }
-    
+
     /* Map static trace file to process virtual memory */
     mmapSize = lseek(fd, 0, SEEK_END);
     mmapPtr = (char *)mmap(NULL, mmapSize, PROT_READ, MAP_PRIVATE, fd, 0);
@@ -231,7 +243,6 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     //-------------------------------------//
     static Buffer buf;
 
-    // ==> TODO <==
     if (buf.offset == buf.bufSize) {
         if (buf.readBufSizeFromFile(this->ThreadsDynFiles[0])) {
             return 1;
@@ -252,7 +263,6 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::TraceNextMemory(
     static Buffer buf;
     traceGenerator::DataMEM *data;
 
-    // ==> TODO <==
     if (buf.offset == buf.bufSize) {
         if (buf.readBufSizeFromFile(this->ThreadsMemFiles[0])) {
             return 1;
