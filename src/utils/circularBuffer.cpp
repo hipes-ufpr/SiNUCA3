@@ -19,15 +19,15 @@ inline bool CircularBuffer::IsFull() const {
 
 inline bool CircularBuffer::IsEmpty() const { return (this->occupation == 0); };
 
-void CircularBuffer::Allocate(int bufferSize, int messageSize) {
-    if ((bufferSize == 0) || (messageSize == 0)) return;
+void CircularBuffer::Allocate(int bufferSize, int elementSize) {
+    if ((bufferSize == 0) || (elementSize == 0)) return;
 
     this->occupation = 0;
     this->startOfBuffer = 0;
     this->endOfBuffer = 0;
     this->bufferSize = bufferSize;
-    this->messageSize = messageSize;
-    this->buffer = (void*)new char[bufferSize * messageSize];
+    this->elementSize = elementSize;
+    this->buffer = (void*)new char[bufferSize * elementSize];
 
     if (!(this->buffer)) {
         this->buffer = NULL;
@@ -49,9 +49,9 @@ bool CircularBuffer::Enqueue(void* elementInput) {
          * stores the element in the most recent position in the buffer.
          */
         void* memoryAddress = static_cast<char*>(this->buffer) +
-                              (this->endOfBuffer * this->messageSize);
+                              (this->endOfBuffer * this->elementSize);
 
-        memcpy(memoryAddress, elementInput, this->messageSize);
+        memcpy(memoryAddress, elementInput, this->elementSize);
         ++this->occupation;
         ++this->endOfBuffer;
 
@@ -74,9 +74,9 @@ bool CircularBuffer::Dequeue(void* elementOutput) {
          * unauthorized access.
          */
         void* memoryAddress = static_cast<char*>(this->buffer) +
-                              (this->startOfBuffer * this->messageSize);
+                              (this->startOfBuffer * this->elementSize);
 
-        memcpy(elementOutput, memoryAddress, this->messageSize);
+        memcpy(elementOutput, memoryAddress, this->elementSize);
         --this->occupation;
         ++this->startOfBuffer;
 
@@ -87,7 +87,7 @@ bool CircularBuffer::Dequeue(void* elementOutput) {
         return 1;
     }
 
-    memset(elementOutput, 0, this->messageSize);
+    memset(elementOutput, 0, this->elementSize);
 
     return 0;
 };
@@ -96,5 +96,5 @@ void CircularBuffer::Flush() {
     this->occupation = 0;
     this->startOfBuffer = 0;
     this->endOfBuffer = 0;
-    memset(this->buffer, 0, this->bufferSize * this->messageSize);
+    memset(this->buffer, 0, this->bufferSize * this->elementSize);
 };
