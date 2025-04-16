@@ -63,7 +63,6 @@ void traceGenerator::TraceFileHandler::OpenNewTraceFile(
             break;
 
         case traceGenerator::TRACE_DYNAMIC:
-            SINUCA3_DEBUG_PRINTF("TRACE_DYNAMIC %s\n", tfHandler.imgName);
             snprintf(fileName, fileNameSize, "dynamic_%s_tid%d.trace",
                      tfHandler.imgName, threadID);
 
@@ -180,7 +179,6 @@ VOID AppendToDynamicTrace(UINT32 bblId) {
 
 UINT16 FillRegs(const INS* ins, unsigned short int* regs, unsigned int maxRegs,
                 REG (*func)(INS, UINT32)) {
-    //-----------------------------------//
     unsigned short int reg;
     unsigned short int it;
     unsigned short int cont;

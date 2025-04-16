@@ -44,7 +44,6 @@ static inline void IncreaseOffset(size_t *offset, size_t size) {
 
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTraceFile(
     TraceFileType ft, const char *name) {
-    //---------------------------------//
     std::vector<FILE *> *vec;
     int numThreads;
     unsigned long fileNameSize = strlen(name) + 128;
@@ -81,7 +80,6 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTraceFile(
 
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
     const char *executableName) {
-    //-------------------------//
     unsigned long staticFileNameSize = strlen(executableName) + 64;
     char *staticFileName = (char *)alloca(staticFileNameSize);
 
@@ -107,13 +105,11 @@ sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::GetTraceSize() {
 
 unsigned long sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     GetNumberOfFetchedInstructions() {
-    //------------------------------//
     return this->fetchInstructions;
 }
 
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::GetTotalBBLs(
     char *mmapPtr, size_t *mmapOff) {
-    //-----------------------------//
     /* The pintool writes to the beginning of the static
      * trace the total number of basic blocks */
     unsigned int *num = &this->binaryTotalBBLs;
@@ -135,7 +131,6 @@ bool GetBitBool(unsigned char byte, int pos) {
 
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     GenerateBinaryDict(char *staticFileName) {
-    //--------------------------------------//
     traceGenerator::DataINS *data;
     size_t mmapOffset = 0;
     size_t mmapSize;
@@ -240,7 +235,6 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
 
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     TraceNextDynamic(unsigned int *nextBbl) {
-    //-------------------------------------//
     static Buffer buf;
 
     if (buf.offset == buf.bufSize) {
@@ -259,7 +253,6 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
 
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::TraceNextMemory(
     InstructionPacket *ret, InstructionInfo *packageInfo) {
-    //---------------------------------------------------//
     static Buffer buf;
     traceGenerator::DataMEM *data;
 
@@ -312,7 +305,6 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::TraceNextMemory(
 sinuca::traceReader::FetchResult
 sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::Fetch(
     InstructionPacket *ret) {
-    //---------------------//
     if (!this->isInsideBBL) {
         if (this->TraceNextDynamic(&this->currentBBL)) {
             SINUCA3_DEBUG_PRINTF("Fetched ended!\n");
@@ -341,7 +333,6 @@ sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::Fetch(
 
 void sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     PrintStatistics() {
-    //---------------//
     SINUCA3_LOG_PRINTF("###########################\n");
     SINUCA3_LOG_PRINTF("Sinuca3 Trace Reader\n");
     SINUCA3_LOG_PRINTF("Fetch Instructions:%lu\n", this->fetchInstructions);
