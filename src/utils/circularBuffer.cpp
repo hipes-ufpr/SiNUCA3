@@ -1,23 +1,26 @@
+//
+// Copyright (C) 2024  HiPES - Universidade Federal do Paraná
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
 /**
  * @file circularBuffer.cpp
  * @brief Implementation of CircularBuffer class
  */
 
 #include "circularBuffer.hpp"
-
-inline bool CircularBuffer::IsAllocated() const {
-    return (this->buffer != NULL);
-};
-
-inline int CircularBuffer::GetSize() const { return (this->bufferSize); };
-
-inline int CircularBuffer::GetOccupation() const { return (this->occupation); };
-
-inline bool CircularBuffer::IsFull() const {
-    return (this->occupation == this->bufferSize);
-};
-
-inline bool CircularBuffer::IsEmpty() const { return (this->occupation == 0); };
 
 void CircularBuffer::Allocate(int bufferSize, int elementSize) {
     if ((bufferSize == 0) || (elementSize == 0)) return;
@@ -29,20 +32,20 @@ void CircularBuffer::Allocate(int bufferSize, int elementSize) {
     this->elementSize = elementSize;
     this->buffer = (void*)new char[bufferSize * elementSize];
 
-    if (!(this->buffer)) {
+    if (!this->buffer) {
         this->buffer = NULL;
     }
-};
+}
 
 void CircularBuffer::Deallocate() {
     if (this->buffer) {
         delete[] (char*)this->buffer;
         this->buffer = NULL;
     }
-};
+}
 
 bool CircularBuffer::Enqueue(void* elementInput) {
-    if (!(this->IsFull())) {
+    if (!this->IsFull()) {
         /*
          * Target stores the memory address where the element should be
          * inserted, based on pointer arithmetic. After its definition, memcpy
@@ -63,10 +66,10 @@ bool CircularBuffer::Enqueue(void* elementInput) {
     }
 
     return 0;
-};
+}
 
 bool CircularBuffer::Dequeue(void* elementOutput) {
-    if (!(this->IsEmpty())) {
+    if (!this->IsEmpty()) {
         /*
          * Element stores the memory address of the oldest element in the Buffer
          * (the one that should be removed). Although there is no need to clear
@@ -90,11 +93,11 @@ bool CircularBuffer::Dequeue(void* elementOutput) {
     memset(elementOutput, 0, this->elementSize);
 
     return 0;
-};
+}
 
 void CircularBuffer::Flush() {
     this->occupation = 0;
     this->startOfBuffer = 0;
     this->endOfBuffer = 0;
     memset(this->buffer, 0, this->bufferSize * this->elementSize);
-};
+}
