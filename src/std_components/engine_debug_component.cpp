@@ -140,9 +140,7 @@ void EngineDebugComponent::Clock() {
             }
         }
     } else {
-        std::vector<sinuca::engine::Connection*> connections =
-            this->GetConnections();
-        for (unsigned int i = 0; i < connections.size(); ++i) {
+        for (long i = 0; i < this->GetNumberOfConnections(); ++i) {
             if (this->ReceiveRequestFromConnection(i, &messageOutput)) {
                 SINUCA3_DEBUG_PRINTF("%p: Received message (%p)\n", this,
                                      messageOutput.staticInfo);

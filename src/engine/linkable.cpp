@@ -120,10 +120,9 @@ void sinuca::engine::Linkable::AddConnection(Connection* newConnection) {
         this->numberOfConnections = connectionsSize;
 };
 
-std::vector<sinuca::engine::Connection*>
-sinuca::engine::Linkable::GetConnections() const {
-    return this->connections;
-};
+long sinuca::engine::Linkable::GetNumberOfConnections() {
+    return this->numberOfConnections;
+}
 
 void sinuca::engine::Linkable::LinkableFlush() {
     for (unsigned int i = 0; i < this->connections.size(); ++i)

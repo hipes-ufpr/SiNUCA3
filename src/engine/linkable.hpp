@@ -212,7 +212,8 @@ class Linkable {
     /**
      * @brief Self-explanatory
      */
-    std::vector<Connection*> GetConnections() const;
+    long GetNumberOfConnections();
+
     /**
      * @brief Don't call this method.
      * @details The engine calls this method after each clock cycle to swap the
