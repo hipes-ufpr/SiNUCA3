@@ -49,27 +49,27 @@ class CircularBuffer {
     /**
      * @brief Returns a boolean indicating whether the Buffer is allocated.
      */
-    inline bool IsAllocated() const;
+    inline bool IsAllocated() { return this->buffer != NULL; };
 
     /**
      * @brief Returns the size of Buffer.
      */
-    inline int GetSize() const;
+    inline int GetSize() { return this->bufferSize; };
 
     /**
      * @brief Returns the occupation of Buffer.
      */
-    inline int GetOccupation() const;
+    inline int GetOccupation() { return this->occupation; };
 
     /**
      * @brief Returns a boolean indicating whether the Buffer is full.
      */
-    inline bool IsFull() const;
+    inline bool IsFull() { return this->occupation == this->bufferSize; };
 
     /**
      * @brief Returns a boolean indicating whether the Buffer is empty.
      */
-    inline bool IsEmpty() const;
+    inline bool IsEmpty() { return this->occupation == 0; };
 
     /**
      * @brief Allocates the structure of a Circular Buffer.
