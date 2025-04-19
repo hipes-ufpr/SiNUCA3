@@ -20,7 +20,7 @@
 
 #include <cstdint>
 
-const bool NOTTAKEN = 0;
+const bool NTAKEN = 0;
 const bool TAKEN = 1;
 
 class BimodalPredictor {

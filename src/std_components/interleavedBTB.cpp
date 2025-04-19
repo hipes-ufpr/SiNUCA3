@@ -4,26 +4,26 @@
 btb_entry::btb_entry() : validBit(false), simplePredictor(nullptr) {};
 
 void btb_entry::Allocate() {
-    validBit = false;
-    tag = 0;
-    fetchTarget = 0;
-    simplePredictor = new BimodalPredictor();
+    this->validBit = false;
+    this->tag = 0;
+    this->fetchTarget = 0;
+    this->simplePredictor = new BimodalPredictor();
 };
 
 bool btb_entry::GetValid() {
-    return validBit;
+    return this->validBit;
 };
 
 uint32_t btb_entry::GetTag() {
-    return tag;
+    return this->tag;
 };
 
 uint32_t btb_entry::GetTarget() {
-    return fetchTarget;
+    return this->fetchTarget;
 };
 
 bool btb_entry::GetPrediction() {
-    return simplePredictor->GetPrediction();
+    return this->simplePredictor->GetPrediction();
 };
 
 void btb_entry::SetEntry(uint32_t tag, uint32_t fetchTarget) {
@@ -33,27 +33,25 @@ void btb_entry::SetEntry(uint32_t tag, uint32_t fetchTarget) {
 };
 
 void btb_entry::UpdatePrediction(bool branchTaken) {
-    simplePredictor->UpdatePrediction(branchTaken);
+    this->simplePredictor->UpdatePrediction(branchTaken);
 };
 
 btb_entry::~btb_entry() {
-    delete simplePredictor;
+    delete this->simplePredictor;
 };
 
 BranchTargetBuffer::BranchTargetBuffer() : Component<BTBMessage>(), instructionValidBits(nullptr), banks(nullptr) {};
 
 uint32_t BranchTargetBuffer::CalculateTag(uint32_t fetchAddress) {
     uint32_t tag = fetchAddress;
-    tag = tag >> numBanks;
-
+    tag = tag >> this->numBanks; 
     return tag;
 };
 
 uint32_t BranchTargetBuffer::CalculateIndex(uint32_t fetchAddress) {
     uint32_t index = fetchAddress;
-    index = index >> numBanks;
-    index = index & ((1 << numEntries) - 1);
-
+    index = index >> this->numBanks; 
+    index = index & ((1 << this->numEntries) - 1); 
     return index;
 };
 
@@ -64,8 +62,8 @@ void BranchTargetBuffer::Allocate(uint32_t numBanks, uint32_t numEntries) {
     this->totalHits = 0;
     this->nextFetchBlock = 0;
 
-    int totalBanks = (1 << numBanks);
-    int totalEntries = (1 << numEntries);
+    int totalBanks = (1 << this->numBanks); 
+    int totalEntries = (1 << this->numEntries); 
     this->instructionValidBits = new bool[totalBanks];
     this->banks = new btb_bank[totalBanks];
     for (int bank = 0; bank < totalBanks; ++bank) {
@@ -79,47 +77,47 @@ void BranchTargetBuffer::Allocate(uint32_t numBanks, uint32_t numEntries) {
 };
 
 uint32_t BranchTargetBuffer::GetNextFetchBlock() {
-    return nextFetchBlock;
+    return this->nextFetchBlock;
 };
 
 bool* BranchTargetBuffer::GetInstructionValidBits() {
-    return instructionValidBits;
+    return this->instructionValidBits;
 };
 
 void BranchTargetBuffer::RegisterNewBlock(uint32_t fetchAddress, uint32_t* fetchTargets) {
-    uint32_t currentTag = CalculateTag(fetchAddress);
-    uint32_t index = CalculateIndex(fetchAddress);
+    uint32_t currentTag = this->CalculateTag(fetchAddress); 
+    uint32_t index = this->CalculateIndex(fetchAddress); 
 
     for (uint32_t bank = 0; bank < numBanks; ++bank) {
-        banks[bank][index].SetEntry(currentTag, fetchTargets[bank]);
+        this->banks[bank][index].SetEntry(currentTag, fetchTargets[bank]);
     }
 };
 
 TypeBTBMessage BranchTargetBuffer::FetchBTBEntry(uint32_t fetchAddress) {
     bool alocated = true;
     uint32_t nextBlock = 0;
-    uint32_t currentTag = CalculateTag(fetchAddress);
-    uint32_t index = CalculateIndex(fetchAddress);
+    uint32_t currentTag = this->CalculateTag(fetchAddress); 
+    uint32_t index = this->CalculateIndex(fetchAddress); 
 
-    for (uint32_t i = 0; i < numBanks; ++i) {
-        if (banks[i][index].GetValid()) {
-            if (banks[i][index].GetTag() == currentTag) {
-                nextBlock = banks[i][index].GetTarget();
-                instructionValidBits[i] = banks[i][index].GetPrediction();
+    for (uint32_t i = 0; i < this->numBanks; ++i) { 
+        if (this->banks[i][index].GetValid()) { 
+            if (this->banks[i][index].GetTag() == currentTag) {
+                nextBlock = this->banks[i][index].GetTarget(); 
+                this->instructionValidBits[i] = this->banks[i][index].GetPrediction(); 
             } else {
                 alocated = false;
-                instructionValidBits[i] = true;
+                this->instructionValidBits[i] = true; 
             }
         } else {
             alocated = false;
-            instructionValidBits[i] = true;
+            this->instructionValidBits[i] = true; 
         }
     }
 
     if (nextBlock) {
-        nextFetchBlock = nextBlock;
+        this->nextFetchBlock = nextBlock; 
     } else {
-        nextFetchBlock = fetchAddress + (1 << numBanks);
+        this->nextFetchBlock = fetchAddress + (1 << this->numBanks); 
     }
 
     if (alocated) {
@@ -130,30 +128,29 @@ TypeBTBMessage BranchTargetBuffer::FetchBTBEntry(uint32_t fetchAddress) {
 };
 
 void BranchTargetBuffer::UpdateBlock(uint32_t fetchAddress, bool* executedInstructions) {
-    uint32_t currentTag = CalculateTag(fetchAddress);
-    uint32_t index = CalculateIndex(fetchAddress);
+    uint32_t currentTag = this->CalculateTag(fetchAddress); 
+    uint32_t index = this->CalculateIndex(fetchAddress); 
 
-    for (uint32_t bank = 0; bank < numBanks; ++bank) {
-        if (banks[bank][index].GetValid()) {
-            if (banks[bank][index].GetTag() == currentTag) {
-                banks[bank][index].UpdatePrediction(executedInstructions[bank]);
+    for (uint32_t bank = 0; bank < this->numBanks; ++bank) { 
+        if (this->banks[bank][index].GetValid()) { 
+            if (this->banks[bank][index].GetTag() == currentTag) { 
+                this->banks[bank][index].UpdatePrediction(executedInstructions[bank]); 
             }
         }
     }
 };
 
 BranchTargetBuffer::~BranchTargetBuffer() {
-    if (instructionValidBits) {
-        delete[] instructionValidBits;
-        instructionValidBits = nullptr;
+    if (this->instructionValidBits) { 
+        delete[] this->instructionValidBits; 
+        this->instructionValidBits = nullptr; 
     }
 
-    int totalBanks = (1 << numBanks);
-    if (banks) {
+    int totalBanks = (1 << this->numBanks); 
+    if (this->banks) { 
         for (int i = 0; i < totalBanks; ++i) {
-            delete[] banks[i];
+            delete[] this->banks[i]; 
         }
-        delete[] banks;
-        banks = nullptr;
+        delete[] this->banks; 
     }
 };
