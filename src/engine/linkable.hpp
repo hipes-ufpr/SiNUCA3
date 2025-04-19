@@ -81,7 +81,7 @@ struct Connection {
      * @brief Insert a message into a requestBuffer.
      * @param id The id of the buffer.
      * @param messageInput A pointer to the message to send.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     bool InsertIntoRequestBuffer(int id, void* messageInput);
 
@@ -89,7 +89,7 @@ struct Connection {
      * @brief Send a message into a responseBuffer.
      * @param id The id of the buffer.
      * @param messageInput A pointer to the message to send.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     bool InsertIntoResponseBuffer(int id, void* messageInput);
 
@@ -97,7 +97,7 @@ struct Connection {
      * @brief Remove a request from a requestBuffer.
      * @param id The id of the buffer.
      * @param messageOutput Address where to send the message.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     bool RemoveFromARequestBuffer(int id, void* messageOutput);
 
@@ -105,7 +105,7 @@ struct Connection {
      * @brief Remove a response from a responseBuffer.
      * @param id The id of the  buffer.
      * @param messageOutput Address where to send the message.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     bool RemoveFromAResponseBuffer(int id, void* messageOutput);
 };
@@ -166,7 +166,7 @@ class Linkable {
      * in its own connection request buffer.
      * @param connectionID The id of the connection.
      * @param messageInput A pointer to the message to send.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     int SendRequestUnsafe(int connectionID, void* messageInput);
 
@@ -178,7 +178,7 @@ class Linkable {
      * messageOutput parameter.
      * @param connectionID The id of the connection.
      * @param messageOutput A pointer to the message to receive.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     int GetRequestUnsafe(int connectionID, void* messageOutput);
 
@@ -189,7 +189,7 @@ class Linkable {
      * response message into the buffer.
      * @param connectionID The id of the connection.
      * @param messageInput A pointer to the message to send.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     int SendResponseUnsafe(int connectionID, void* messageInput);
 
@@ -202,7 +202,7 @@ class Linkable {
      * messageOutput parameter.
      * @param connectionID The id of the connection.
      * @param messageOutput A pointer to the message to receive.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     int GetResponseUnsafe(int connectionID, void* messageOutput);
 

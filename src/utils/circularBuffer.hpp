@@ -88,7 +88,7 @@ class CircularBuffer {
     /**
      * @brief Inserts the element at the "top" of the buffer.
      * @param elementInput A pointer to the element to be inserted.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     bool Enqueue(void* elementInput);
 
@@ -97,7 +97,7 @@ class CircularBuffer {
      * Buffer.
      * @param elementOutput A pointer to the memory region where the element
      * will be returned.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     bool Dequeue(void* elementOutput);
 
