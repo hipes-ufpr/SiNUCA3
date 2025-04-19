@@ -62,10 +62,10 @@ bool CircularBuffer::Enqueue(void* elementInput) {
             this->endOfBuffer = 0;
         }
 
-        return 1;
+        return 0;
     }
 
-    return 0;
+    return 1;
 }
 
 bool CircularBuffer::Dequeue(void* elementOutput) {
@@ -87,12 +87,12 @@ bool CircularBuffer::Dequeue(void* elementOutput) {
             this->startOfBuffer = 0;
         }
 
-        return 1;
+        return 0;
     }
 
     memset(elementOutput, 0, this->elementSize);
 
-    return 0;
+    return 1;
 }
 
 void CircularBuffer::Flush() {
