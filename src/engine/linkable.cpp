@@ -125,7 +125,10 @@ sinuca::engine::Linkable::GetConnections() const {
     return this->connections;
 };
 
-void sinuca::engine::Linkable::PreClock() {};
+void sinuca::engine::Linkable::LinkableFlush() {
+    for (unsigned int i = 0; i < this->connections.size(); ++i)
+        this->connections[i]->FlushConnection();
+}
 
 void sinuca::engine::Linkable::PosClock() {
     for (unsigned int i = 0; i < this->connections.size(); ++i)

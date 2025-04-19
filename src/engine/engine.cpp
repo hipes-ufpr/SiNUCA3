@@ -89,10 +89,14 @@ int sinuca::engine::Engine::Simulate(
         }
 
         if (this->flush) {
-            for (long i = 0; i < this->numberOfCPUs; ++i)
+            for (long i = 0; i < this->numberOfCPUs; ++i) {
                 this->cpus[i]->Flush();
-            for (long i = 0; i < this->numberOfComponents; ++i)
+                this->cpus[i]->LinkableFlush();
+            }
+            for (long i = 0; i < this->numberOfComponents; ++i) {
                 this->components[i]->Flush();
+                this->components[i]->LinkableFlush();
+            }
             this->flush = false;
         }
 

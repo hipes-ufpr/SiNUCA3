@@ -213,19 +213,17 @@ class Linkable {
      * @brief Self-explanatory
      */
     std::vector<Connection*> GetConnections() const;
-
-    /**
-     * @brief Don't call this method.
-     * @details The engine calls this method before each clock cycle to swap the
-     * buffers and do other pre-clock setup jobs.
-     */
-    void PreClock();
     /**
      * @brief Don't call this method.
      * @details The engine calls this method after each clock cycle to swap the
      * buffers and do other pos-clock setup jobs.
      */
     void PosClock();
+    /**
+     * @brief Don't call this method.
+     * @details The engine calls this method when a flush is needed.
+     */
+    void LinkableFlush();
     /**
      * @brief This method should be declared here so the simulator can send the
      * finish setup message.

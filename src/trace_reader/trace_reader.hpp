@@ -23,6 +23,8 @@
  * @brief Pure virtual TraceReader class, that all trace readers must implement.
  */
 
+#include <cstring>
+
 #include "../engine/default_packets.hpp"
 
 namespace sinuca {
@@ -46,7 +48,7 @@ class TraceReader {
     virtual unsigned long GetNumberOfFetchedInstructions() = 0;
     virtual void PrintStatistics() = 0;
     virtual FetchResult Fetch(InstructionPacket* ret) = 0;
-    virtual ~TraceReader();
+    virtual ~TraceReader() {}
 };
 
 }  // namespace traceReader
