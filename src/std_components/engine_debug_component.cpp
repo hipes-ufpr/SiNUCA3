@@ -130,7 +130,7 @@ void EngineDebugComponent::Clock() {
             this->send = true;
         } else {
             if (this->other->ReceiveResponse(this->connectionID,
-                                             &messageOutput)) {
+                                             &messageOutput) == 0) {
                 SINUCA3_DEBUG_PRINTF("%p: Received response (%p) from %p.\n",
                                      this, messageOutput.staticInfo,
                                      this->other);
@@ -141,7 +141,7 @@ void EngineDebugComponent::Clock() {
         }
     } else {
         for (long i = 0; i < this->GetNumberOfConnections(); ++i) {
-            if (this->ReceiveRequestFromConnection(i, &messageOutput)) {
+            if (this->ReceiveRequestFromConnection(i, &messageOutput) == 0) {
                 SINUCA3_DEBUG_PRINTF("%p: Received message (%p)\n", this,
                                      messageOutput.staticInfo);
                 messageInput.staticInfo = messageOutput.staticInfo + 1;
