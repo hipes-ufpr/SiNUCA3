@@ -40,7 +40,7 @@ int sinuca::btb_entry::Allocate(unsigned int interleavingFactor) {
     return 0;
 }
 
-int sinuca::btb_entry::NewEntry(unsigned long tag, unsigned long bank,
+int sinuca::btb_entry::NewEntry(unsigned long tag, unsigned int bank,
                                 long targetAddress, sinuca::branchType type) {
     if (bank >= this->interleavingFactor) return 1;
 

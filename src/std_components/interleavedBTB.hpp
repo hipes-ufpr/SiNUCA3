@@ -59,7 +59,7 @@ struct btb_entry {
      * @param type The branch's type.
      * @return 0 if successfuly, 1 otherwise.
      */
-    int NewEntry(unsigned long tag, unsigned long bank, long targetAddress,
+    int NewEntry(unsigned long tag, unsigned int bank, long targetAddress,
                  branchType type);
 
     /**
