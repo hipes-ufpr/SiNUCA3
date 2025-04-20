@@ -5,9 +5,13 @@
  * @file interleavedBTB.hpp
  * @brief Implementation of Interleaved Branch Target Buffer
  */
-#include <cstdint>
+
 #include "../engine/component.hpp"
 #include "../utils/bimodalPredictor.hpp"
+
+namespace sinuca {
+
+enum branchType { NONE, CONDITIONAL_BRANCH, UNCONDITIONAL_BRANCH };
 
 enum TypeBTBMessage {
     BTB_REQUEST,
@@ -27,125 +31,99 @@ struct BTBMessage {
     TypeBTBMessage messageType;
 };
 
-struct btb_entry;
-typedef btb_entry* btb_bank;
-
 struct btb_entry {
-    private:
-        bool validBit;
-        uint32_t tag;
-        uint32_t fetchTarget;
-        BimodalPredictor* simplePredictor;
+  private:
+    unsigned int
+        interleavingFactor; /**<The interleaving factor, the number of banks. */
+    unsigned long entryTag; /**<The entry tag. */
+    unsigned long* targetArray;        /**<The target address array. */
+    branchType* branchTypes;           /**<The branch types array. */
+    BimodalPredictor* predictorsArray; /**<The array of predictors. */
 
-    public:
-        btb_entry();
+  public:
+    btb_entry();
 
-        /**
-         * @brief Allocates the BTB entry
-         */
-        void Allocate();
+    /**
+     * @brief Allocates the BTB entry.
+     * @param interleavingFactor The interleaving factor defines the number of
+     * branches that a BTB entry can store.
+     * @return 0 if successfuly, 1 otherwise.
+     */
+    int Allocate(unsigned int interleavingFactor);
 
-        /**
-         * @brief Gets the valid bit of entry
-         */
-        bool GetValid();
+    /**
+     * @brief Register a new entry.
+     * @param tag The tag of this entry's instruction block.
+     * @param bank The bank with which the branch will be registered.
+     * @param targetAdress The branch's target address.
+     * @param type The branch's type.
+     * @return 0 if successfuly, 1 otherwise.
+     */
+    int NewEntry(unsigned long tag, unsigned long bank, long targetAddress,
+                 branchType type);
 
-        /** 
-         * @brief Gets the tag of the entry
-         */
-        uint32_t GetTag();
+    /**
+     * @brief Update the BTB entry.
+     * @param bank The bank containing the branch to be updated.
+     * @param branchState The state of the branch, whether it has been taken or
+     * not.
+     * @return 0 if successfuly, 1 otherwise.
+     */
+    int UpdateEntry(unsigned long bank, bool branchState);
 
-        /**
-         * @brief Gets the fetch target
-         */
-        uint32_t GetTarget();
+    /**
+     * @brief Gets the tag of the entry
+     */
+    long GetTag();
 
-        /**
-         * @brief Wrapper to TwoBitPredictor Method
-         */
-        bool GetPrediction();
+    /**
+     * @brief Gets the branch target address.
+     * @param bank The bank containing the branch.
+     */
+    long GetTargetAddress(unsigned int bank);
 
-        /**
-         * @brief Defines the input fields
-         */
-        void SetEntry(uint32_t tag, uint32_t fetchTarget);
+    /**
+     * @brief Gets the branch type.
+     * @param bank The bank containing the branch.
+     */
+    branchType GetBranchType(unsigned int bank);
 
-        /**
-         * @brief Wrapper to TwoBitPredictor Method
-         */
-        void UpdatePrediction(bool branchTaken);
+    /**
+     * @brief Gets the branch prediction.
+     * @param bank The bank containing the branch.
+     */
+    bool GetPrediction(unsigned int bank);
 
-        ~btb_entry();
+    ~btb_entry();
 };
 
 class BranchTargetBuffer : public sinuca::Component<BTBMessage> {
-    private:
-        uint32_t totalBranches;
-        uint32_t totalHits;
-        uint32_t nextFetchBlock;
-        bool* instructionValidBits;
-        btb_bank* banks;
-        uint32_t numBanks, numEntries;
+  private:
+    btb_entry* btb;
+    /**
+     * @brief Calculates the tag used to verify the BTB entry
+     * @param FetchAddress Address used to access BTB
+     * @details This method aligns the address with the interleaving factor and
+     * returns the value
+     */
+    uint32_t CalculateTag(uint32_t fetchAddress);
+    /**
+     * @brief Calculate the index to access the correct BTB entry
+     * @param fetchAddress Address used to access BTB
+     * @details The method calculates an index within a fixed range by applying
+     * bitwise shifts and masks. Aligning the fetch address with the
+     * interleaving factor and obtaining the index of the respective BTB entry
+     * for the fetch address.
+     * @return The index to access BTB
+     */
+    uint32_t CalculateIndex(uint32_t fetchAddress);
 
-        /**
-         * @brief Calculates the tag used to verify the BTB entry
-         * @param FetchAddress Address used to access BTB
-         * @details This method aligns the address with the interleaving factor and returns the value
-         */
-        uint32_t CalculateTag(uint32_t fetchAddress);
-        /**
-         * @brief Calculate the index to access the correct BTB entry
-         * @param fetchAddress Address used to access BTB
-         * @details The method calculates an index within a fixed range by applying bitwise shifts and masks. 
-         * Aligning the fetch address with the interleaving factor and obtaining the index of the respective BTB entry for the fetch address.
-         * @return The index to access BTB
-         */
-        uint32_t CalculateIndex(uint32_t fetchAddress);
-    public:
-        BranchTargetBuffer();
+  public:
+    BranchTargetBuffer();
 
-        /**
-         * @brief Allocate the BTB
-         * @param numBanks Number of bits used to index the banks (2 bits = 4 banks)
-         * @param numEntries Number of bits used to index the entries (8 bits = 256 entries)
-         */
-        void Allocate(uint32_t numBanks, uint32_t numEntries);
-
-        /**
-         * @return The address of next instruction block
-         */
-        uint32_t GetNextFetchBlock();
-
-        /**
-         * @return The instructions predicted as executable from the instruction block
-         */
-        bool* GetInstructionValidBits();
-
-        /**
-         * @brief Register a new entry in BTB
-         * @param fetchAddress The fetch address used to instruction block
-         * @param fetchTargets The array of targets for each instruction in the new block
-         * @details This method registers a new block in the BTB, defining the tag and target addresses.
-         */
-        void RegisterNewBlock(uint32_t fetchAddress, uint32_t* fetchTargets);
-
-        /**
-         * @brief Make a query on BTB from an address
-         * @param fetchAddress The address used to fetch block
-         * @details This method sets the "nextFetchBlock" and "instructionValidBits" attributes after querying the BTB and determining which instructions are predicted to be executable and the address of the next fetch block.
-         * If the entry is not yet allocated, it assumes that the next fetch block is sequential and that all instructions will be executed.
-         * @return Returns a message to the procedure calling the method, indicating whether the BTB entry is allocated or not allocated, as these cases require different procedures later.
-         */
-        TypeBTBMessage FetchBTBEntry(uint32_t fetchAddress);
-
-        /**
-         * @brief Updates the BTB block based on the instructions that were executed
-         * @param fetchAddress The address used to fetch block
-         * @param executedInstructions An array of booleans indicating which instructions were actually executed
-         */
-        void UpdateBlock(uint32_t fetchAddress, bool* executedInstructions);
-
-        ~BranchTargetBuffer();
+    ~BranchTargetBuffer();
 };
+
+}  // namespace sinuca
 
 #endif

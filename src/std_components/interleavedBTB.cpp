@@ -1,156 +1,106 @@
 #include "interleavedBTB.hpp"
-#include <cstdint>
 
-btb_entry::btb_entry() : validBit(false), simplePredictor(nullptr) {}
+#include "../utils/logging.hpp"
 
-void btb_entry::Allocate() {
-    this->validBit = false;
-    this->tag = 0;
-    this->fetchTarget = 0;
-    this->simplePredictor = new BimodalPredictor();
+sinuca::btb_entry::btb_entry()
+    : entryTag(-1),
+      interleavingFactor(0),
+      targetArray(nullptr),
+      branchTypes(nullptr),
+      predictorsArray(nullptr) {}
+
+int sinuca::btb_entry::Allocate(unsigned int interleavingFactor) {
+    this->interleavingFactor = interleavingFactor;
+    targetArray = new unsigned long[interleavingFactor];
+    if (!(targetArray)) {
+        SINUCA3_ERROR_PRINTF("BTB entry could not be allocated");
+        return 1;
+    }
+
+    branchTypes = new branchType[interleavingFactor];
+    if (!(branchTypes)) {
+        delete[] targetArray;
+        SINUCA3_ERROR_PRINTF("BTB entry could not be allocated");
+        return 1;
+    }
+
+    predictorsArray = new BimodalPredictor[interleavingFactor];
+    if (!(predictorsArray)) {
+        delete[] targetArray;
+        delete[] branchTypes;
+        SINUCA3_ERROR_PRINTF("BTB entry could not be allocated");
+        return 1;
+    }
+
+    for (int i = 0; i < interleavingFactor; ++i) {
+        targetArray[i] = 0;
+        branchTypes[i] = NONE;
+    }
+
+    return 0;
 }
 
-bool btb_entry::GetValid() {
-    return this->validBit;
+int sinuca::btb_entry::NewEntry(unsigned long tag, unsigned long bank,
+                                long targetAddress, sinuca::branchType type) {
+    if (bank >= this->interleavingFactor) return 1;
+
+    this->entryTag = tag;
+    this->targetArray[bank] = targetAddress;
+    this->branchTypes[bank] = type;
+
+    return 0;
 }
 
-uint32_t btb_entry::GetTag() {
-    return this->tag;
+int sinuca::btb_entry::UpdateEntry(unsigned long bank, bool branchState) {
+    if (bank >= this->interleavingFactor) return 1;
+
+    this->predictorsArray[bank].UpdatePrediction(branchState);
+    return 0;
 }
 
-uint32_t btb_entry::GetTarget() {
-    return this->fetchTarget;
+long sinuca::btb_entry::GetTag() { return this->entryTag; }
+
+long sinuca::btb_entry::GetTargetAddress(unsigned int bank) {
+    if (bank < this->interleavingFactor) return this->targetArray[bank];
+
+    return 0;
 }
 
-bool btb_entry::GetPrediction() {
-    return this->simplePredictor->GetPrediction();
+sinuca::branchType sinuca::btb_entry::GetBranchType(unsigned int bank) {
+    if (bank < this->interleavingFactor) return this->branchTypes[bank];
+
+    return NONE;
 }
 
-void btb_entry::SetEntry(uint32_t tag, uint32_t fetchTarget) {
-    this->validBit = true;
-    this->tag = tag;
-    this->fetchTarget = fetchTarget;
+bool sinuca::btb_entry::GetPrediction(unsigned int bank) {
+    if (bank < this->interleavingFactor) {
+        return predictorsArray[bank].GetPrediction();
+    }
+
+    return false;
 }
 
-void btb_entry::UpdatePrediction(bool branchTaken) {
-    this->simplePredictor->UpdatePrediction(branchTaken);
+sinuca::btb_entry::~btb_entry() {
+    if (targetArray) {
+        delete[] targetArray;
+    }
+
+    if (branchTypes) {
+        delete[] branchTypes;
+    }
+
+    if (predictorsArray) {
+        delete[] predictorsArray;
+    }
 }
 
-btb_entry::~btb_entry() {
-    delete this->simplePredictor;
+sinuca::BranchTargetBuffer::BranchTargetBuffer() : Component<BTBMessage>(){};
+
+uint32_t sinuca::BranchTargetBuffer::CalculateTag(uint32_t fetchAddress) {
+    return 0;
 }
 
-BranchTargetBuffer::BranchTargetBuffer() : Component<BTBMessage>(), instructionValidBits(nullptr), banks(nullptr) {};
-
-uint32_t BranchTargetBuffer::CalculateTag(uint32_t fetchAddress) {
-    uint32_t tag = fetchAddress;
-    tag = tag >> this->numBanks; 
-    return tag;
-}
-
-uint32_t BranchTargetBuffer::CalculateIndex(uint32_t fetchAddress) {
+uint32_t sinuca::BranchTargetBuffer::CalculateIndex(uint32_t fetchAddress) {
     uint32_t index = fetchAddress;
-    index = index >> this->numBanks; 
-    index = index & ((1 << this->numEntries) - 1); 
     return index;
-}
-
-void BranchTargetBuffer::Allocate(uint32_t numBanks, uint32_t numEntries) {
-    this->numBanks = numBanks;
-    this->numEntries = numEntries;
-    this->totalBranches = 0;
-    this->totalHits = 0;
-    this->nextFetchBlock = 0;
-
-    int totalBanks = (1 << this->numBanks); 
-    int totalEntries = (1 << this->numEntries); 
-    this->instructionValidBits = new bool[totalBanks];
-    this->banks = new btb_bank[totalBanks];
-    for (int bank = 0; bank < totalBanks; ++bank) {
-        this->instructionValidBits[bank] = false;
-        this->banks[bank] = new btb_entry[totalEntries];
-
-        for (int entries = 0; entries < totalEntries; ++entries) {
-            this->banks[bank][entries].Allocate();
-        }
-    }
-}
-
-uint32_t BranchTargetBuffer::GetNextFetchBlock() {
-    return this->nextFetchBlock;
-}
-
-bool* BranchTargetBuffer::GetInstructionValidBits() {
-    return this->instructionValidBits;
-}
-
-void BranchTargetBuffer::RegisterNewBlock(uint32_t fetchAddress, uint32_t* fetchTargets) {
-    uint32_t currentTag = this->CalculateTag(fetchAddress); 
-    uint32_t index = this->CalculateIndex(fetchAddress); 
-
-    for (uint32_t bank = 0; bank < numBanks; ++bank) {
-        this->banks[bank][index].SetEntry(currentTag, fetchTargets[bank]);
-    }
-}
-
-TypeBTBMessage BranchTargetBuffer::FetchBTBEntry(uint32_t fetchAddress) {
-    bool alocated = true;
-    uint32_t nextBlock = 0;
-    uint32_t currentTag = this->CalculateTag(fetchAddress); 
-    uint32_t index = this->CalculateIndex(fetchAddress); 
-
-    for (uint32_t i = 0; i < this->numBanks; ++i) { 
-        if (this->banks[i][index].GetValid()) { 
-            if (this->banks[i][index].GetTag() == currentTag) {
-                nextBlock = this->banks[i][index].GetTarget(); 
-                this->instructionValidBits[i] = this->banks[i][index].GetPrediction(); 
-            } else {
-                alocated = false;
-                this->instructionValidBits[i] = true; 
-            }
-        } else {
-            alocated = false;
-            this->instructionValidBits[i] = true; 
-        }
-    }
-
-    if (nextBlock) {
-        this->nextFetchBlock = nextBlock; 
-    } else {
-        this->nextFetchBlock = fetchAddress + (1 << this->numBanks); 
-    }
-
-    if (alocated) {
-        return ALLOCATED_ENTRY;
-    }
-
-    return UNALLOCATED_ENTRY;
-}
-
-void BranchTargetBuffer::UpdateBlock(uint32_t fetchAddress, bool* executedInstructions) {
-    uint32_t currentTag = this->CalculateTag(fetchAddress); 
-    uint32_t index = this->CalculateIndex(fetchAddress); 
-
-    for (uint32_t bank = 0; bank < this->numBanks; ++bank) { 
-        if (this->banks[bank][index].GetValid()) { 
-            if (this->banks[bank][index].GetTag() == currentTag) { 
-                this->banks[bank][index].UpdatePrediction(executedInstructions[bank]); 
-            }
-        }
-    }
-}
-
-BranchTargetBuffer::~BranchTargetBuffer() {
-    if (this->instructionValidBits) { 
-        delete[] this->instructionValidBits; 
-        this->instructionValidBits = nullptr; 
-    }
-
-    int totalBanks = (1 << this->numBanks); 
-    if (this->banks) { 
-        for (int i = 0; i < totalBanks; ++i) {
-            delete[] this->banks[i]; 
-        }
-        delete[] this->banks; 
-    }
 }
