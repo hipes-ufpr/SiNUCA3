@@ -18,14 +18,12 @@
  * updating the bits.
  */
 
-#include <cstdint>
-
 const bool NTAKEN = 0;
 const bool TAKEN = 1;
 
 class BimodalPredictor {
   private:
-    uint8_t prediction; /**< The prediction bits. */
+    unsigned char prediction; /**< The prediction bits. */
 
   public:
     BimodalPredictor();

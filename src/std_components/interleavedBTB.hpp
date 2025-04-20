@@ -23,9 +23,9 @@ enum TypeBTBMessage {
 
 struct BTBMessage {
     int channelID;
-    uint32_t fetchAddress;
-    uint32_t nextBlock;
-    uint32_t* fetchTargets;
+    unsigned int fetchAddress;
+    unsigned int nextBlock;
+    unsigned int* fetchTargets;
     bool* validBits;
     bool* executedInstructions;
     TypeBTBMessage messageType;
@@ -33,9 +33,8 @@ struct BTBMessage {
 
 struct btb_entry {
   private:
-    unsigned int
-        interleavingFactor; /**<The interleaving factor, the number of banks. */
-    unsigned long entryTag; /**<The entry tag. */
+    unsigned int numBanks;             /**<The number of banks. */
+    unsigned long entryTag;            /**<The entry tag. */
     unsigned long* targetArray;        /**<The target address array. */
     branchType* branchTypes;           /**<The branch types array. */
     BimodalPredictor* predictorsArray; /**<The array of predictors. */
@@ -45,11 +44,10 @@ struct btb_entry {
 
     /**
      * @brief Allocates the BTB entry.
-     * @param interleavingFactor The interleaving factor defines the number of
-     * branches that a BTB entry can store.
+     * @param numBanks The number of banks in an entry.
      * @return 0 if successfuly, 1 otherwise.
      */
-    int Allocate(unsigned int interleavingFactor);
+    int Allocate(unsigned int numBanks);
 
     /**
      * @brief Register a new entry.
@@ -59,8 +57,8 @@ struct btb_entry {
      * @param type The branch's type.
      * @return 0 if successfuly, 1 otherwise.
      */
-    int NewEntry(unsigned long tag, unsigned int bank, long targetAddress,
-                 branchType type);
+    int NewEntry(unsigned long tag, unsigned int bank,
+                 unsigned long targetAddress, branchType type);
 
     /**
      * @brief Update the BTB entry.
@@ -99,28 +97,28 @@ struct btb_entry {
 
 class BranchTargetBuffer : public sinuca::Component<BTBMessage> {
   private:
-    btb_entry* btb;
-    /**
-     * @brief Calculates the tag used to verify the BTB entry
-     * @param FetchAddress Address used to access BTB
-     * @details This method aligns the address with the interleaving factor and
-     * returns the value
-     */
-    uint32_t CalculateTag(uint32_t fetchAddress);
-    /**
-     * @brief Calculate the index to access the correct BTB entry
-     * @param fetchAddress Address used to access BTB
-     * @details The method calculates an index within a fixed range by applying
-     * bitwise shifts and masks. Aligning the fetch address with the
-     * interleaving factor and obtaining the index of the respective BTB entry
-     * for the fetch address.
-     * @return The index to access BTB
-     */
-    uint32_t CalculateIndex(uint32_t fetchAddress);
+    btb_entry** btb;
+    unsigned int interleavingFactor;
+    unsigned int numEntries;
+    unsigned int interleavingBits;
+    unsigned int entriesBits;
+
+    unsigned int CalculateBank(unsigned long address);
+    unsigned long CalculateTag(unsigned long address);
+    unsigned long CalculateIndex(unsigned long address);
+    int RegisterNewBranch(unsigned long address, unsigned long targetAddress,
+                          branchType type);
+    int UpdateBranch(unsigned long address, bool branchState);
 
   public:
     BranchTargetBuffer();
 
+    virtual int SetConfigParameter(const char* parameter,
+                                   sinuca::config::ConfigValue value);
+    virtual int FinishSetup();
+
+    virtual void Clock();
+    virtual void Flush();
     ~BranchTargetBuffer();
 };
 
