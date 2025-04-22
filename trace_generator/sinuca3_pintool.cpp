@@ -15,7 +15,16 @@ extern "C" {
 #include "./file_handler.hpp"
 #include "sinuca3_pintool.hpp"
 
-static bool isInstrumentationOn;
+// Set this to 1 to print all rotines
+// that name begins with "gomp", case insensitive
+// (Statically linking GOMP is recommended)
+#define DEBUG_PRINT_GOMP_RNT 1
+
+// When this is enabled, every thread will be instrumented;
+static bool isInstrumentating;
+// And this enable instrumentation per thread.
+static std::vector<bool> isThreadInstrumentatingEnabled;
+
 const char* imageName;
 
 traceGenerator::StaticTraceFile *staticTrace;
@@ -23,6 +32,7 @@ std::vector<traceGenerator::DynamicTraceFile *> dynamicTraces;
 std::vector<traceGenerator::MemoryTraceFile *> memoryTraces;
 
 PIN_LOCK pinLock;
+std::vector<const char*> OMP_ignore;
 
 KNOB<INT> KnobNumberIns(KNOB_MODE_WRITEONCE, "pintool", "number_max_inst", "-1",
                         "Maximum number of instructions to be traced");
@@ -33,15 +43,32 @@ int Usage() {
     return 1;
 }
 
+bool StrStartsWithGomp(const char* s) {
+    const char* prefix = "GOMP";
+    for (size_t i = 0; prefix[i] != '\0'; ++i) {
+        if (std::tolower(s[i]) != std::tolower(prefix[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void PrintRtnName(const char* s, THREADID tid){
+    PIN_GetLock(&pinLock, tid);
+    SINUCA3_DEBUG_PRINTF("RNT called: %s\n", s);
+    PIN_ReleaseLock(&pinLock);
+}
+
 VOID ThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
     PIN_GetLock(&pinLock, tid);
-
-    SINUCA3_DEBUG_PRINTF("New thread created! N => %d\n", tid);
+    SINUCA3_DEBUG_PRINTF("New thread created! N => %d (%s)\n", tid, imageName);
     staticTrace->numThreads++;
-
+    if(isThreadInstrumentatingEnabled.size() <= tid){
+        isThreadInstrumentatingEnabled.resize(tid * 2 + 1);
+    }
+    isThreadInstrumentatingEnabled[tid] = false;
     dynamicTraces.push_back(new traceGenerator::DynamicTraceFile(imageName, tid));
     memoryTraces.push_back(new traceGenerator::MemoryTraceFile(imageName, tid));
-
     PIN_ReleaseLock(&pinLock);
 }
 
@@ -57,27 +84,40 @@ VOID ThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
 }
 
 VOID InitInstrumentation() {
-    SINUCA3_LOG_PRINTF("Start of tool instrumentation\n");
-
-    isInstrumentationOn = true;
+    if(isInstrumentating) return;
+    SINUCA3_LOG_PRINTF("Start of tool instrumentation block.\n");
+    isInstrumentating = true;
 }
 
 VOID StopInstrumentation() {
-    THREADID tid = PIN_ThreadId();
+    if(!isInstrumentating) return;
+    SINUCA3_LOG_PRINTF("End of tool instrumentation block.\n");
+    isInstrumentating = false;
+}
 
-    SINUCA3_LOG_PRINTF("Trace ended from thread %d\n", tid);
-    SINUCA3_LOG_PRINTF("End of tool instrumentation\n");
-    SINUCA3_DEBUG_PRINTF("Number of BBLs => %u\n", staticTrace->bblCount);
-    isInstrumentationOn = false;
+VOID EnableInstrumentationInThread(THREADID tid) {
+    if(isThreadInstrumentatingEnabled[tid]) return;
+    SINUCA3_LOG_PRINTF("Enabling tool instrumentation in thread %d.\n", tid);
+    isThreadInstrumentatingEnabled[tid] = true;
+}
+
+VOID DisableInstrumentationInThread(THREADID tid) {
+    if(!isThreadInstrumentatingEnabled[tid]) return;
+    SINUCA3_LOG_PRINTF("Disabling tool instrumentation in thread %d.\n", tid);
+    isThreadInstrumentatingEnabled[tid] = false;
 }
 
 VOID AppendToDynamicTrace(UINT32 bblId) {
     THREADID tid = PIN_ThreadId();
+    if (!isThreadInstrumentatingEnabled[tid])
+        return;
     dynamicTraces[tid]->Write(bblId);
 }
 
 VOID AppendToMemTraceStd(ADDRINT addr, INT32 size) {
     THREADID tid = PIN_ThreadId();
+    if (!isThreadInstrumentatingEnabled[tid])
+        return;
     static traceGenerator::DataMEM data;
     data.addr = addr;
     data.size = size;
@@ -86,6 +126,9 @@ VOID AppendToMemTraceStd(ADDRINT addr, INT32 size) {
 
 VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* acessInfo) {
     THREADID tid = PIN_ThreadId();
+    if (!isThreadInstrumentatingEnabled[tid])
+        return;
+
     unsigned short numReadings;
     unsigned short numWritings;
 
@@ -197,19 +240,33 @@ void createDataINS(const INS* ins, struct traceGenerator::DataINS *data) {
 }
 
 VOID Trace(TRACE trace, VOID* ptr) {
-    THREADID tid = PIN_ThreadId();
-
-    if (isInstrumentationOn == false) {
+    if (!isInstrumentating)
         return;
+
+    THREADID tid = PIN_ThreadId();
+    RTN traceRtn = TRACE_Rtn(trace);
+
+    if(RTN_Valid(traceRtn)){
+        const char *traceRtnName = RTN_Name(traceRtn).c_str();
+
+        #if DEBUG_PRINT_GOMP_RNT == 1
+        if(StrStartsWithGomp(traceRtnName)){
+            TRACE_InsertCall(trace, IPOINT_BEFORE, (AFUNPTR)PrintRtnName, IARG_PTR, traceRtnName, IARG_THREAD_ID, IARG_END);
+        }
+        #endif
+
+        // This will make every function call from libgomp that have a
+        // PAUSE instruction to be ignored.
+        // I still not sure if this is fully corret.
+        for(size_t i=0; i<OMP_ignore.size(); ++i){
+            if (strcmp(traceRtnName, OMP_ignore[i]) == 0) {
+                // has SPIN_LOCK
+                return;
+            }
+        }
     }
 
     PIN_GetLock(&pinLock, tid);
-
-    if (strstr(RTN_Name(TRACE_Rtn(trace)).c_str(), "trace_stop")) {
-        StopInstrumentation();
-        PIN_ReleaseLock(&pinLock);
-        return;
-    }
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
 
@@ -222,6 +279,7 @@ VOID Trace(TRACE trace, VOID* ptr) {
             struct traceGenerator::DataINS data;
             createDataINS(&ins, &data);
             staticTrace->Write(&data);
+            InstrumentMemoryOperations(&ins);
             staticTrace->instCount++;
             debug_count++;
         }
@@ -242,7 +300,9 @@ VOID ImageLoad(IMG img, VOID* ptr) {
 
     std::string completeImgPath = IMG_Name(img);
     size_t it = completeImgPath.find_last_of('/') + 1;
-    imageName = &completeImgPath.c_str()[it];
+
+    // freed in Fini();
+    imageName = strdup(&completeImgPath.c_str()[it]);
 
     unsigned int fileNameSize = strlen(imageName);
     assert(fileNameSize < MAX_IMAGE_NAME_SIZE &&
@@ -254,10 +314,23 @@ VOID ImageLoad(IMG img, VOID* ptr) {
         for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn)) {
             RTN_Open(rtn);
             const char* name = RTN_Name(rtn).c_str();
-            if (strstr(name, "trace_start")) {
-                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)InitInstrumentation,
-                               IARG_END);
+
+            if (strcmp(name, "BeginInstrumentationBlock") == 0) {
+                RTN_InsertCall(rtn, IPOINT_AFTER, (AFUNPTR)InitInstrumentation, IARG_END);
             }
+
+            if (strcmp(name, "EndInstrumentationBlock") == 0) {
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)StopInstrumentation, IARG_END);
+            }
+
+            if (strcmp(name, "EnableThreadInstrumentation") == 0) {
+                RTN_InsertCall(rtn, IPOINT_AFTER, (AFUNPTR)EnableInstrumentationInThread, IARG_THREAD_ID, IARG_END);
+            }
+
+            if (strcmp(name, "DisableThreadInstrumentation") == 0) {
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)DisableInstrumentationInThread, IARG_THREAD_ID, IARG_END);
+            }
+
             RTN_Close(rtn);
         }
     }
@@ -265,9 +338,11 @@ VOID ImageLoad(IMG img, VOID* ptr) {
 
 VOID Fini(INT32 code, VOID* ptr) {
     SINUCA3_LOG_PRINTF("End of tool execution\n");
+    SINUCA3_DEBUG_PRINTF("Number of BBLs => %u\n", staticTrace->bblCount);
 
     // Close static trace file
     delete staticTrace;
+    free((void*)imageName);
 }
 
 int main(int argc, char* argv[]) {
@@ -282,7 +357,17 @@ int main(int argc, char* argv[]) {
 
     PIN_InitLock(&pinLock);
 
-    isInstrumentationOn = false;
+    isInstrumentating = false;
+
+    // All these functions have a PAUSE instruction (Spin-lock hint)
+    OMP_ignore.push_back("gomp_barrier_wait_end");
+    OMP_ignore.push_back("gomp_team_barrier_wait_end");
+    OMP_ignore.push_back("gomp_team_barrier_wait_cancel_end");
+    OMP_ignore.push_back("gomp_mutex_lock_slow");
+    OMP_ignore.push_back("GOMP_doacross_wait");
+    OMP_ignore.push_back("GOMP_doacross_ull_wait");
+    OMP_ignore.push_back("gomp_ptrlock_get_slow");
+    OMP_ignore.push_back("gomp_sem_wait_slow");
 
     IMG_AddInstrumentFunction(ImageLoad, NULL);
     TRACE_AddInstrumentFunction(Trace, NULL);

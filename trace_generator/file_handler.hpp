@@ -37,6 +37,7 @@ class TraceFile {
         }
 
         virtual ~TraceFile() {
+            this->FlushBuffer();
             delete[] this->buf;
             fclose(this->file);
         }
@@ -51,7 +52,7 @@ class TraceFile {
 
         void FlushBuffer() {
             size_t written = fwrite(this->buf, 1, this->numUsedBytes, this->file);
-            assert(written < this->numUsedBytes && "fwrite returned something wrong");
+            assert(written == this->numUsedBytes && "fwrite returned something wrong");
             this->numUsedBytes = 0;
         }
 };
