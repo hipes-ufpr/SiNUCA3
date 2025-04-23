@@ -63,10 +63,7 @@ VOID ThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
     PIN_GetLock(&pinLock, tid);
     SINUCA3_DEBUG_PRINTF("New thread created! N => %d (%s)\n", tid, imageName);
     staticTrace->numThreads++;
-    if(isThreadInstrumentatingEnabled.size() <= tid){
-        isThreadInstrumentatingEnabled.resize(tid * 2 + 1);
-    }
-    isThreadInstrumentatingEnabled[tid] = false;
+    isThreadInstrumentatingEnabled.push_back(false);
     dynamicTraces.push_back(new traceGenerator::DynamicTraceFile(imageName, tid));
     memoryTraces.push_back(new traceGenerator::MemoryTraceFile(imageName, tid));
     PIN_ReleaseLock(&pinLock);
