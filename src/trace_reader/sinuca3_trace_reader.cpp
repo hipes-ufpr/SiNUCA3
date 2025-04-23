@@ -65,8 +65,8 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTraceFile(
     }
 
     for (int i = 0; i < numThreads; i++) {
-        snprintf(fileName, fileNameSize, "./trace/%s_%s_tid%d.trace",
-                 fileType, name, i);
+        snprintf(fileName, fileNameSize, "./trace/%s_%s_tid%d.trace", fileType,
+                 name, i);
         vec->push_back(fopen(fileName, "rb"));
         if (vec->back() == NULL) {
             SINUCA3_ERROR_PRINTF("Could not open => %s\n", fileName);
@@ -169,7 +169,8 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
         /* Total of instructions of current basic block */
         bblSize = *(unsigned int *)(mmapPtr + mmapOffset);
         IncreaseOffset(&mmapOffset, sizeof(bblSize));
-        SINUCA3_DEBUG_PRINTF("Bbl (%u/%u) Size => %u\n", bblCounter+1, this->binaryTotalBBLs, bblSize);
+        SINUCA3_DEBUG_PRINTF("Bbl (%u/%u) Size => %u\n", bblCounter + 1,
+                             this->binaryTotalBBLs, bblSize);
 
         this->binaryBBLsSize[bblCounter] = bblSize;
         this->binaryDict[bblCounter] = poolPointer;
@@ -181,7 +182,8 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
             info = &package->staticInfo;
             data = (traceGenerator::DataINS *)(mmapPtr + mmapOffset);
 
-            strncpy(info->opcodeAssembly, data->name, traceGenerator::MAX_INSTRUCTION_NAME_LENGTH);
+            strncpy(info->opcodeAssembly, data->name,
+                    traceGenerator::MAX_INSTRUCTION_NAME_LENGTH);
             info->opcodeAddress = data->addr;
             info->opcodeSize = data->size;
             info->baseReg = data->baseReg;
@@ -189,8 +191,10 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
             info->branchType = data->branchType;
             info->numReadRegs = data->numReadRegs;
             info->numWriteRegs = data->numWriteRegs;
-            memcpy(info->readRegs, data->readRegs, data->numReadRegs * sizeof(*data->readRegs));
-            memcpy(info->writeRegs, data->writeRegs, data->numWriteRegs * sizeof(*data->writeRegs));
+            memcpy(info->readRegs, data->readRegs,
+                   data->numReadRegs * sizeof(*data->readRegs));
+            memcpy(info->writeRegs, data->writeRegs,
+                   data->numWriteRegs * sizeof(*data->writeRegs));
 
             info->isPredicated = GetBitBool(data->booleanValues, 0);
             info->isPrefetch = GetBitBool(data->booleanValues, 1);
@@ -228,10 +232,9 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     TraceNextDynamic(unsigned int *nextBbl) {
     static Buffer buf;
-    buf.bufSize = BUFFER_SIZE / sizeof(unsigned int); // sizeof(bllId);
+    buf.bufSize = BUFFER_SIZE / sizeof(unsigned int);  // sizeof(bllId);
 
-    if(buf.eofLocation > 0 && buf.offset == buf.eofLocation)
-        return 1;
+    if (buf.eofLocation > 0 && buf.offset == buf.eofLocation) return 1;
 
     if (buf.offset == buf.bufSize) {
         if (buf.readBuffer(this->ThreadsDynFiles[0])) {
@@ -250,8 +253,7 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::TraceNextMemory(
     buf.bufSize = BUFFER_SIZE / sizeof(struct traceGenerator::DataMEM);
     traceGenerator::DataMEM *data;
 
-    if(buf.eofLocation > 0 && buf.offset == buf.eofLocation)
-        return 1;
+    if (buf.eofLocation > 0 && buf.offset == buf.eofLocation) return 1;
 
     if (buf.offset == buf.bufSize) {
         if (buf.readBuffer(this->ThreadsMemFiles[0])) {

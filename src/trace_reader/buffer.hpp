@@ -10,9 +10,9 @@ struct Buffer {
     int readBuffer(FILE *file) {
         int result = fread(this->store, 1, this->bufSize, file);
         this->offset = 0;
-        if(result <= 0)
+        if (result <= 0)
             return 1;
-        else if((unsigned long)result < this->bufSize)
+        else if ((unsigned long)result < this->bufSize)
             this->eofLocation = result;
 
         return 0;

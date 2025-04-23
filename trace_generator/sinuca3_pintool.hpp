@@ -20,7 +20,7 @@ static inline void SetBit(unsigned char* byte, int position, bool value) {
     }
 }
 
-enum BooleanValuesIndex{
+enum BooleanValuesIndex {
     IS_PREDICATED = 0,
     IS_PREFETCH = 1,
     IS_CONTROL_FLOW = 2,

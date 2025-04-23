@@ -27,9 +27,9 @@ static std::vector<bool> isThreadInstrumentatingEnabled;
 
 const char* imageName;
 
-traceGenerator::StaticTraceFile *staticTrace;
-std::vector<traceGenerator::DynamicTraceFile *> dynamicTraces;
-std::vector<traceGenerator::MemoryTraceFile *> memoryTraces;
+traceGenerator::StaticTraceFile* staticTrace;
+std::vector<traceGenerator::DynamicTraceFile*> dynamicTraces;
+std::vector<traceGenerator::MemoryTraceFile*> memoryTraces;
 
 PIN_LOCK pinLock;
 std::vector<const char*> OMP_ignore;
@@ -53,7 +53,7 @@ bool StrStartsWithGomp(const char* s) {
     return true;
 }
 
-void PrintRtnName(const char* s, THREADID tid){
+void PrintRtnName(const char* s, THREADID tid) {
     PIN_GetLock(&pinLock, tid);
     SINUCA3_DEBUG_PRINTF("RNT called: %s\n", s);
     PIN_ReleaseLock(&pinLock);
@@ -64,7 +64,8 @@ VOID ThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
     SINUCA3_DEBUG_PRINTF("New thread created! N => %d (%s)\n", tid, imageName);
     staticTrace->numThreads++;
     isThreadInstrumentatingEnabled.push_back(false);
-    dynamicTraces.push_back(new traceGenerator::DynamicTraceFile(imageName, tid));
+    dynamicTraces.push_back(
+        new traceGenerator::DynamicTraceFile(imageName, tid));
     memoryTraces.push_back(new traceGenerator::MemoryTraceFile(imageName, tid));
     PIN_ReleaseLock(&pinLock);
 }
@@ -81,40 +82,38 @@ VOID ThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
 }
 
 VOID InitInstrumentation() {
-    if(isInstrumentating) return;
+    if (isInstrumentating) return;
     SINUCA3_LOG_PRINTF("Start of tool instrumentation block.\n");
     isInstrumentating = true;
 }
 
 VOID StopInstrumentation() {
-    if(!isInstrumentating) return;
+    if (!isInstrumentating) return;
     SINUCA3_LOG_PRINTF("End of tool instrumentation block.\n");
     isInstrumentating = false;
 }
 
 VOID EnableInstrumentationInThread(THREADID tid) {
-    if(isThreadInstrumentatingEnabled[tid]) return;
+    if (isThreadInstrumentatingEnabled[tid]) return;
     SINUCA3_LOG_PRINTF("Enabling tool instrumentation in thread %d.\n", tid);
     isThreadInstrumentatingEnabled[tid] = true;
 }
 
 VOID DisableInstrumentationInThread(THREADID tid) {
-    if(!isThreadInstrumentatingEnabled[tid]) return;
+    if (!isThreadInstrumentatingEnabled[tid]) return;
     SINUCA3_LOG_PRINTF("Disabling tool instrumentation in thread %d.\n", tid);
     isThreadInstrumentatingEnabled[tid] = false;
 }
 
 VOID AppendToDynamicTrace(UINT32 bblId) {
     THREADID tid = PIN_ThreadId();
-    if (!isThreadInstrumentatingEnabled[tid])
-        return;
+    if (!isThreadInstrumentatingEnabled[tid]) return;
     dynamicTraces[tid]->Write(bblId);
 }
 
 VOID AppendToMemTraceStd(ADDRINT addr, INT32 size) {
     THREADID tid = PIN_ThreadId();
-    if (!isThreadInstrumentatingEnabled[tid])
-        return;
+    if (!isThreadInstrumentatingEnabled[tid]) return;
     static traceGenerator::DataMEM data;
     data.addr = addr;
     data.size = size;
@@ -123,8 +122,7 @@ VOID AppendToMemTraceStd(ADDRINT addr, INT32 size) {
 
 VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* acessInfo) {
     THREADID tid = PIN_ThreadId();
-    if (!isThreadInstrumentatingEnabled[tid])
-        return;
+    if (!isThreadInstrumentatingEnabled[tid]) return;
 
     unsigned short numReadings;
     unsigned short numWritings;
@@ -134,7 +132,7 @@ VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* acessInfo) {
 
     numReadings = numWritings = 0;
     for (unsigned short it = 0; it < acessInfo->numberOfMemops; it++) {
-        PIN_MEM_ACCESS_INFO *memOp = &acessInfo->memop[it];
+        PIN_MEM_ACCESS_INFO* memOp = &acessInfo->memop[it];
         if (memOp->memopType == PIN_MEMOP_LOAD) {
             readings[numReadings].addr = memOp->memoryAddress;
             readings[numReadings].size = memOp->bytesAccessed;
@@ -146,7 +144,8 @@ VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* acessInfo) {
         }
     }
 
-    memoryTraces[tid]->WriteNonStd(readings, numReadings, writings, numWritings);
+    memoryTraces[tid]->WriteNonStd(readings, numReadings, writings,
+                                   numWritings);
 }
 
 VOID InstrumentMemoryOperations(const INS* ins) {
@@ -154,13 +153,12 @@ VOID InstrumentMemoryOperations(const INS* ins) {
     bool hasRead2 = INS_HasMemoryRead2(*ins);
     bool isWrite = INS_IsMemoryWrite(*ins);
 
-
-    // INS_IsStandardMemop() returns false if this instruction has a memory operand which has unconventional meaning;
-    // Returns true otherwise.
+    // INS_IsStandardMemop() returns false if this instruction has a memory
+    // operand which has unconventional meaning; Returns true otherwise.
     bool isNonStandard = !INS_IsStandardMemop(*ins);
     if (isNonStandard) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTraceNonStd,
-                        IARG_MULTI_MEMORYACCESS_EA, IARG_END);
+                       IARG_MULTI_MEMORYACCESS_EA, IARG_END);
         return;
     }
 
@@ -178,10 +176,14 @@ VOID InstrumentMemoryOperations(const INS* ins) {
     }
 }
 
-void createDataINS(const INS* ins, struct traceGenerator::DataINS *data) {
+void createDataINS(const INS* ins, struct traceGenerator::DataINS* data) {
     std::string name = INS_Mnemonic(*ins);
-    assert(name.length() + sizeof('\0') <= traceGenerator::MAX_INSTRUCTION_NAME_LENGTH && "This is unexpected. You should increase MAX_INSTRUCTION_NAME_LENGTH value.");
-    strncpy(data->name, name.c_str(), traceGenerator::MAX_INSTRUCTION_NAME_LENGTH);
+    assert(name.length() + sizeof('\0') <=
+               traceGenerator::MAX_INSTRUCTION_NAME_LENGTH &&
+           "This is unexpected. You should increase "
+           "MAX_INSTRUCTION_NAME_LENGTH value.");
+    strncpy(data->name, name.c_str(),
+            traceGenerator::MAX_INSTRUCTION_NAME_LENGTH);
 
     data->addr = INS_Address(*ins);
     data->size = INS_Size(*ins);
@@ -190,48 +192,57 @@ void createDataINS(const INS* ins, struct traceGenerator::DataINS *data) {
     data->booleanValues = 0;
 
     if (INS_IsPredicated(*ins))
-        traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_PREDICATED, true);
+        traceGenerator::SetBit(&data->booleanValues,
+                               traceGenerator::IS_PREDICATED, true);
 
     if (INS_IsPrefetch(*ins))
-        traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_PREFETCH, true);
+        traceGenerator::SetBit(&data->booleanValues,
+                               traceGenerator::IS_PREFETCH, true);
 
     bool isSyscall = INS_IsSyscall(*ins);
     bool isControlFlow = INS_IsControlFlow(*ins) || isSyscall;
 
-    if(isControlFlow){
-
-        if(isSyscall)
+    if (isControlFlow) {
+        if (isSyscall)
             data->branchType = sinuca::BranchSyscall;
-        else if(INS_IsCall(*ins))
+        else if (INS_IsCall(*ins))
             data->branchType = sinuca::BranchCall;
-        else if(INS_IsRet(*ins))
+        else if (INS_IsRet(*ins))
             data->branchType = sinuca::BranchReturn;
-        else if(INS_HasFallThrough(*ins))
+        else if (INS_HasFallThrough(*ins))
             data->branchType = sinuca::BranchCond;
         else
             data->branchType = sinuca::BranchUncond;
 
-        traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_CONTROL_FLOW, true);
-        traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_INDIRECT_CONTROL_FLOW, INS_IsIndirectControlFlow(*ins));
+        traceGenerator::SetBit(&data->booleanValues,
+                               traceGenerator::IS_CONTROL_FLOW, true);
+        traceGenerator::SetBit(&data->booleanValues,
+                               traceGenerator::IS_INDIRECT_CONTROL_FLOW,
+                               INS_IsIndirectControlFlow(*ins));
     }
 
-    // INS_IsStandardMemop() returns false if this instruction has a memory operand which has unconventional meaning;
-    // Returns true otherwise.
+    // INS_IsStandardMemop() returns false if this instruction has a memory
+    // operand which has unconventional meaning; Returns true otherwise.
     bool isNonStandard = !INS_IsStandardMemop(*ins);
 
-    traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_NON_STANDARD_MEM_OP, isNonStandard);
-    traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_READ, INS_IsMemoryRead(*ins));
-    traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_READ2, INS_HasMemoryRead2(*ins));
-    traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_WRITE, INS_IsMemoryWrite(*ins));
+    traceGenerator::SetBit(&data->booleanValues,
+                           traceGenerator::IS_NON_STANDARD_MEM_OP,
+                           isNonStandard);
+    traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_READ,
+                           INS_IsMemoryRead(*ins));
+    traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_READ2,
+                           INS_HasMemoryRead2(*ins));
+    traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_WRITE,
+                           INS_IsMemoryWrite(*ins));
 
-    for (unsigned long int i=0; i < INS_MaxNumRRegs(*ins); ++i) {
+    for (unsigned long int i = 0; i < INS_MaxNumRRegs(*ins); ++i) {
         REG regValue = INS_RegR(*ins, i);
         if (regValue != REG_INVALID()) {
             data->readRegs[data->numReadRegs++] = regValue;
         }
     }
 
-    for (unsigned long int i=0; i < INS_MaxNumWRegs(*ins); ++i) {
+    for (unsigned long int i = 0; i < INS_MaxNumWRegs(*ins); ++i) {
         REG regValue = INS_RegW(*ins, i);
         if (regValue != REG_INVALID()) {
             data->writeRegs[data->numWriteRegs++] = regValue;
@@ -240,25 +251,25 @@ void createDataINS(const INS* ins, struct traceGenerator::DataINS *data) {
 }
 
 VOID Trace(TRACE trace, VOID* ptr) {
-    if (!isInstrumentating)
-        return;
+    if (!isInstrumentating) return;
 
     THREADID tid = PIN_ThreadId();
     RTN traceRtn = TRACE_Rtn(trace);
 
-    if(RTN_Valid(traceRtn)){
-        const char *traceRtnName = RTN_Name(traceRtn).c_str();
+    if (RTN_Valid(traceRtn)) {
+        const char* traceRtnName = RTN_Name(traceRtn).c_str();
 
-        #if DEBUG_PRINT_GOMP_RNT == 1
-        if(StrStartsWithGomp(traceRtnName)){
-            TRACE_InsertCall(trace, IPOINT_BEFORE, (AFUNPTR)PrintRtnName, IARG_PTR, traceRtnName, IARG_THREAD_ID, IARG_END);
+#if DEBUG_PRINT_GOMP_RNT == 1
+        if (StrStartsWithGomp(traceRtnName)) {
+            TRACE_InsertCall(trace, IPOINT_BEFORE, (AFUNPTR)PrintRtnName,
+                             IARG_PTR, traceRtnName, IARG_THREAD_ID, IARG_END);
         }
-        #endif
+#endif
 
         // This will make every function call from libgomp that have a
         // PAUSE instruction to be ignored.
         // I still not sure if this is fully corret.
-        for(size_t i=0; i<OMP_ignore.size(); ++i){
+        for (size_t i = 0; i < OMP_ignore.size(); ++i) {
             if (strcmp(traceRtnName, OMP_ignore[i]) == 0) {
                 // has SPIN_LOCK
                 return;
@@ -269,7 +280,6 @@ VOID Trace(TRACE trace, VOID* ptr) {
     PIN_GetLock(&pinLock, tid);
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
-
         BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)AppendToDynamicTrace,
                        IARG_UINT32, staticTrace->bblCount, IARG_END);
 
@@ -308,19 +318,25 @@ VOID ImageLoad(IMG img, VOID* ptr) {
             const char* name = RTN_Name(rtn).c_str();
 
             if (strcmp(name, "BeginInstrumentationBlock") == 0) {
-                RTN_InsertCall(rtn, IPOINT_AFTER, (AFUNPTR)InitInstrumentation, IARG_END);
+                RTN_InsertCall(rtn, IPOINT_AFTER, (AFUNPTR)InitInstrumentation,
+                               IARG_END);
             }
 
             if (strcmp(name, "EndInstrumentationBlock") == 0) {
-                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)StopInstrumentation, IARG_END);
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)StopInstrumentation,
+                               IARG_END);
             }
 
             if (strcmp(name, "EnableThreadInstrumentation") == 0) {
-                RTN_InsertCall(rtn, IPOINT_AFTER, (AFUNPTR)EnableInstrumentationInThread, IARG_THREAD_ID, IARG_END);
+                RTN_InsertCall(rtn, IPOINT_AFTER,
+                               (AFUNPTR)EnableInstrumentationInThread,
+                               IARG_THREAD_ID, IARG_END);
             }
 
             if (strcmp(name, "DisableThreadInstrumentation") == 0) {
-                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)DisableInstrumentationInThread, IARG_THREAD_ID, IARG_END);
+                RTN_InsertCall(rtn, IPOINT_BEFORE,
+                               (AFUNPTR)DisableInstrumentationInThread,
+                               IARG_THREAD_ID, IARG_END);
             }
 
             RTN_Close(rtn);
@@ -344,7 +360,8 @@ int main(int argc, char* argv[]) {
     }
 
     if (access(traceGenerator::traceFolderPath.c_str(), F_OK) != 0) {
-        mkdir(traceGenerator::traceFolderPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH);
+        mkdir(traceGenerator::traceFolderPath.c_str(),
+              S_IRWXU | S_IRWXG | S_IROTH);
     }
 
     PIN_InitLock(&pinLock);
