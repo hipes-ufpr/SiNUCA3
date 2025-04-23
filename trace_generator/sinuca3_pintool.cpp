@@ -83,26 +83,34 @@ VOID ThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
 
 VOID InitInstrumentation() {
     if (isInstrumentating) return;
+    PIN_GetLock(&pinLock, PIN_ThreadId());
     SINUCA3_LOG_PRINTF("Start of tool instrumentation block.\n");
     isInstrumentating = true;
+    PIN_ReleaseLock(&pinLock);
 }
 
 VOID StopInstrumentation() {
     if (!isInstrumentating) return;
+    PIN_GetLock(&pinLock, PIN_ThreadId());
     SINUCA3_LOG_PRINTF("End of tool instrumentation block.\n");
     isInstrumentating = false;
+    PIN_ReleaseLock(&pinLock);
 }
 
 VOID EnableInstrumentationInThread(THREADID tid) {
     if (isThreadInstrumentatingEnabled[tid]) return;
+    PIN_GetLock(&pinLock, tid);
     SINUCA3_LOG_PRINTF("Enabling tool instrumentation in thread %d.\n", tid);
     isThreadInstrumentatingEnabled[tid] = true;
+    PIN_ReleaseLock(&pinLock);
 }
 
 VOID DisableInstrumentationInThread(THREADID tid) {
     if (!isThreadInstrumentatingEnabled[tid]) return;
+    PIN_GetLock(&pinLock, tid);
     SINUCA3_LOG_PRINTF("Disabling tool instrumentation in thread %d.\n", tid);
     isThreadInstrumentatingEnabled[tid] = false;
+    PIN_ReleaseLock(&pinLock);
 }
 
 VOID AppendToDynamicTrace(UINT32 bblId) {
