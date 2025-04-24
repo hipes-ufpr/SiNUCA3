@@ -23,6 +23,7 @@ traceGenerator::StaticTraceFile::StaticTraceFile(const char* imageName)
 }
 
 traceGenerator::StaticTraceFile::~StaticTraceFile() {
+    this->FlushBuffer();
     rewind(this->file);
     fwrite(&this->numThreads, sizeof(numThreads), 1, this->file);
     fwrite(&this->bblCount, sizeof(bblCount), 1, this->file);
@@ -52,14 +53,12 @@ traceGenerator::MemoryTraceFile::MemoryTraceFile(const char* imageName,
     : TraceFile("memory_", imageName, FormatThreadSuffix(tid)) {}
 
 
-// void traceGenerator::MemoryTraceFile::FlushBuffer() {
-//     // MemoryTraceFile stores how much someone can read before each buffer.
-//     SINUCA3_DEBUG_PRINTF("MEMORY FLUSH!!!!!!!!!!!!!\n");
-//     exit(0);
-//     size_t written = fwrite(&this->offset, 1, sizeof(this->offset), this->file);
-//     assert(written == sizeof(this->offset) && "fwrite returned something wrong");
-//     traceGenerator::TraceFile::FlushBuffer();
-// }
+void traceGenerator::MemoryTraceFile::FlushBuffer() {
+    // MemoryTraceFile stores how much someone can read before each buffer.
+    size_t written = fwrite(&this->offset, 1, sizeof(this->offset), this->file);
+    assert(written == sizeof(this->offset) && "fwrite returned something wrong");
+    traceGenerator::TraceFile::FlushBuffer();
+}
 
 void traceGenerator::MemoryTraceFile::WriteStd(const struct DataMEM* data) {
     this->WriteToBuffer((void*)data, sizeof(struct DataMEM));

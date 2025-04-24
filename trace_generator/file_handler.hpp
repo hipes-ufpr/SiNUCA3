@@ -37,7 +37,9 @@ class TraceFile {
     }
 
     virtual ~TraceFile() {
-        this->FlushBuffer();
+        // Every class derivated from TraceFile should contain a
+        // destructor that do FlushBuffer()
+        // It cant be done here :(
         delete[] this->buf;
         fclose(this->file);
     }
@@ -49,14 +51,14 @@ class TraceFile {
         this->offset += size;
     }
 
-    void FlushBuffer() {
+    virtual void FlushBuffer() {
         size_t written = fwrite(this->buf, 1, this->offset, this->file);
         assert(written == this->offset && "fwrite returned something wrong");
         this->offset = 0;
     }
 };
 
-class StaticTraceFile : TraceFile {
+class StaticTraceFile : public TraceFile {
   public:
     unsigned int numThreads;
     unsigned int bblCount;
@@ -68,15 +70,22 @@ class StaticTraceFile : TraceFile {
     void Write(const struct DataINS *data);
 };
 
-class DynamicTraceFile : TraceFile {
+class DynamicTraceFile : public TraceFile {
   public:
     DynamicTraceFile(const char *imageName, THREADID tid);
+    ~DynamicTraceFile(){
+        this->FlushBuffer();
+    }
     void Write(const UINT32 bblId);
 };
 
-class MemoryTraceFile : TraceFile {
+class MemoryTraceFile : public TraceFile {
   public:
     MemoryTraceFile(const char *imageName, THREADID tid);
+    ~MemoryTraceFile(){
+        this->FlushBuffer();
+    }
+    virtual void FlushBuffer() override;
     void WriteStd(const struct DataMEM *data);
     void WriteNonStd(const struct DataMEM *readings, unsigned short numReadings,
                      const struct DataMEM *writings,

@@ -250,12 +250,14 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::TraceNextMemory(
     InstructionPacket *ret, InstructionInfo *packageInfo) {
     static Buffer buf;
-    buf.bufSize = (BUFFER_SIZE / sizeof(struct traceGenerator::DataMEM)) * sizeof(struct traceGenerator::DataMEM);
     traceGenerator::DataMEM *data;
 
     if (buf.eofLocation > 0 && buf.offset == buf.eofLocation) return 1;
 
     if (buf.offset == buf.bufSize) {
+        if (buf.readBufSizeFromFile(this->ThreadsMemFiles[0])) {
+            return 1;
+        }
         if (buf.readBuffer(this->ThreadsMemFiles[0])) {
             return 1;
         }
