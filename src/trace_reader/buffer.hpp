@@ -26,7 +26,7 @@ struct Buffer {
         return 0;
     }
 
-    Buffer() : offset(0), bufSize(0), eofLocation(0) {}
+    Buffer() : offset(BUFFER_SIZE + 1), bufSize(0), eofLocation(0) {}
 
     char store[BUFFER_SIZE];
     size_t offset;
