@@ -8,11 +8,12 @@ const unsigned long BUFFER_SIZE = 1 << 20;
 
 struct Buffer {
     int readBuffer(FILE *file) {
-        if (this->bufSize > BUFFER_SIZE) {
-            return 1;
-        }
-        fread(this->store, 1, this->bufSize, file);
+        int result = fread(this->store, 1, this->bufSize, file);
         this->offset = 0;
+        if (result <= 0)
+            return 1;
+        else if ((unsigned long)result < this->bufSize)
+            this->eofLocation = result;
 
         return 0;
     }
@@ -25,11 +26,12 @@ struct Buffer {
         return 0;
     }
 
-    Buffer() : offset(0), bufSize(0) {}
+    Buffer() : offset(BUFFER_SIZE + 1), bufSize(0), eofLocation(0) {}
 
     char store[BUFFER_SIZE];
     size_t offset;
     size_t bufSize;
+    size_t eofLocation;
 };
 
 #endif

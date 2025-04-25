@@ -1,9 +1,10 @@
 #ifndef FILEHANDLER_HPP_
 #define FILEHANDLER_HPP_
 
+#include <cassert>
 #include <cstdio>
 #include <cstring>
-#include <vector>
+#include <string>
 
 #include "../src/utils/logging.hpp"
 
@@ -16,75 +17,75 @@ const unsigned long MAX_IMAGE_NAME_SIZE = 64;
 
 namespace traceGenerator {
 
-const char traceFolderPath[] = "../trace/";
+const std::string traceFolderPath("../trace/");
 
-enum TraceType {
-    TRACE_STATIC,
-    TRACE_DYNAMIC,
-    TRACE_MEMORY
+typedef unsigned int THREADID;
+typedef unsigned int UINT32;
+
+class TraceFile {
+  protected:
+    unsigned char *buf;
+    FILE *file;
+    size_t offset;  // in bytes
+
+    TraceFile(const char *prefix, const char *imageName, const char *sufix) {
+        this->buf = new unsigned char[BUFFER_SIZE];
+        this->offset = 0;
+        std::string filePath =
+            traceFolderPath + prefix + imageName + sufix + ".trace";
+        this->file = fopen(filePath.c_str(), "wb");
+    }
+
+    virtual ~TraceFile() {
+        // Every class derivated from TraceFile should contain a
+        // destructor that do FlushBuffer()
+        // It cant be done here :(
+        delete[] this->buf;
+        fclose(this->file);
+    }
+
+    void WriteToBuffer(void *src, size_t size) {
+        if (this->offset + size >= BUFFER_SIZE) this->FlushBuffer();
+
+        memcpy(this->buf + this->offset, src, size);
+        this->offset += size;
+    }
+
+    virtual void FlushBuffer() {
+        size_t written = fwrite(this->buf, 1, this->offset, this->file);
+        assert(written == this->offset && "fwrite returned something wrong");
+        this->offset = 0;
+    }
 };
 
-struct __attribute__((aligned(CACHE_LINE_SIZE))) Buffer {
-    char store[BUFFER_SIZE];
-    size_t numUsedBytes;
-    size_t minSpacePerOperation;
+class StaticTraceFile : public TraceFile {
+  public:
+    unsigned int numThreads;
+    unsigned int bblCount;
+    unsigned int instCount;
 
-    // No operation with the buffer locks the lock.
-    // But it is allocated here in case it is needed.
-    PIN_LOCK bufferPinLock;
-
-    Buffer() {
-        numUsedBytes = 0;
-        minSpacePerOperation = 0;
-        PIN_InitLock(&(this->bufferPinLock));
-    }
-
-    inline void LoadBufToFile(FILE* file, bool writeBufSize) {
-        if (writeBufSize == true) {
-            fwrite(&numUsedBytes, 1, sizeof(size_t), file);
-        }
-        size_t written = fwrite(this->store, 1, this->numUsedBytes, file);
-        if (written < this->numUsedBytes) {
-            SINUCA3_ERROR_PRINTF("Buffer error\n");
-        }
-        this->numUsedBytes = 0;
-    }
-
-    inline bool IsBufFull() {
-        return ((BUFFER_SIZE) - this->numUsedBytes < this->minSpacePerOperation);
-    }
+    StaticTraceFile(const char *imageName);
+    ~StaticTraceFile();
+    void NewBBL(unsigned int numIns);
+    void Write(const struct DataINS *data);
 };
 
-struct TraceFileHandler {
-    char imgName[MAX_IMAGE_NAME_SIZE];
+class DynamicTraceFile : public TraceFile {
+  public:
+    DynamicTraceFile(const char *imageName, THREADID tid);
+    ~DynamicTraceFile();
+    void Write(const UINT32 bblId);
+};
 
-    FILE *staticTraceFile;
-    std::vector<FILE *> dynamicTraceFiles;
-    std::vector<FILE *> memoryTraceFiles;
-
-    Buffer *staticBuffer;
-    std::vector<Buffer *> dynamicBuffers;
-    std::vector<Buffer *> memoryBuffers;
-
-    TraceFileHandler(){
-        SINUCA3_DEBUG_PRINTF("TraceFileHandler created\n");
-        this->imgName[0] = '\0';
-
-        //32 is an arbitrary value, just to avoid reallocation
-        this->dynamicTraceFiles = std::vector<FILE *>(32, NULL);
-        this->memoryTraceFiles  = std::vector<FILE *>(32, NULL);
-
-        this->dynamicBuffers = std::vector<Buffer *>(32, NULL);
-        this->memoryBuffers  = std::vector<Buffer *>(32, NULL);
-    }
-
-    void InitTraceFileHandler(const char* _imgName){
-        std::strcpy(this->imgName, _imgName);
-    }
-
-    void OpenNewTraceFile(traceGenerator::TraceType type, unsigned int threadID);
-    void CloseTraceFile(traceGenerator::TraceType type, unsigned int threadID);
-
+class MemoryTraceFile : public TraceFile {
+  public:
+    MemoryTraceFile(const char *imageName, THREADID tid);
+    ~MemoryTraceFile();
+    virtual void FlushBuffer() override;
+    void WriteStd(const struct DataMEM *data);
+    void WriteNonStd(const struct DataMEM *readings, unsigned short numReadings,
+                     const struct DataMEM *writings,
+                     unsigned short numWritings);
 };
 
 }  // namespace traceGenerator

@@ -15,12 +15,24 @@ extern "C" {
 #include "./file_handler.hpp"
 #include "sinuca3_pintool.hpp"
 
-static bool isInstrumentationOn;
-static unsigned int numThreads = 0;
+// Set this to 1 to print all rotines
+// that name begins with "gomp", case insensitive
+// (Statically linking GOMP is recommended)
+#define DEBUG_PRINT_GOMP_RNT 0
 
-traceGenerator::TraceFileHandler tfHandler;
+// When this is enabled, every thread will be instrumented;
+static bool isInstrumentating;
+// And this enable instrumentation per thread.
+static std::vector<bool> isThreadInstrumentatingEnabled;
+
+const char* imageName;
+
+traceGenerator::StaticTraceFile* staticTrace;
+std::vector<traceGenerator::DynamicTraceFile*> dynamicTraces;
+std::vector<traceGenerator::MemoryTraceFile*> memoryTraces;
 
 PIN_LOCK pinLock;
+std::vector<const char*> OMP_ignore;
 
 KNOB<INT> KnobNumberIns(KNOB_MODE_WRITEONCE, "pintool", "number_max_inst", "-1",
                         "Maximum number of instructions to be traced");
@@ -31,374 +43,265 @@ int Usage() {
     return 1;
 }
 
-void traceGenerator::TraceFileHandler::OpenNewTraceFile(
-    traceGenerator::TraceType type, unsigned int threadID) {
-    unsigned long fileNameSize = strlen(tfHandler.imgName);
-    assert(fileNameSize > 0 && "tfHandler not initialized");
-
-    fileNameSize += 128;
-    char* fileName = (char*)alloca(fileNameSize);
-    unsigned long filePathSize = strlen(traceFolderPath) + fileNameSize;
-    char* filePath = (char*)alloca(filePathSize);
-
-    if (access(traceGenerator::traceFolderPath, F_OK) != 0) {
-        mkdir(traceGenerator::traceFolderPath, S_IRWXU | S_IRWXG | S_IROTH);
+bool StrStartsWithGomp(const char* s) {
+    const char* prefix = "gomp";
+    for (size_t i = 0; prefix[i] != '\0'; ++i) {
+        if (std::tolower(s[i]) != prefix[i]) {
+            return false;
+        }
     }
-
-    strcpy(filePath, traceFolderPath);
-
-    switch (type) {
-        case traceGenerator::TRACE_STATIC:
-            snprintf(fileName, fileNameSize, "static_%s.trace",
-                     tfHandler.imgName);
-            tfHandler.staticTraceFile = fopen(strcat(filePath, fileName), "wb");
-            tfHandler.staticBuffer = new Buffer;
-
-            /* This space will be used to store the amount   *
-             * of BBLs in the trace, number of instructions, *
-             * and total number of threads                   */
-            fseek(tfHandler.staticTraceFile, 3 * sizeof(unsigned int),
-                  SEEK_SET);
-
-            break;
-
-        case traceGenerator::TRACE_DYNAMIC:
-            snprintf(fileName, fileNameSize, "dynamic_%s_tid%d.trace",
-                     tfHandler.imgName, threadID);
-
-            /* push_back is problematic if threadIDs are not sequential */
-            if (tfHandler.dynamicTraceFiles.size() <= threadID) {
-                tfHandler.dynamicTraceFiles.resize(threadID);
-                tfHandler.dynamicBuffers.resize(threadID);
-            }
-
-            tfHandler.dynamicTraceFiles[threadID] =
-                fopen(strcat(filePath, fileName), "wb");
-            tfHandler.dynamicBuffers[threadID] = new Buffer;
-            tfHandler.dynamicBuffers[threadID]->minSpacePerOperation =
-                sizeof(unsigned short);
-            break;
-
-        case traceGenerator::TRACE_MEMORY:
-            snprintf(fileName, fileNameSize, "memory_%s_tid%d.trace",
-                     tfHandler.imgName, threadID);
-
-            /* push_back is problematic if threadIDs are not sequential */
-            if (tfHandler.memoryTraceFiles.size() <= threadID) {
-                tfHandler.memoryTraceFiles.resize(threadID);
-                tfHandler.memoryBuffers.resize(threadID);
-            }
-
-            tfHandler.memoryTraceFiles[threadID] =
-                fopen(strcat(filePath, fileName), "wb");
-            tfHandler.memoryBuffers[threadID] = new Buffer;
-            tfHandler.memoryBuffers[threadID]->minSpacePerOperation =
-                sizeof(ADDRINT) + sizeof(INT32);
-            break;
-    }
+    return true;
 }
 
-void traceGenerator::TraceFileHandler::CloseTraceFile(
-    traceGenerator::TraceType type, unsigned int threadID) {
-    switch (type) {
-        case traceGenerator::TRACE_STATIC:
-            tfHandler.staticBuffer->LoadBufToFile(tfHandler.staticTraceFile,
-                                                  false);
-            fclose(tfHandler.staticTraceFile);
-            delete tfHandler.staticBuffer;
-            break;
-        case traceGenerator::TRACE_DYNAMIC:
-            tfHandler.dynamicBuffers[threadID]->LoadBufToFile(
-                tfHandler.dynamicTraceFiles[threadID], true);
-            fclose(tfHandler.dynamicTraceFiles[threadID]);
-            delete tfHandler.dynamicBuffers[threadID];
-            break;
-        case traceGenerator::TRACE_MEMORY:
-            tfHandler.memoryBuffers[threadID]->LoadBufToFile(
-                tfHandler.memoryTraceFiles[threadID], true);
-            fclose(tfHandler.memoryTraceFiles[threadID]);
-            delete tfHandler.memoryBuffers[threadID];
-            break;
-    }
-}
-
-VOID ThreadStart(THREADID threadid, CONTEXT* ctxt, INT32 flags, VOID* v) {
-    PIN_GetLock(&pinLock, threadid);
-
-    SINUCA3_DEBUG_PRINTF("New thread created! N => %d\n", threadid);
-    numThreads++;
-
-    tfHandler.OpenNewTraceFile(traceGenerator::TRACE_DYNAMIC, threadid);
-    tfHandler.OpenNewTraceFile(traceGenerator::TRACE_MEMORY, threadid);
-
+void PrintRtnName(const char* s, THREADID tid) {
+    PIN_GetLock(&pinLock, tid);
+    SINUCA3_DEBUG_PRINTF("RNT called: %s\n", s);
     PIN_ReleaseLock(&pinLock);
 }
 
-VOID ThreadFini(THREADID threadid, const CONTEXT* ctxt, INT32 code, VOID* v) {
-    PIN_GetLock(&pinLock, threadid);
+VOID ThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
+    PIN_GetLock(&pinLock, tid);
+    SINUCA3_DEBUG_PRINTF("New thread created! N => %d (%s)\n", tid, imageName);
+    staticTrace->numThreads++;
+    isThreadInstrumentatingEnabled.push_back(false);
+    dynamicTraces.push_back(
+        new traceGenerator::DynamicTraceFile(imageName, tid));
+    memoryTraces.push_back(new traceGenerator::MemoryTraceFile(imageName, tid));
+    PIN_ReleaseLock(&pinLock);
+}
 
-    SINUCA3_DEBUG_PRINTF("A thread has finalized! N => %d\n", threadid);
+VOID ThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
+    PIN_GetLock(&pinLock, tid);
 
-    tfHandler.CloseTraceFile(traceGenerator::TRACE_DYNAMIC, threadid);
-    tfHandler.CloseTraceFile(traceGenerator::TRACE_MEMORY, threadid);
+    SINUCA3_DEBUG_PRINTF("A thread has finalized! N => %d\n", tid);
+
+    delete dynamicTraces[tid];
+    delete memoryTraces[tid];
 
     PIN_ReleaseLock(&pinLock);
 }
 
 VOID InitInstrumentation() {
-    SINUCA3_LOG_PRINTF("Start of tool instrumentation\n");
-
-    isInstrumentationOn = true;
+    if (isInstrumentating) return;
+    PIN_GetLock(&pinLock, PIN_ThreadId());
+    SINUCA3_LOG_PRINTF("Start of tool instrumentation block.\n");
+    isInstrumentating = true;
+    PIN_ReleaseLock(&pinLock);
 }
 
-VOID StopInstrumentation(unsigned int bblCount, unsigned int instCount) {
-    THREADID tid = PIN_ThreadId();
+VOID StopInstrumentation() {
+    if (!isInstrumentating) return;
+    PIN_GetLock(&pinLock, PIN_ThreadId());
+    SINUCA3_LOG_PRINTF("End of tool instrumentation block.\n");
+    isInstrumentating = false;
+    PIN_ReleaseLock(&pinLock);
+}
 
-    SINUCA3_LOG_PRINTF("Trace ended from thread %d\n", tid);
-    SINUCA3_LOG_PRINTF("End of tool instrumentation\n");
-    SINUCA3_DEBUG_PRINTF("Number of BBLs => %u\n", bblCount);
-    isInstrumentationOn = false;
+VOID EnableInstrumentationInThread(THREADID tid) {
+    if (isThreadInstrumentatingEnabled[tid]) return;
+    PIN_GetLock(&pinLock, tid);
+    SINUCA3_LOG_PRINTF("Enabling tool instrumentation in thread %d.\n", tid);
+    isThreadInstrumentatingEnabled[tid] = true;
+    PIN_ReleaseLock(&pinLock);
+}
 
-    rewind(tfHandler.staticTraceFile);
-    fwrite(&numThreads, 1, sizeof(numThreads), tfHandler.staticTraceFile);
-    fwrite(&bblCount, 1, sizeof(bblCount), tfHandler.staticTraceFile);
-    fwrite(&instCount, 1, sizeof(instCount), tfHandler.staticTraceFile);
+VOID DisableInstrumentationInThread(THREADID tid) {
+    if (!isThreadInstrumentatingEnabled[tid]) return;
+    PIN_GetLock(&pinLock, tid);
+    SINUCA3_LOG_PRINTF("Disabling tool instrumentation in thread %d.\n", tid);
+    isThreadInstrumentatingEnabled[tid] = false;
+    PIN_ReleaseLock(&pinLock);
 }
 
 VOID AppendToDynamicTrace(UINT32 bblId) {
     THREADID tid = PIN_ThreadId();
-    char* buf = tfHandler.dynamicBuffers[tid]->store;
-    size_t* used = &tfHandler.dynamicBuffers[tid]->numUsedBytes;
-
-    traceGenerator::CopyToBuf(buf, used, &bblId, sizeof(bblId));
-    if (tfHandler.dynamicBuffers[tid]->IsBufFull() == true) {
-        tfHandler.dynamicBuffers[tid]->LoadBufToFile(
-            tfHandler.dynamicTraceFiles[tid], true);
-    }
+    if (!isThreadInstrumentatingEnabled[tid]) return;
+    dynamicTraces[tid]->Write(bblId);
 }
 
-UINT16 FillRegs(const INS* ins, unsigned short int* regs, unsigned int maxRegs,
-                REG (*func)(INS, UINT32)) {
-    unsigned short int reg;
-    unsigned short int it;
-    unsigned short int cont;
-
-    for (it = 0, cont = 0; it < maxRegs; it++) {
-        reg = static_cast<unsigned short int>(func(*ins, it));
-        if (reg != REG_INVALID()) {
-            regs[cont] = reg;
-            cont++;
-        }
-    }
-
-    return cont;
-}
-
-VOID AppendToMemTraceStd(ADDRINT addr, INT32 size) {
+VOID AppendToMemTraceStd(ADDRINT addr, UINT32 size) {
     THREADID tid = PIN_ThreadId();
-    char* buf = tfHandler.memoryBuffers[tid]->store;
-    size_t* used = &tfHandler.memoryBuffers[tid]->numUsedBytes;
+    if (!isThreadInstrumentatingEnabled[tid]) return;
     static traceGenerator::DataMEM data;
-
     data.addr = addr;
     data.size = size;
-    traceGenerator::CopyToBuf(buf, used, &data, sizeof(data));
+    memoryTraces[tid]->WriteStd(&data);
 }
 
 VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* acessInfo) {
     THREADID tid = PIN_ThreadId();
-    char* buf = tfHandler.memoryBuffers[tid]->store;
-    size_t* used = &tfHandler.memoryBuffers[tid]->numUsedBytes;
-    unsigned short numMemOps;
+    if (!isThreadInstrumentatingEnabled[tid]) return;
+
     unsigned short numReadings;
     unsigned short numWritings;
-    PIN_MEM_ACCESS_INFO* memop;
 
     static traceGenerator::DataMEM readings[MAX_MEM_OPERATIONS];
     static traceGenerator::DataMEM writings[MAX_MEM_OPERATIONS];
 
-    numMemOps = *(unsigned short*)(&acessInfo->numberOfMemops);
-    tfHandler.memoryBuffers[tid]->minSpacePerOperation =
-        (sizeof(numMemOps) + numMemOps * sizeof(*readings));
-    if (tfHandler.memoryBuffers[tid]->IsBufFull()) {
-        tfHandler.memoryBuffers[tid]->LoadBufToFile(
-            tfHandler.memoryTraceFiles[tid], true);
-    }
-
     numReadings = numWritings = 0;
-    for (unsigned short it = 0; it < numMemOps; it++) {
-        memop = &acessInfo->memop[it];
-        if (memop->memopType == PIN_MEMOP_LOAD) {
-            readings[numReadings].addr = memop->memoryAddress;
-            readings[numReadings].size = memop->bytesAccessed;
+    for (unsigned short it = 0; it < acessInfo->numberOfMemops; it++) {
+        PIN_MEM_ACCESS_INFO* memOp = &acessInfo->memop[it];
+        if (memOp->memopType == PIN_MEMOP_LOAD) {
+            readings[numReadings].addr = memOp->memoryAddress;
+            readings[numReadings].size = memOp->bytesAccessed;
             numReadings++;
         } else {
-            writings[numWritings].addr = memop->memoryAddress;
-            writings[numWritings].size = memop->bytesAccessed;
+            writings[numWritings].addr = memOp->memoryAddress;
+            writings[numWritings].size = memOp->bytesAccessed;
             numWritings++;
         }
     }
-    traceGenerator::CopyToBuf(buf, used, &numReadings, sizeof(numReadings));
-    traceGenerator::CopyToBuf(buf, used, &numWritings, sizeof(numWritings));
-    traceGenerator::CopyToBuf(buf, used, readings,
-                              numReadings * sizeof(*readings));
-    traceGenerator::CopyToBuf(buf, used, writings,
-                              numWritings * sizeof(*writings));
+
+    memoryTraces[tid]->WriteNonStd(readings, numReadings, writings,
+                                   numWritings);
 }
 
-VOID SetMinStdMemOp() {
-    THREADID tid = PIN_ThreadId();
-    tfHandler.memoryBuffers[tid]->minSpacePerOperation =
-        (sizeof(traceGenerator::DataMEM) * 3);
-    if (tfHandler.memoryBuffers[tid]->IsBufFull()) {
-        tfHandler.memoryBuffers[tid]->LoadBufToFile(
-            tfHandler.memoryTraceFiles[tid], true);
-    }
-}
+VOID InstrumentMemoryOperations(const INS* ins) {
+    bool isRead = INS_IsMemoryRead(*ins);
+    bool hasRead2 = INS_HasMemoryRead2(*ins);
+    bool isWrite = INS_IsMemoryWrite(*ins);
 
-VOID InstrumentMem(const INS* ins, traceGenerator::DataINS* data) {
-    bool isRead;
-    bool hasRead2;
-    bool isWrite;
-    if (!INS_IsStandardMemop(*ins)) {
+    // INS_IsStandardMemop() returns false if this instruction has a memory
+    // operand which has unconventional meaning; Returns true otherwise.
+    bool isNonStandard = !INS_IsStandardMemop(*ins);
+    if (isNonStandard) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTraceNonStd,
                        IARG_MULTI_MEMORYACCESS_EA, IARG_END);
-        traceGenerator::SetBit(&data->booleanValues, 4, true);
-
         return;
-    }
-
-    isRead = INS_IsMemoryRead(*ins);
-    hasRead2 = INS_HasMemoryRead2(*ins);
-    isWrite = INS_IsMemoryWrite(*ins);
-    if (isWrite || isRead || hasRead2) {
-        INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)SetMinStdMemOp, IARG_END);
     }
 
     if (isRead) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTraceStd,
                        MEMREAD_EA, MEMREAD_SIZE, IARG_END);
-        traceGenerator::SetBit(&data->booleanValues, 5, true);
     }
     if (hasRead2) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTraceStd,
                        MEMREAD2_EA, MEMREAD_SIZE, IARG_END);
-        traceGenerator::SetBit(&data->booleanValues, 6, true);
     }
     if (isWrite) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTraceStd,
                        MEMWRITE_EA, MEMWRITE_SIZE, IARG_END);
-        traceGenerator::SetBit(&data->booleanValues, 7, true);
     }
 }
 
-VOID X86ToStaticBuf(const INS* ins) {
-    char* buf = tfHandler.staticBuffer->store;
-    size_t* used = &tfHandler.staticBuffer->numUsedBytes;
-    traceGenerator::DataINS data;
-    static unsigned short int readRegs[64];
-    static unsigned short int writeRegs[64];
-
-    unsigned int maxRRegs = INS_MaxNumRRegs(*ins);
-    unsigned int maxWRegs = INS_MaxNumWRegs(*ins);
+void createDataINS(const INS* ins, struct traceGenerator::DataINS* data) {
     std::string name = INS_Mnemonic(*ins);
+    assert(name.length() + sizeof('\0') <=
+               traceGenerator::MAX_INSTRUCTION_NAME_LENGTH &&
+           "This is unexpected. You should increase "
+           "MAX_INSTRUCTION_NAME_LENGTH value.");
+    strncpy(data->name, name.c_str(),
+            traceGenerator::MAX_INSTRUCTION_NAME_LENGTH);
 
-    tfHandler.staticBuffer->minSpacePerOperation =
-        sizeof(data) + name.size() + maxRRegs + maxWRegs;
-    if (tfHandler.staticBuffer->IsBufFull()) {
-        tfHandler.staticBuffer->LoadBufToFile(tfHandler.staticTraceFile, false);
-    }
+    data->addr = INS_Address(*ins);
+    data->size = INS_Size(*ins);
+    data->baseReg = INS_MemoryBaseReg(*ins);
+    data->indexReg = INS_MemoryIndexReg(*ins);
+    data->booleanValues = 0;
 
-    data.addr = INS_Address(*ins);
-    data.size = INS_Size(*ins);
-    data.baseReg = INS_MemoryBaseReg(*ins);
-    data.indexReg = INS_MemoryIndexReg(*ins);
-    data.booleanValues = 0;
+    if (INS_IsPredicated(*ins))
+        traceGenerator::SetBit(&data->booleanValues,
+                               traceGenerator::IS_PREDICATED, true);
 
-    if (INS_IsPredicated(*ins)) {
-        traceGenerator::SetBit(&data.booleanValues, 0, true);
-    }
-    if (INS_IsPrefetch(*ins)) {
-        traceGenerator::SetBit(&data.booleanValues, 1, true);
-    }
+    if (INS_IsPrefetch(*ins))
+        traceGenerator::SetBit(&data->booleanValues,
+                               traceGenerator::IS_PREFETCH, true);
 
-    bool isControlFlow = INS_IsControlFlow(*ins);
-    if (INS_IsSyscall(*ins)) {
-        data.branchType = sinuca::BranchSyscall;
-        isControlFlow = true;
-    } else {
-        if (isControlFlow) {
-            if (INS_IsCall(*ins))
-                data.branchType = sinuca::BranchCall;
-            else if (INS_IsRet(*ins))
-                data.branchType = sinuca::BranchReturn;
-            else if (INS_HasFallThrough(*ins))
-                data.branchType = sinuca::BranchCond;
-            else
-                data.branchType = sinuca::BranchUncond;
-        }
-    }
+    bool isSyscall = INS_IsSyscall(*ins);
+    bool isControlFlow = INS_IsControlFlow(*ins) || isSyscall;
 
     if (isControlFlow) {
-        traceGenerator::SetBit(&data.booleanValues, 2, true);
-        if (INS_IsIndirectControlFlow(*ins)) {
-            traceGenerator::SetBit(&data.booleanValues, 3, true);
+        if (isSyscall)
+            data->branchType = sinuca::BranchSyscall;
+        else if (INS_IsCall(*ins))
+            data->branchType = sinuca::BranchCall;
+        else if (INS_IsRet(*ins))
+            data->branchType = sinuca::BranchReturn;
+        else if (INS_HasFallThrough(*ins))
+            data->branchType = sinuca::BranchCond;
+        else
+            data->branchType = sinuca::BranchUncond;
+
+        traceGenerator::SetBit(&data->booleanValues,
+                               traceGenerator::IS_CONTROL_FLOW, true);
+        traceGenerator::SetBit(&data->booleanValues,
+                               traceGenerator::IS_INDIRECT_CONTROL_FLOW,
+                               INS_IsIndirectControlFlow(*ins));
+    }
+
+    // INS_IsStandardMemop() returns false if this instruction has a memory
+    // operand which has unconventional meaning; Returns true otherwise.
+    bool isNonStandard = !INS_IsStandardMemop(*ins);
+
+    traceGenerator::SetBit(&data->booleanValues,
+                           traceGenerator::IS_NON_STANDARD_MEM_OP,
+                           isNonStandard);
+    traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_READ,
+                           INS_IsMemoryRead(*ins));
+    traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_READ2,
+                           INS_HasMemoryRead2(*ins));
+    traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_WRITE,
+                           INS_IsMemoryWrite(*ins));
+
+    for (unsigned long int i = 0; i < INS_MaxNumRRegs(*ins); ++i) {
+        REG regValue = INS_RegR(*ins, i);
+        if (regValue != REG_INVALID()) {
+            data->readRegs[data->numReadRegs++] = regValue;
         }
     }
 
-    InstrumentMem(ins, &data);
-    data.numReadRegs = FillRegs(ins, readRegs, maxRRegs, INS_RegR);
-    data.numWriteRegs = FillRegs(ins, writeRegs, maxWRegs, INS_RegW);
-    // Copy data
-    traceGenerator::CopyToBuf(buf, used, &data, sizeof(data));
-    // Copy read regs
-    traceGenerator::CopyToBuf(buf, used, readRegs,
-                              sizeof(*readRegs) * data.numReadRegs);
-    // Copy write regs
-    traceGenerator::CopyToBuf(buf, used, writeRegs,
-                              sizeof(*writeRegs) * data.numWriteRegs);
-    // Copy mnemonic
-    traceGenerator::CopyToBuf(buf, used, (void*)name.c_str(), name.size() + 1);
+    for (unsigned long int i = 0; i < INS_MaxNumWRegs(*ins); ++i) {
+        REG regValue = INS_RegW(*ins, i);
+        if (regValue != REG_INVALID()) {
+            data->writeRegs[data->numWriteRegs++] = regValue;
+        }
+    }
 }
 
 VOID Trace(TRACE trace, VOID* ptr) {
+    if (!isInstrumentating) return;
+
     THREADID tid = PIN_ThreadId();
+    RTN traceRtn = TRACE_Rtn(trace);
 
-    char* buf = tfHandler.staticBuffer->store;
-    size_t *usedStatic = &tfHandler.staticBuffer->numUsedBytes, bblInit;
-    static unsigned int bblCount = 0;
-    static unsigned int instCount = 0;
-    unsigned short numInstBbl;
+    if (RTN_Valid(traceRtn)) {
+        const char* traceRtnName = RTN_Name(traceRtn).c_str();
 
-    if (isInstrumentationOn == false) {
-        return;
+#if DEBUG_PRINT_GOMP_RNT == 1
+        if (StrStartsWithGomp(traceRtnName)) {
+            TRACE_InsertCall(trace, IPOINT_BEFORE, (AFUNPTR)PrintRtnName,
+                             IARG_PTR, traceRtnName, IARG_THREAD_ID, IARG_END);
+        }
+#endif
+
+        // This will make every function call from libgomp that have a
+        // PAUSE instruction to be ignored.
+        // I still not sure if this is fully corret.
+        for (size_t i = 0; i < OMP_ignore.size(); ++i) {
+            if (strcmp(traceRtnName, OMP_ignore[i]) == 0) {
+                // has SPIN_LOCK
+                return;
+            }
+        }
     }
 
     PIN_GetLock(&pinLock, tid);
 
-    if (strstr(RTN_Name(TRACE_Rtn(trace)).c_str(), "trace_stop")) {
-        StopInstrumentation(bblCount, instCount);
-        PIN_ReleaseLock(&pinLock);
-        return;
-    }
-
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)AppendToDynamicTrace,
-                       IARG_UINT32, bblCount, IARG_END);
-        bblCount++;
-        numInstBbl = 0;
-        bblInit = *usedStatic;
-        (*usedStatic) += sizeof(numInstBbl);
+                       IARG_UINT32, staticTrace->bblCount, IARG_END);
+
+        staticTrace->NewBBL(BBL_NumIns(bbl));
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
-            numInstBbl++;
-            instCount++;
-            X86ToStaticBuf(&ins);
+            struct traceGenerator::DataINS data;
+            createDataINS(&ins, &data);
+            staticTrace->Write(&data);
+            InstrumentMemoryOperations(&ins);
+            staticTrace->instCount++;
         }
-        memcpy(buf + bblInit, &numInstBbl, sizeof(numInstBbl));
     }
 
     PIN_ReleaseLock(&pinLock);
-
     return;
 }
 
@@ -407,25 +310,43 @@ VOID ImageLoad(IMG img, VOID* ptr) {
 
     std::string completeImgPath = IMG_Name(img);
     size_t it = completeImgPath.find_last_of('/') + 1;
-    const char* imgName = &completeImgPath.c_str()[it];
 
-    SINUCA3_DEBUG_PRINTF("Image Loaded\n");
+    // freed in Fini();
+    imageName = strdup(&completeImgPath.c_str()[it]);
 
-    unsigned int fileNameSize = strlen(imgName);
+    unsigned int fileNameSize = strlen(imageName);
     assert(fileNameSize < MAX_IMAGE_NAME_SIZE &&
            "Trace file name is too long. Max of 64 chars");
 
-    tfHandler.InitTraceFileHandler(imgName);
-    tfHandler.OpenNewTraceFile(traceGenerator::TRACE_STATIC, 0);
+    staticTrace = new traceGenerator::StaticTraceFile(imageName);
 
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
         for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn)) {
             RTN_Open(rtn);
             const char* name = RTN_Name(rtn).c_str();
-            if (strstr(name, "trace_start")) {
-                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)InitInstrumentation,
+
+            if (strcmp(name, "BeginInstrumentationBlock") == 0) {
+                RTN_InsertCall(rtn, IPOINT_AFTER, (AFUNPTR)InitInstrumentation,
                                IARG_END);
             }
+
+            if (strcmp(name, "EndInstrumentationBlock") == 0) {
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)StopInstrumentation,
+                               IARG_END);
+            }
+
+            if (strcmp(name, "EnableThreadInstrumentation") == 0) {
+                RTN_InsertCall(rtn, IPOINT_AFTER,
+                               (AFUNPTR)EnableInstrumentationInThread,
+                               IARG_THREAD_ID, IARG_END);
+            }
+
+            if (strcmp(name, "DisableThreadInstrumentation") == 0) {
+                RTN_InsertCall(rtn, IPOINT_BEFORE,
+                               (AFUNPTR)DisableInstrumentationInThread,
+                               IARG_THREAD_ID, IARG_END);
+            }
+
             RTN_Close(rtn);
         }
     }
@@ -433,8 +354,11 @@ VOID ImageLoad(IMG img, VOID* ptr) {
 
 VOID Fini(INT32 code, VOID* ptr) {
     SINUCA3_LOG_PRINTF("End of tool execution\n");
+    SINUCA3_DEBUG_PRINTF("Number of BBLs => %u\n", staticTrace->bblCount);
 
-    tfHandler.CloseTraceFile(traceGenerator::TRACE_STATIC, 0);
+    // Close static trace file
+    delete staticTrace;
+    free((void*)imageName);
 }
 
 int main(int argc, char* argv[]) {
@@ -443,9 +367,24 @@ int main(int argc, char* argv[]) {
         return Usage();
     }
 
+    if (access(traceGenerator::traceFolderPath.c_str(), F_OK) != 0) {
+        mkdir(traceGenerator::traceFolderPath.c_str(),
+              S_IRWXU | S_IRWXG | S_IROTH);
+    }
+
     PIN_InitLock(&pinLock);
 
-    isInstrumentationOn = false;
+    isInstrumentating = false;
+
+    // All these functions have a PAUSE instruction (Spin-lock hint)
+    OMP_ignore.push_back("gomp_barrier_wait_end");
+    OMP_ignore.push_back("gomp_team_barrier_wait_end");
+    OMP_ignore.push_back("gomp_team_barrier_wait_cancel_end");
+    OMP_ignore.push_back("gomp_mutex_lock_slow");
+    OMP_ignore.push_back("GOMP_doacross_wait");
+    OMP_ignore.push_back("GOMP_doacross_ull_wait");
+    OMP_ignore.push_back("gomp_ptrlock_get_slow");
+    OMP_ignore.push_back("gomp_sem_wait_slow");
 
     IMG_AddInstrumentFunction(ImageLoad, NULL);
     TRACE_AddInstrumentFunction(Trace, NULL);

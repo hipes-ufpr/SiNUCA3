@@ -10,10 +10,7 @@
 
 namespace traceGenerator {
 
-static inline void CopyToBuf(char* buf, size_t* used, void* src, size_t size) {
-    memcpy(buf + *used, src, size);
-    (*used) += size;
-}
+const int MAX_INSTRUCTION_NAME_LENGTH = 32;
 
 static inline void SetBit(unsigned char* byte, int position, bool value) {
     if (value == true) {
@@ -23,8 +20,22 @@ static inline void SetBit(unsigned char* byte, int position, bool value) {
     }
 }
 
+enum BooleanValuesIndex {
+    IS_PREDICATED = 0,
+    IS_PREFETCH = 1,
+    IS_CONTROL_FLOW = 2,
+    IS_INDIRECT_CONTROL_FLOW = 3,
+    IS_NON_STANDARD_MEM_OP = 4,
+    IS_READ = 5,
+    IS_READ2 = 6,
+    IS_WRITE = 7,
+};
+
 struct DataINS {
+    char name[MAX_INSTRUCTION_NAME_LENGTH];
     long addr;
+    unsigned short int readRegs[64];
+    unsigned short int writeRegs[64];
     unsigned short int baseReg;
     unsigned short int indexReg;
     unsigned char size;
@@ -35,8 +46,8 @@ struct DataINS {
 } __attribute__((packed));  // no padding
 
 struct DataMEM {
-    long addr;
-    int size;
+    unsigned long addr;
+    unsigned int size;
 } __attribute__((packed));  // no padding
 
 }  // namespace traceGenerator
