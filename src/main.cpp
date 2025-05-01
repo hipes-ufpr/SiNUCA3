@@ -23,7 +23,6 @@
 
 #include <getopt.h>
 
-// #include <cassert>
 #include <cstdlib>
 #include <cstring>
 
@@ -33,6 +32,11 @@
 #include "trace_reader/sinuca3_trace_reader.hpp"
 #include "trace_reader/trace_reader.hpp"
 #include "utils/logging.hpp"
+
+#ifdef SINUCA3_TRACEABLE
+extern "C" void trace_start() {}
+extern "C" void trace_stop() {}
+#endif
 
 sinuca::engine::Engine* sinuca::ENGINE;
 
@@ -101,6 +105,10 @@ int main(int argc, char* const argv[]) {
     const char* traceFileName = NULL;
     char nextOpt;
 
+#ifdef SINUCA3_TRACEABLE
+    trace_start();
+#endif
+
     while ((nextOpt = getopt(argc, argv, "lc:t:T:")) != -1) {
         switch (nextOpt) {
             case 'c':
@@ -137,7 +145,8 @@ int main(int argc, char* const argv[]) {
     sinuca::traceReader::TraceReader* traceReader =
         AllocTraceReader(traceReaderName);
     if (traceReader == NULL) {
-        SINUCA3_ERROR_PRINTF("The trace reader %s does not exist.", traceReaderName);
+        SINUCA3_ERROR_PRINTF("The trace reader %s does not exist.",
+                             traceReaderName);
         return 1;
     }
     if (traceReader->OpenTrace(traceFileName)) return 1;
@@ -145,6 +154,10 @@ int main(int argc, char* const argv[]) {
     sinuca::ENGINE->Simulate(traceReader);
     delete sinuca::ENGINE;
     delete traceReader;
+
+#ifdef SINUCA3_TRACEABLE
+    trace_stop();
+#endif
 
     return 0;
 }
