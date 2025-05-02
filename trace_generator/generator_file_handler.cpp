@@ -1,5 +1,6 @@
-#include "file_handler.hpp"
+#include "generator_file_handler.hpp"
 
+#include "../src/utils/logging.hpp"
 #include "sinuca3_pintool.hpp"
 
 const char* FormatThreadSuffix(traceGenerator::THREADID tid) {
@@ -13,15 +14,16 @@ const char* FormatThreadSuffix(traceGenerator::THREADID tid) {
 /* StaticTraceFile */
 /* ============================================= */
 
-traceGenerator::StaticTraceFile::StaticTraceFile(const char* imageName)
-    : TraceFile("static_", imageName, "") {
+traceGenerator::StaticTraceFile::StaticTraceFile(const char* imageName,
+                                                 const char* folderPath)
+    : TraceGenerator("static_", imageName, "", folderPath) {
     this->offset = 0;
     this->numThreads = 0;
     this->bblCount = 0;
     this->instCount = 0;
 
     /* This space will be used to store the amount   *
-     * of BBLs in the trace, number of instructions, *
+     * of BBLs in the traceGenerator, number of instructions, *
      * and total number of threads                   */
     fseek(this->file, 3 * sizeof(unsigned int), SEEK_SET);
 }
@@ -49,12 +51,12 @@ void traceGenerator::StaticTraceFile::Write(const struct DataINS* data) {
 /* ============================================= */
 
 traceGenerator::DynamicTraceFile::DynamicTraceFile(const char* imageName,
-                                                   THREADID tid)
-    : TraceFile("dynamic_", imageName, FormatThreadSuffix(tid)) {}
+                                                   THREADID tid,
+                                                   const char* folderPath)
+    : TraceGenerator("dynamic_", imageName, FormatThreadSuffix(tid),
+                     folderPath) {}
 
-traceGenerator::DynamicTraceFile::~DynamicTraceFile() {
-    this->FlushBuffer();
-}
+traceGenerator::DynamicTraceFile::~DynamicTraceFile() { this->FlushBuffer(); }
 
 void traceGenerator::DynamicTraceFile::Write(const UINT32 bblId) {
     this->WriteToBuffer((void*)&bblId, sizeof(bblId));
@@ -65,18 +67,19 @@ void traceGenerator::DynamicTraceFile::Write(const UINT32 bblId) {
 /* ============================================= */
 
 traceGenerator::MemoryTraceFile::MemoryTraceFile(const char* imageName,
-                                                 THREADID tid)
-    : TraceFile("memory_", imageName, FormatThreadSuffix(tid)) {}
+                                                 THREADID tid,
+                                                 const char* folderPath)
+    : TraceGenerator("memory_", imageName, FormatThreadSuffix(tid),
+                     folderPath) {}
 
-traceGenerator::MemoryTraceFile::~MemoryTraceFile() {
-    this->FlushBuffer();
-}
+traceGenerator::MemoryTraceFile::~MemoryTraceFile() { this->FlushBuffer(); }
 
 void traceGenerator::MemoryTraceFile::FlushBuffer() {
     // MemoryTraceFile stores how much someone can read before each buffer.
     size_t written = fwrite(&this->offset, 1, sizeof(this->offset), this->file);
-    assert(written == sizeof(this->offset) && "fwrite returned something wrong");
-    traceGenerator::TraceFile::FlushBuffer();
+    assert(written == sizeof(this->offset) &&
+           "fwrite returned something wrong");
+    TraceGenerator::FlushBuffer();
 }
 
 void traceGenerator::MemoryTraceFile::WriteStd(const struct DataMEM* data) {
