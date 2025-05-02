@@ -126,7 +126,7 @@ VOID AppendToDynamicTrace(UINT32 bblId) {
 VOID AppendToMemTraceStd(ADDRINT addr, UINT32 size) {
     THREADID tid = PIN_ThreadId();
     if (!isThreadInstrumentatingEnabled[tid]) return;
-    static traceGenerator::DataMEM data;
+    static trace::DataMEM data;
     data.addr = addr;
     data.size = size;
     memoryTraces[tid]->WriteStd(&data);
@@ -139,8 +139,8 @@ VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* acessInfo) {
     unsigned short numReadings;
     unsigned short numWritings;
 
-    static traceGenerator::DataMEM readings[MAX_MEM_OPERATIONS];
-    static traceGenerator::DataMEM writings[MAX_MEM_OPERATIONS];
+    static DataMEM readings[MAX_MEM_OPERATIONS];
+    static DataMEM writings[MAX_MEM_OPERATIONS];
 
     numReadings = numWritings = 0;
     for (unsigned short it = 0; it < acessInfo->numberOfMemops; it++) {
@@ -188,14 +188,10 @@ VOID InstrumentMemoryOperations(const INS* ins) {
     }
 }
 
-void createDataINS(const INS* ins, struct traceGenerator::DataINS* data) {
+void createDataINS(const INS* ins, struct DataINS* data) {
     std::string name = INS_Mnemonic(*ins);
-    assert(name.length() + sizeof('\0') <=
-               traceGenerator::MAX_INSTRUCTION_NAME_LENGTH &&
-           "This is unexpected. You should increase "
-           "MAX_INSTRUCTION_NAME_LENGTH value.");
     strncpy(data->name, name.c_str(),
-            traceGenerator::MAX_INSTRUCTION_NAME_LENGTH);
+            MAX_INSTRUCTION_NAME_LENGTH);
 
     data->addr = INS_Address(*ins);
     data->size = INS_Size(*ins);
@@ -204,12 +200,10 @@ void createDataINS(const INS* ins, struct traceGenerator::DataINS* data) {
     data->booleanValues = 0;
 
     if (INS_IsPredicated(*ins))
-        traceGenerator::SetBit(&data->booleanValues,
-                               traceGenerator::IS_PREDICATED, true);
+        traceGenerator::SetBit(&data->booleanValues, IS_PREDICATED, true);
 
     if (INS_IsPrefetch(*ins))
-        traceGenerator::SetBit(&data->booleanValues,
-                               traceGenerator::IS_PREFETCH, true);
+        traceGenerator::SetBit(&data->booleanValues, IS_PREFETCH, true);
 
     bool isSyscall = INS_IsSyscall(*ins);
     bool isControlFlow = INS_IsControlFlow(*ins) || isSyscall;
@@ -226,10 +220,8 @@ void createDataINS(const INS* ins, struct traceGenerator::DataINS* data) {
         else
             data->branchType = sinuca::BranchUncond;
 
-        traceGenerator::SetBit(&data->booleanValues,
-                               traceGenerator::IS_CONTROL_FLOW, true);
-        traceGenerator::SetBit(&data->booleanValues,
-                               traceGenerator::IS_INDIRECT_CONTROL_FLOW,
+        traceGenerator::SetBit(&data->booleanValues, IS_CONTROL_FLOW, true);
+        traceGenerator::SetBit(&data->booleanValues, IS_INDIRECT_CONTROL_FLOW,
                                INS_IsIndirectControlFlow(*ins));
     }
 
@@ -237,14 +229,13 @@ void createDataINS(const INS* ins, struct traceGenerator::DataINS* data) {
     // operand which has unconventional meaning; Returns true otherwise.
     bool isNonStandard = !INS_IsStandardMemop(*ins);
 
-    traceGenerator::SetBit(&data->booleanValues,
-                           traceGenerator::IS_NON_STANDARD_MEM_OP,
+    traceGenerator::SetBit(&data->booleanValues, IS_NON_STANDARD_MEM_OP,
                            isNonStandard);
-    traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_READ,
+    traceGenerator::SetBit(&data->booleanValues, IS_READ,
                            INS_IsMemoryRead(*ins));
-    traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_READ2,
+    traceGenerator::SetBit(&data->booleanValues, IS_READ2,
                            INS_HasMemoryRead2(*ins));
-    traceGenerator::SetBit(&data->booleanValues, traceGenerator::IS_WRITE,
+    traceGenerator::SetBit(&data->booleanValues, IS_WRITE,
                            INS_IsMemoryWrite(*ins));
 
     for (unsigned long int i = 0; i < INS_MaxNumRRegs(*ins); ++i) {
@@ -297,7 +288,7 @@ VOID Trace(TRACE trace, VOID* ptr) {
 
         staticTrace->NewBBL(BBL_NumIns(bbl));
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
-            struct traceGenerator::DataINS data;
+            struct DataINS data;
             createDataINS(&ins, &data);
             staticTrace->Write(&data);
             InstrumentMemoryOperations(&ins);

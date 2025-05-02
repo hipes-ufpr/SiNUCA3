@@ -25,32 +25,23 @@
 
 #include <cstdio>
 #include <cstring>
-#include <vector>
 
 #include "trace_reader.hpp"
-
-enum TraceFileType { DynamicFile, MemoryFile };
+#include "reader_file_handler.hpp"
 
 namespace sinuca {
 namespace traceReader {
 namespace sinuca3TraceReader {
 
-struct InstructionInfo {
-    sinuca::StaticInstructionInfo staticInfo;
-
-    /** @brief Fields reserved for reader internal use */
-    unsigned short staticNumReadings;
-    unsigned short staticNumWritings;
-};
-
 class SinucaTraceReader : public TraceReader {
   private:
-    std::vector<FILE *> ThreadsDynFiles;
-    std::vector<FILE *> ThreadsMemFiles;
+    DynamicTraceFile **threadsDynFiles;
+    MemoryTraceFile **threadsMemFiles;
+    unsigned int *currentBBL;
+    unsigned int *currentOpcode;
+    bool *isInsideBBL;
 
-    bool isInsideBBL;
-    unsigned int currentBBL;
-    unsigned int currentOpcode;
+    unsigned int numThreads;
 
     /** @brief Total number of basic blocks in static file */
     unsigned int binaryTotalBBLs;
@@ -64,7 +55,6 @@ class SinucaTraceReader : public TraceReader {
     /** @brief Current number of fetched instructions */
     unsigned long fetchInstructions;
 
-    int GetTotalBBLs(char *, size_t *);
     /**
      * @brief Fill instructions dictionary
      * @details Info per instruction:
@@ -74,34 +64,26 @@ class SinucaTraceReader : public TraceReader {
      * Num. Read Regs | Read Regs   | Write Regs  | Ins. Mnemonic   |
      * Branch Type
      */
-    int GenerateBinaryDict(char *);
+    int GenerateBinaryDict(StaticTraceFile *);
 
-    int TraceNextDynamic(unsigned int *);
+    int TraceNextDynamic(unsigned int *, unsigned int);
     /**
      * @brief Get memory addresses accessed and number of bytes
      * read/written by the current instruction
      * @param package Add to package its memory accesses
      */
-    int TraceNextMemory(InstructionPacket *ret, InstructionInfo *packageInfo);
-
-    int OpenTraceFile(TraceFileType, const char *);
+    int TraceNextMemory(InstructionPacket *ret, InstructionInfo *packageInfo, unsigned int);
 
   public:
-    virtual int OpenTrace(const char *);
+    virtual int OpenTrace(const char *, const char *);
     virtual unsigned long GetTraceSize();
     virtual unsigned long GetNumberOfFetchedInstructions();
     virtual void PrintStatistics();
-    virtual FetchResult Fetch(InstructionPacket *);
+    virtual FetchResult Fetch(InstructionPacket *, unsigned int);
+    void CloseTrace();
 
     inline ~SinucaTraceReader() {
-        for (int i = 0; i < 1; i++) {
-            fclose(this->ThreadsDynFiles[i]);
-            fclose(this->ThreadsMemFiles[i]);
-        }
-
-        delete[] binaryBBLsSize;
-        delete[] pool;
-        delete[] binaryDict;
+        this->CloseTrace();
     }
 };
 

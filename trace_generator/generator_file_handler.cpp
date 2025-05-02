@@ -1,11 +1,8 @@
 #include "generator_file_handler.hpp"
 
-#include "../src/utils/logging.hpp"
-#include "sinuca3_pintool.hpp"
-
-const char* FormatThreadSuffix(traceGenerator::THREADID tid) {
+const char* FormatThreadSuffix(THREADID tid) {
     static char sufixBuffer[32];
-    std::snprintf(sufixBuffer, sizeof(sufixBuffer), "_tid%d", tid);
+    snprintf(sufixBuffer, sizeof(sufixBuffer), "_tid%d", tid);
     return sufixBuffer;
 }
 
@@ -57,7 +54,7 @@ traceGenerator::DynamicTraceFile::DynamicTraceFile(const char* imageName,
 
 traceGenerator::DynamicTraceFile::~DynamicTraceFile() { this->FlushBuffer(); }
 
-void traceGenerator::DynamicTraceFile::Write(const UINT32 bblId) {
+void traceGenerator::DynamicTraceFile::Write(const BBlId bblId) {
     this->WriteToBuffer((void*)&bblId, sizeof(bblId));
 }
 

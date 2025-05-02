@@ -11,9 +11,6 @@ using namespace trace;
 
 namespace traceGenerator {
 
-typedef unsigned int THREADID;
-typedef unsigned int UINT32;
-
 class StaticTraceFile : public TraceFileGenerator {
   public:
     unsigned int numThreads;
@@ -30,7 +27,7 @@ class DynamicTraceFile : public TraceFileGenerator {
   public:
     DynamicTraceFile(const char *, THREADID, const char *);
     ~DynamicTraceFile();
-    void Write(const UINT32 bblId);
+    void Write(const BBlId bblId);
 };
 
 class MemoryTraceFile : public TraceFileGenerator {
