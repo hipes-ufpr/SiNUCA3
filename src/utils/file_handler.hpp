@@ -59,7 +59,8 @@ class TraceFile {
     size_t offset;  // in bytes
     std::string filePath;
 
-    TraceFile(const char *, const char *, const char *, std::string);
+    TraceFile();
+    void SetFilePath(const char *, const char *, const char *, const char *);
     virtual ~TraceFile();
 };
 

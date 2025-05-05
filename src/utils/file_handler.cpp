@@ -2,11 +2,14 @@
 
 #include "../utils/logging.hpp"
 
-trace::TraceFile::TraceFile(const char *prefix, const char *imageName,
-                            const char *sufix, std::string tracePath) {
+trace::TraceFile::TraceFile() {
     this->buf = new unsigned char[BUFFER_SIZE];
     this->offset = 0;
-    this->filePath = tracePath + prefix + imageName + sufix + ".trace";
+}
+
+void trace::TraceFile::SetFilePath(const char *prefix, const char *imgName,
+                                   const char *suffix, const char *path) {
+    this->filePath = std::string(path) + prefix + imgName + suffix + ".trace";
 }
 
 trace::TraceFile::~TraceFile() {
@@ -14,12 +17,10 @@ trace::TraceFile::~TraceFile() {
     fclose(this->file);
 }
 
-trace::TraceFileReader::TraceFileReader(const char *prefix,
-                                        const char *imageName,
-                                        const char *sufix,
-                                        const char *traceFolderPath)
-    : TraceFile(prefix, imageName, sufix, std::string(traceFolderPath)) {
-    this->file = fopen(this->filePath.c_str(), "rb");
+trace::TraceFileReader::TraceFileReader(const char *prefix, const char *imgName,
+                                        const char *suffix, const char *path) {
+    TraceFile::SetFilePath(prefix, imgName, suffix, path);
+    TraceFile::file = fopen(this->filePath.c_str(), "rb");
     if (this->file == NULL) {
         SINUCA3_ERROR_PRINTF("Could not open => %s\n", this->filePath.c_str());
     }
@@ -47,11 +48,14 @@ int trace::TraceFileReader::ReadBufSizeFromFile() {
 }
 
 trace::TraceFileGenerator::TraceFileGenerator(const char *prefix,
-                                              const char *imageName,
-                                              const char *sufix,
-                                              const char *traceFolderPath)
-    : TraceFile(prefix, imageName, sufix, std::string(traceFolderPath)) {
+                                              const char *imgName,
+                                              const char *suffix,
+                                              const char *path) {
+    TraceFile::SetFilePath(prefix, imgName, suffix, path);
     this->file = fopen(this->filePath.c_str(), "wb");
+    if (this->file == NULL) {
+        SINUCA3_ERROR_PRINTF("Could not open => %s\n", this->filePath.c_str());
+    }
 }
 
 void trace::TraceFileGenerator::WriteToBuffer(void *src, size_t size) {
