@@ -24,6 +24,7 @@ trace::TraceFileReader::TraceFileReader(const char *prefix, const char *imgName,
     if (this->file == NULL) {
         SINUCA3_ERROR_PRINTF("Could not open => %s\n", this->filePath.c_str());
     }
+    this->eofLocation = 0;
 }
 
 int trace::TraceFileReader::ReadBuffer() {

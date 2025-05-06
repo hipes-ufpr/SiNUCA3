@@ -49,8 +49,8 @@ void sinuca::traceReader::StaticTraceFile::ReadNextPackage(
     InstructionInfo *info) {
     DataINS *data = (DataINS *)(this->mmapPtr + this->mmapOffset);
     this->mmapOffset += sizeof(struct DataINS);
-
     sinuca::StaticInstructionInfo *staticInfo = &info->staticInfo;
+
     strncpy(staticInfo->opcodeAssembly, data->name,
             MAX_INSTRUCTION_NAME_LENGTH);
 
@@ -62,8 +62,10 @@ void sinuca::traceReader::StaticTraceFile::ReadNextPackage(
     staticInfo->numReadRegs = data->numReadRegs;
     staticInfo->numWriteRegs = data->numWriteRegs;
 
-    staticInfo->isPredicated = GetBitBool(data->booleanValues, IS_PREDICATED);
-    staticInfo->isPrefetch = GetBitBool(data->booleanValues, IS_PREFETCH);
+    staticInfo->isPredicated =
+        GetBitBool(data->booleanValues, IS_PREDICATED);
+    staticInfo->isPrefetch =
+        GetBitBool(data->booleanValues, IS_PREFETCH);
     staticInfo->isIndirect =
         GetBitBool(data->booleanValues, IS_INDIRECT_CONTROL_FLOW);
     staticInfo->isNonStdMemOp =
@@ -114,8 +116,6 @@ sinuca::traceReader::DynamicTraceFile::DynamicTraceFile(const char *imageName,
     if (this->ReadBuffer()) {  // first buffer read
         SINUCA3_DEBUG_PRINTF("Could not fill Dynamic Buffer\n");
     }
-    this->eofLocation = 0;
-    this->offset = 0;
 }
 
 int sinuca::traceReader::DynamicTraceFile::ReadNextBBl(BBlId *bbl) {
@@ -146,8 +146,6 @@ sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(const char *imageName,
     if (this->ReadBuffer()) {  // first buffer read
         SINUCA3_DEBUG_PRINTF("Could not fill Memory Buffer\n");
     }
-    this->eofLocation = 0;
-    this->offset = 0;
 }
 
 int sinuca::traceReader::MemoryTraceFile::ReadNextMemAccess(

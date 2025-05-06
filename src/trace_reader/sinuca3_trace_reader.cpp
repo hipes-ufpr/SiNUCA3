@@ -22,7 +22,6 @@
 #include "sinuca3_trace_reader.hpp"
 
 #include <cassert>
-#include <cmath>
 #include <cstddef>
 #include <cstdio>  // FILE*
 
