@@ -48,7 +48,7 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
     this->threadsMemFiles = new MemoryTraceFile *[this->numThreads];
 
     for (int i = 0; i < this->numThreads; i++) {
-        isInsideBBL[i] = false;
+        this->isInsideBBL[i] = false;
         this->threadsDynFiles[i] =
             new DynamicTraceFile(executableName, i, traceFolderPath);
         this->threadsMemFiles[i] =
@@ -89,12 +89,12 @@ unsigned long sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     GenerateBinaryDict(StaticTraceFile *stFile) {
     unsigned int bblSize;
-    unsigned short instCounter;
+    unsigned int instCounter;
     unsigned int bblCounter;
     InstructionInfo *package;
     size_t pool_offset;
 
-    this->binaryBBLsSize = new unsigned short[this->binaryTotalBBLs];
+    this->binaryBBLsSize = new unsigned int[this->binaryTotalBBLs];
     this->binaryDict = new InstructionInfo *[this->binaryTotalBBLs];
     this->pool = new InstructionInfo[stFile->GetTotalIns()];
     pool_offset = 0;
