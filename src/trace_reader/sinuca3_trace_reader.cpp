@@ -116,21 +116,11 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     return 0;
 }
 
-int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
-    TraceNextDynamic(unsigned int *nextBbl, unsigned int tid) {
-    return this->threadsDynFiles[tid]->ReadNextBBl(nextBbl);
-}
-
-int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::TraceNextMemory(
-    InstructionPacket *ret, InstructionInfo *packageInfo, unsigned int tid) {
-    return this->threadsMemFiles[tid]->ReadNextMemAccess(packageInfo, ret);
-}
-
 sinuca::traceReader::FetchResult
 sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::Fetch(
     InstructionPacket *ret, unsigned int tid) {
     if (!this->isInsideBBL[tid]) {
-        if (this->TraceNextDynamic(&this->currentBBL[tid], tid)) {
+        if (this->threadsDynFiles[tid]->ReadNextBBl(&this->currentBBL[tid])) {
             SINUCA3_DEBUG_PRINTF("Fetch ended!\n");
             return FetchResultEnd;  // Maybe this is not suitable for multiple
                                     // threads
@@ -141,8 +131,9 @@ sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::Fetch(
 
     InstructionInfo *packageInfo =
         &this->binaryDict[this->currentBBL[tid]][this->currentOpcode[tid]];
-    (*ret).staticInfo = &(packageInfo->staticInfo);
-    this->TraceNextMemory(ret, packageInfo, tid);
+    this->threadsMemFiles[tid]->ReadNextMemAccess(packageInfo,
+                                                  &ret->dynamicInfo);
+    ret->staticInfo = &(packageInfo->staticInfo);
 
     this->currentOpcode[tid]++;
     if (this->currentOpcode[tid] >=

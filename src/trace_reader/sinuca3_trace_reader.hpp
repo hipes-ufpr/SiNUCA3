@@ -46,7 +46,7 @@ class SinucaTraceReader : public TraceReader {
     /** @brief Total number of basic blocks in static file */
     unsigned int binaryTotalBBLs;
     /** @brief Vector to store instructions per basic block */
-    unsigned short *binaryBBLsSize;
+    unsigned int *binaryBBLsSize;
     /** @brief Array containing all instructions */
     InstructionInfo **binaryDict;
     /** @brief InstructionInfo pool */
@@ -65,15 +65,6 @@ class SinucaTraceReader : public TraceReader {
      * Branch Type
      */
     int GenerateBinaryDict(StaticTraceFile *);
-
-    int TraceNextDynamic(unsigned int *, unsigned int);
-    /**
-     * @brief Get memory addresses accessed and number of bytes
-     * read/written by the current instruction
-     * @param package Add to package its memory accesses
-     */
-    int TraceNextMemory(InstructionPacket *ret, InstructionInfo *packageInfo, unsigned int);
-
   public:
     virtual int OpenTrace(const char *, const char *);
     virtual unsigned long GetTraceSize();
