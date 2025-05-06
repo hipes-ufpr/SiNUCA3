@@ -1,9 +1,10 @@
 #include "reader_file_handler.hpp"
-#include "../utils/logging.hpp"
 
 #include <cstddef>
 
-const char* FormatThreadSuffix(THREADID tid) {
+#include "../utils/logging.hpp"
+
+const char *FormatThreadSuffix(THREADID tid) {
     static char sufixBuffer[32];
     snprintf(sufixBuffer, sizeof(sufixBuffer), "_tid%d", tid);
     return sufixBuffer;
@@ -61,11 +62,6 @@ void sinuca::traceReader::StaticTraceFile::ReadNextPackage(
     staticInfo->numReadRegs = data->numReadRegs;
     staticInfo->numWriteRegs = data->numWriteRegs;
 
-    memcpy(staticInfo->readRegs, data->readRegs,
-           data->numReadRegs * sizeof(*data->readRegs));
-    memcpy(staticInfo->writeRegs, data->writeRegs,
-           data->numWriteRegs * sizeof(*data->writeRegs));
-
     staticInfo->isPredicated = GetBitBool(data->booleanValues, IS_PREDICATED);
     staticInfo->isPrefetch = GetBitBool(data->booleanValues, IS_PREFETCH);
     staticInfo->isIndirect =
@@ -88,6 +84,11 @@ void sinuca::traceReader::StaticTraceFile::ReadNextPackage(
             info->staticNumWritings++;
         }
     }
+
+    memcpy(staticInfo->readRegs, data->readRegs,
+           data->numReadRegs * sizeof(*data->readRegs));
+    memcpy(staticInfo->writeRegs, data->writeRegs,
+           data->numWriteRegs * sizeof(*data->writeRegs));
 
     SINUCA3_DEBUG_PRINTF("INS NAME => %s\n", staticInfo->opcodeAssembly);
 }
@@ -150,12 +151,9 @@ sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(const char *imageName,
 }
 
 int sinuca::traceReader::MemoryTraceFile::ReadNextMemAccess(
-    InstructionInfo *insInfo, InstructionPacket *packet) {
+    InstructionInfo *insInfo, DynamicInstructionInfo *dynInfo) {
     DataMEM *data;
 
-    if (this->eofLocation > 0 && this->offset == this->eofLocation) {
-        return 1;
-    }
     if (this->offset >= this->bufSize) {
         if (this->ReadBufSizeFromFile()) {
             SINUCA3_DEBUG_PRINTF("Invalid buffer size from Mem Trace File\n");
@@ -171,31 +169,27 @@ int sinuca::traceReader::MemoryTraceFile::ReadNextMemAccess(
      * with variable number of operands, the number of readings/writings
      * is written directly to the memory trace file
      *
-     * Otherwise, it was written in the static trace file.
-     */
-    if (packet->staticInfo->isNonStdMemOp) {
-        packet->dynamicInfo.numReadings =
-            *(unsigned short *)(this->buf + this->offset);
+     * Otherwise, it was written in the static trace file. */
+    if (insInfo->staticInfo.isNonStdMemOp) {
+        dynInfo->numReadings = *(unsigned short *)(this->buf + this->offset);
         this->offset += sizeof(unsigned short);
-        packet->dynamicInfo.numWritings =
-            *(unsigned short *)(this->buf + this->offset);
+        dynInfo->numWritings = *(unsigned short *)(this->buf + this->offset);
         this->offset += sizeof(unsigned short);
     } else {
-        packet->dynamicInfo.numReadings = insInfo->staticNumReadings;
-        packet->dynamicInfo.numWritings = insInfo->staticNumWritings;
+        dynInfo->numReadings = insInfo->staticNumReadings;
+        dynInfo->numWritings = insInfo->staticNumWritings;
     }
 
     data = (DataMEM *)(this->buf + this->offset);
-    for (unsigned short readIt = 0; readIt < packet->dynamicInfo.numReadings;
-         readIt++) {
-        packet->dynamicInfo.readsAddr[readIt] = data->addr;
-        packet->dynamicInfo.readsSize[readIt] = data->size;
+    for (unsigned short readIt = 0; readIt < dynInfo->numReadings; readIt++) {
+        dynInfo->readsAddr[readIt] = data->addr;
+        dynInfo->readsSize[readIt] = data->size;
         data++;
     }
-    for (unsigned short writeIt = 0; writeIt < packet->dynamicInfo.numWritings;
+    for (unsigned short writeIt = 0; writeIt < dynInfo->numWritings;
          writeIt++) {
-        packet->dynamicInfo.writesAddr[writeIt] = data->addr;
-        packet->dynamicInfo.writesSize[writeIt] = data->size;
+        dynInfo->writesAddr[writeIt] = data->addr;
+        dynInfo->writesSize[writeIt] = data->size;
         data++;
     }
 

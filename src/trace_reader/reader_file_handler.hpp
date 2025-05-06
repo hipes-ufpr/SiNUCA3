@@ -47,15 +47,15 @@ class StaticTraceFile {
 class DynamicTraceFile : public TraceFileReader {
   public:
     DynamicTraceFile(const char *imageName, THREADID tid,
-                     const char *traceFolderPath);
+                     const char *folderPath);
     int ReadNextBBl(BBlId *);
 };
 
 class MemoryTraceFile : public TraceFileReader {
   public:
     MemoryTraceFile(const char *imageName, THREADID tid,
-                    const char *traceFolderPath);
-    int ReadNextMemAccess(InstructionInfo *, InstructionPacket *);
+                    const char *folderPath);
+    int ReadNextMemAccess(InstructionInfo *, DynamicInstructionInfo *);
 };
 
 }  // namespace traceReader
