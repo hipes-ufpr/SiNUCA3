@@ -1,10 +1,8 @@
 #ifndef FILEHANDLER_HPP_
 #define FILEHANDLER_HPP_
 
-#include <cassert>
 #include <cstddef>
-#include <cstdio>
-#include <cstring>
+#include <cstdio> // FILE*
 #include <string>
 
 #include "../engine/default_packets.hpp" // sinuca::Branch
@@ -15,7 +13,7 @@ const unsigned long BUFFER_SIZE = 1 << 20;
 // Used in alignas to avoid false sharing
 const unsigned long CACHE_LINE_SIZE = 64;
 // Adjust if needed
-const unsigned long MAX_IMAGE_NAME_SIZE = 64;
+const unsigned long MAX_IMAGE_NAME_SIZE = 255;
 
 namespace trace {
 
@@ -52,33 +50,43 @@ struct DataMEM {
     unsigned int size;
 } __attribute__((packed));  // no padding
 
-class TraceFile {
-  protected:
+struct TraceFile {
     unsigned char *buf;
     FILE *file;
     size_t offset;  // in bytes
-    std::string filePath;
 
-    TraceFile();
-    void SetFilePath(const char *, const char *, const char *, const char *);
-    virtual ~TraceFile();
+    inline TraceFile() : offset(0) {
+        this->buf = new unsigned char[BUFFER_SIZE];
+    }
+    inline ~TraceFile() {
+        delete[] this->buf;
+        fclose(file);
+    }
 };
 
-class TraceFileReader : public TraceFile {
+class TraceFileReader {
   protected:
+    bool eofFound;
     size_t eofLocation;
-    size_t bufSize;
+    size_t bufActiveSize;
+    TraceFile tf;
 
-    TraceFileReader(const char *, const char *, const char *, const char *);
-    int ReadBuffer();
-    int ReadBufSizeFromFile();
+    TraceFileReader(std::string);
+    int RetrieveLenBytes(void *, size_t);
+    int SetBufActiveSize(size_t);
+    void RetrieveBuffer();
+    virtual void InterpretData(void *) = 0;
 };
 
-class TraceFileGenerator : public TraceFile {
+class TraceFileWriter {
   protected:
-    TraceFileGenerator(const char *, const char *, const char *, const char *);
-    void WriteToBuffer(void *, size_t);
-    virtual void FlushBuffer();
+    TraceFile tf;
+
+    TraceFileWriter(std::string);
+    int AppendToBuffer(void *, size_t);
+    void FlushLenBytes(void *, size_t);
+    void FlushBuffer();
+    virtual void PrepareBuffer(void *) = 0;
 };
 
 }  // namespace trace
