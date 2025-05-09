@@ -34,4 +34,6 @@ int SimpleMemory::FinishSetup() { return 0; }
 
 void SimpleMemory::Clock() {}
 
+void SimpleMemory::Flush() {}
+
 SimpleMemory::~SimpleMemory() {}

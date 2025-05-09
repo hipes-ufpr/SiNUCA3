@@ -49,7 +49,7 @@ class Component : public engine::Linkable {
      * @param component The component to send the response to.
      * @param connectionID The connection ID.
      * @param message The message to send.
-     * @return 1 if successful, 0 otherwise.
+     * @return 0 if successful, 1 otherwise.
      */
     int SendResponseToConnection(int connectionID, MessageType* message) {
         return this->SendResponseUnsafe(connectionID, message);
@@ -59,7 +59,7 @@ class Component : public engine::Linkable {
      * @brief Receives a request from another component.
      * @param connectionID The connection ID.
      * @param message The message to receive.
-     * @return 1 if successful, 0 otherwise.
+     * @return 0 if successful, 1 otherwise.
      */
     int ReceiveRequestFromConnection(int connectionID, MessageType* message) {
         return this->GetRequestUnsafe(connectionID, message);
@@ -85,7 +85,7 @@ class Component : public engine::Linkable {
      * @param component The component to send the request to.
      * @param connectionID The connection ID.
      * @param message The message to send.
-     * @return 1 if successful, 0 otherwise.
+     * @return 0 if successful, 1 otherwise.
      */
     int SendRequest(int connectionID, MessageType* message) {
         return this->SendRequestUnsafe(connectionID, message);
@@ -96,7 +96,7 @@ class Component : public engine::Linkable {
      * @param component The component to receive the response from.
      * @param connectionID The connection ID.
      * @param message The message to receive.
-     * @return 1 if successful, 0 otherwise.
+     * @return 0 if successful, 1 otherwise.
      */
     int ReceiveResponse(int connectionID, MessageType* message) {
         return this->GetResponseUnsafe(connectionID, message);

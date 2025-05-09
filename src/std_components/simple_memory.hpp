@@ -38,6 +38,7 @@ class SimpleMemory : public sinuca::Component<sinuca::MemoryPacket> {
     virtual int SetConfigParameter(const char* parameter,
                                    sinuca::config::ConfigValue value);
     virtual void Clock();
+    virtual void Flush();
     ~SimpleMemory();
 };
 

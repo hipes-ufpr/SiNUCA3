@@ -25,6 +25,7 @@
  * CALLED BY CODE PATHS THAT ONLY COMPILE IN DEBUG MODE.
  */
 
+#include "../sinuca3.hpp"
 #include "../utils/logging.hpp"
 #include "engine_debug_component.hpp"
 
@@ -78,8 +79,8 @@ int EngineDebugComponent::SetConfigParameter(
     if (strcmp(parameter, "failOnFinish") == 0) {
         SINUCA3_DEBUG_PRINTF("%p: Will fail on finish.\n", this);
         this->shallFailOnFinish = true;
+        return 0;
     }
-
     if (strcmp(parameter, "pointerOther") == 0) {
         this->other =
             dynamic_cast<EngineDebugComponent*>(value.value.componentReference);
@@ -90,6 +91,11 @@ int EngineDebugComponent::SetConfigParameter(
             return 1;
         }
         connectionID = this->other->Connect(4);
+        return 0;
+    }
+    if (strcmp(parameter, "flush") == 0) {
+        this->flush = value.value.integer;
+        return 0;
     }
 
     return 0;
@@ -102,40 +108,53 @@ int EngineDebugComponent::FinishSetup() {
 }
 
 void EngineDebugComponent::Clock() {
-    sinuca::InstructionPacket messageInput = {0, 0, 0};
-    sinuca::InstructionPacket messageOutput = {0, 0, 0};
     SINUCA3_DEBUG_PRINTF("%p: Clock!\n", this);
+
+    if (this->flush > 0) {
+        --this->flush;
+        if (this->flush == 0) sinuca::ENGINE->Flush();
+    }
+
+    sinuca::InstructionPacket messageInput = {NULL,
+                                              sinuca::DynamicInstructionInfo()};
+    sinuca::InstructionPacket messageOutput = {
+        NULL, sinuca::DynamicInstructionInfo()};
+
     if (this->other) {
         if (!(this->send)) {
-            messageInput.address = 0xcafebabe;
-            SINUCA3_DEBUG_PRINTF("%p: Sending message (%lx) to %p.\n", this,
-                                 messageInput.address, this->other);
+            messageInput.staticInfo =
+                (const sinuca::StaticInstructionInfo*)0xcafebabe;
+            SINUCA3_DEBUG_PRINTF("%p: Sending message (%p) to %p.\n", this,
+                                 messageInput.staticInfo, this->other);
             this->other->SendRequest(this->connectionID, &messageInput);
             this->send = true;
         } else {
             if (this->other->ReceiveResponse(this->connectionID,
-                                             &messageOutput)) {
-                SINUCA3_DEBUG_PRINTF("%p: Received response (%lx) from %p.\n",
-                                     this, messageOutput.address, this->other);
+                                             &messageOutput) == 0) {
+                SINUCA3_DEBUG_PRINTF("%p: Received response (%p) from %p.\n",
+                                     this, messageOutput.staticInfo,
+                                     this->other);
             } else {
                 SINUCA3_DEBUG_PRINTF("%p: No response from %p.\n", this,
                                      this->other);
             }
         }
     } else {
-        std::vector<sinuca::engine::Connection*> connections =
-            this->GetConnections();
-        for (unsigned int i = 0; i < connections.size(); ++i) {
-            if (this->ReceiveRequestFromConnection(i, &messageOutput)) {
-                SINUCA3_DEBUG_PRINTF("%p: Received message (%lx)\n", this,
-                                     messageOutput.address);
-                messageInput.address = messageOutput.address + 1;
-                SINUCA3_DEBUG_PRINTF("%p: Sending response (%lx)\n", this,
-                                     messageInput.address);
+        for (long i = 0; i < this->GetNumberOfConnections(); ++i) {
+            if (this->ReceiveRequestFromConnection(i, &messageOutput) == 0) {
+                SINUCA3_DEBUG_PRINTF("%p: Received message (%p)\n", this,
+                                     messageOutput.staticInfo);
+                messageInput.staticInfo = messageOutput.staticInfo + 1;
+                SINUCA3_DEBUG_PRINTF("%p: Sending response (%p)\n", this,
+                                     messageInput.staticInfo);
                 this->SendResponseToConnection(i, &messageInput);
             }
         }
     }
+}
+
+void EngineDebugComponent::Flush() {
+    SINUCA3_DEBUG_PRINTF("%p: A flush happened!\n", this);
 }
 
 EngineDebugComponent::~EngineDebugComponent() {}

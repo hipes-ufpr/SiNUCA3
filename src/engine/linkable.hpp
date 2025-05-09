@@ -36,8 +36,8 @@ struct Connection {
   private:
     int bufferSize;
     int messageSize;
-    CircularBuffer* requestBuffers[2];  /**<Array of the request buffers, swapped
-                                           each cycle.*/
+    CircularBuffer* requestBuffers[2]; /**<Array of the request buffers, swapped
+                                          each cycle.*/
     CircularBuffer* responseBuffers[2]; /**<Array of the response buffers,
                                            swapped each cycle.*/
 
@@ -72,10 +72,16 @@ struct Connection {
     void SwapBuffers();
 
     /**
+     * @brief Flush the connection, clearing the buffers.
+     * @details This method is called to clear the buffers of the connection.
+     */
+    void FlushConnection();
+
+    /**
      * @brief Insert a message into a requestBuffer.
      * @param id The id of the buffer.
      * @param messageInput A pointer to the message to send.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     bool InsertIntoRequestBuffer(int id, void* messageInput);
 
@@ -83,7 +89,7 @@ struct Connection {
      * @brief Send a message into a responseBuffer.
      * @param id The id of the buffer.
      * @param messageInput A pointer to the message to send.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     bool InsertIntoResponseBuffer(int id, void* messageInput);
 
@@ -91,7 +97,7 @@ struct Connection {
      * @brief Remove a request from a requestBuffer.
      * @param id The id of the buffer.
      * @param messageOutput Address where to send the message.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     bool RemoveFromARequestBuffer(int id, void* messageOutput);
 
@@ -99,7 +105,7 @@ struct Connection {
      * @brief Remove a response from a responseBuffer.
      * @param id The id of the  buffer.
      * @param messageOutput Address where to send the message.
-     * @return 1 if successfuly, 0 otherwise.
+     * @return 0 if successfuly, 1 otherwise.
      */
     bool RemoveFromAResponseBuffer(int id, void* messageOutput);
 };
@@ -150,55 +156,55 @@ class Linkable {
      * to received messages.
      * @return Returns the id of connection on the receiving component
      */
-     int ConnectUnsafe(int bufferSize);
+    int ConnectUnsafe(int bufferSize);
 
-     /**
-      * @brief Receive a request from other component. (The other calls this
-      * method)
-      * @details This method is called to send a request message to *this*
-      * linkable. Referencing the method name, this linkable *receives* a request
-      * in its own connection request buffer.
-      * @param connectionID The id of the connection.
-      * @param messageInput A pointer to the message to send.
-      * @return 1 if successfuly, 0 otherwise.
-      */
-     int SendRequestUnsafe(int connectionID, void* messageInput);
- 
-     /**
-      * @brief Gets a request message in the parameter.
-      * @details This method is called to get a request message from a request
-      * buffer, so to receive the message, *this* linkable calls this method, and
-      * the message sent is inserted into the memory region pointed to by the
-      * messageOutput parameter.
-      * @param connectionID The id of the connection.
-      * @param messageOutput A pointer to the message to receive.
-      * @return 1 if successfuly, 0 otherwise.
-      */
-     int GetRequestUnsafe(int connectionID, void* messageOutput);
- 
-     /**
-      * @brief Sends a reply to the connection.
-      * @details This method is called to insert a reply message into the
-      * connection's reply buffer. Therefore, the linkable only inserts the
-      * response message into the buffer.
-      * @param connectionID The id of the connection.
-      * @param messageInput A pointer to the message to send.
-      * @return 1 if successfuly, 0 otherwise.
-      */
-     int SendResponseUnsafe(int connectionID, void* messageInput);
- 
-     /**
-      * @brief Gets a response message in the parameter. (The other calls this
-      * method)
-      * @details This method is called to get a response message from a response
-      * buffer, so to receive the message, the component calls this method, and
-      * the message sent is inserted into the memory region pointed to by the
-      * messageOutput parameter.
-      * @param connectionID The id of the connection.
-      * @param messageOutput A pointer to the message to receive.
-      * @return 1 if successfuly, 0 otherwise.
-      */
-     int GetResponseUnsafe(int connectionID, void* messageOutput);
+    /**
+     * @brief Receive a request from other component. (The other calls this
+     * method)
+     * @details This method is called to send a request message to *this*
+     * linkable. Referencing the method name, this linkable *receives* a request
+     * in its own connection request buffer.
+     * @param connectionID The id of the connection.
+     * @param messageInput A pointer to the message to send.
+     * @return 0 if successfuly, 1 otherwise.
+     */
+    int SendRequestUnsafe(int connectionID, void* messageInput);
+
+    /**
+     * @brief Gets a request message in the parameter.
+     * @details This method is called to get a request message from a request
+     * buffer, so to receive the message, *this* linkable calls this method, and
+     * the message sent is inserted into the memory region pointed to by the
+     * messageOutput parameter.
+     * @param connectionID The id of the connection.
+     * @param messageOutput A pointer to the message to receive.
+     * @return 0 if successfuly, 1 otherwise.
+     */
+    int GetRequestUnsafe(int connectionID, void* messageOutput);
+
+    /**
+     * @brief Sends a reply to the connection.
+     * @details This method is called to insert a reply message into the
+     * connection's reply buffer. Therefore, the linkable only inserts the
+     * response message into the buffer.
+     * @param connectionID The id of the connection.
+     * @param messageInput A pointer to the message to send.
+     * @return 0 if successfuly, 1 otherwise.
+     */
+    int SendResponseUnsafe(int connectionID, void* messageInput);
+
+    /**
+     * @brief Gets a response message in the parameter. (The other calls this
+     * method)
+     * @details This method is called to get a response message from a response
+     * buffer, so to receive the message, the component calls this method, and
+     * the message sent is inserted into the memory region pointed to by the
+     * messageOutput parameter.
+     * @param connectionID The id of the connection.
+     * @param messageOutput A pointer to the message to receive.
+     * @return 0 if successfuly, 1 otherwise.
+     */
+    int GetResponseUnsafe(int connectionID, void* messageOutput);
 
   public:
     Linkable(int messageSize);
@@ -206,20 +212,19 @@ class Linkable {
     /**
      * @brief Self-explanatory
      */
-    std::vector<Connection*> GetConnections() const;
+    long GetNumberOfConnections();
 
-    /**
-     * @brief Don't call this method.
-     * @details The engine calls this method before each clock cycle to swap the
-     * buffers and do other pre-clock setup jobs.
-     */
-    void PreClock();
     /**
      * @brief Don't call this method.
      * @details The engine calls this method after each clock cycle to swap the
      * buffers and do other pos-clock setup jobs.
      */
     void PosClock();
+    /**
+     * @brief Don't call this method.
+     * @details The engine calls this method when a flush is needed.
+     */
+    void LinkableFlush();
     /**
      * @brief This method should be declared here so the simulator can send the
      * finish setup message.
@@ -249,6 +254,12 @@ class Linkable {
      * clock cycles.
      */
     virtual void Clock() = 0;
+
+    /**
+     * @brief This method is called by the engine when a flush should occur.
+     * It's always called at the beggining of the cycle.
+     */
+    virtual void Flush() = 0;
 
     virtual ~Linkable();
 };
