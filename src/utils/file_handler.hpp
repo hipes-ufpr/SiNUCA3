@@ -17,7 +17,7 @@ const unsigned long MAX_IMAGE_NAME_SIZE = 255;
 
 namespace trace {
 
-typedef unsigned int BBlId;
+typedef unsigned int BBLID;
 typedef unsigned int THREADID;
 
 enum BooleanValuesIndex {
@@ -75,7 +75,7 @@ class TraceFileReader {
     int RetrieveLenBytes(void *, size_t);
     int SetBufActiveSize(size_t);
     void RetrieveBuffer();
-    virtual void InterpretData(void *) = 0;
+    virtual void InterpretData(void *, int) = 0;
 };
 
 class TraceFileWriter {
@@ -86,7 +86,7 @@ class TraceFileWriter {
     int AppendToBuffer(void *, size_t);
     void FlushLenBytes(void *, size_t);
     void FlushBuffer();
-    virtual void PrepareBuffer(void *) = 0;
+    virtual void PrepareData(void *, int) = 0;
 };
 
 }  // namespace trace

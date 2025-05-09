@@ -1,73 +1,61 @@
 #include "file_handler.hpp"
 
+#include <cassert>
+#include <cstdio>
+
 #include "../utils/logging.hpp"
 
-trace::TraceFile::TraceFile() {
-    this->buf = new unsigned char[BUFFER_SIZE];
-    this->offset = 0;
+inline void printFileErrorLog(const char *path, const char *mode) {
+    SINUCA3_ERROR_PRINTF("Could not open [%s] in [%s] mode\n", path, mode);
 }
 
-void trace::TraceFile::SetFilePath(const char *prefix, const char *imgName,
-                                   const char *suffix, const char *path) {
-    this->filePath = std::string(path) + prefix + imgName + suffix + ".trace";
-}
-
-trace::TraceFile::~TraceFile() {
-    delete[] this->buf;
-    fclose(this->file);
-}
-
-trace::TraceFileReader::TraceFileReader(const char *prefix, const char *imgName,
-                                        const char *suffix, const char *path) {
-    TraceFile::SetFilePath(prefix, imgName, suffix, path);
-    TraceFile::file = fopen(this->filePath.c_str(), "rb");
-    if (this->file == NULL) {
-        SINUCA3_ERROR_PRINTF("Could not open => %s\n", this->filePath.c_str());
-    }
+trace::TraceFileReader::TraceFileReader(std::string path) {
+    char mode[] = "rb";
+    tf.file = fopen(path.c_str(), mode);
+    if (tf.file == NULL) {printFileErrorLog(path.c_str(), mode);}
     this->eofLocation = 0;
+    this->eofFound = false;
 }
 
-int trace::TraceFileReader::ReadBuffer() {
-    size_t result = fread(this->buf, 1, this->bufSize, file);
-    this->offset = 0;
+int trace::TraceFileReader::RetrieveLenBytes(void *ptr, size_t len) {
+    size_t read = fread(ptr, len, 1, this->tf.file);
+    return read;
+}
 
-    if (result <= 0) {
-        return 1;
-    } else if (result < this->bufSize) {
-        this->eofLocation = result;
-    }
-
+int trace::TraceFileReader::SetBufActiveSize(size_t size) {
+    if (size > BUFFER_SIZE) {return 1;}
+    this->bufActiveSize = size;
     return 0;
 }
 
-int trace::TraceFileReader::ReadBufSizeFromFile() {
-    size_t read = fread(&this->bufSize, 1, sizeof(this->bufSize), this->file);
-    if (read <= 0) {
-        return 1;
+void trace::TraceFileReader::RetrieveBuffer() {
+    int read = this->RetrieveLenBytes(this->tf.buf, this->bufActiveSize);
+    if (read < this->bufActiveSize) {
+        this->eofLocation = read;
+        this->eofFound = true;
     }
+    this->tf.offset = 0;
+}
+
+trace::TraceFileWriter::TraceFileWriter(std::string path) {
+    char mode[] = "wb";
+    this->tf.file = fopen(path.c_str(), mode);
+    if (this->tf.file == NULL) {printFileErrorLog(path.c_str(), mode);}
+}
+
+int trace::TraceFileWriter::AppendToBuffer(void *ptr, size_t len) {
+    if (BUFFER_SIZE - this->tf.offset < len) {return 1;}
+    memcpy(this->tf.buf + this->tf.offset, ptr, len);
+    this->tf.offset += len;
     return 0;
 }
 
-trace::TraceFileGenerator::TraceFileGenerator(const char *prefix,
-                                              const char *imgName,
-                                              const char *suffix,
-                                              const char *path) {
-    TraceFile::SetFilePath(prefix, imgName, suffix, path);
-    this->file = fopen(this->filePath.c_str(), "wb");
-    if (this->file == NULL) {
-        SINUCA3_ERROR_PRINTF("Could not open => %s\n", this->filePath.c_str());
-    }
+void trace::TraceFileWriter::FlushLenBytes(void *ptr, size_t len) {
+    size_t written = fwrite(ptr, len, 1, this->tf.file);
+    assert(written == len && "fwrite returned something wrong");
 }
 
-void trace::TraceFileGenerator::WriteToBuffer(void *src, size_t size) {
-    if (this->offset + size >= BUFFER_SIZE) this->FlushBuffer();
-
-    memcpy(this->buf + this->offset, src, size);
-    this->offset += size;
-}
-
-void trace::TraceFileGenerator::FlushBuffer() {
-    size_t written = fwrite(this->buf, 1, this->offset, this->file);
-    assert(written == this->offset && "fwrite returned something wrong");
-    this->offset = 0;
+void trace::TraceFileWriter::FlushBuffer() {
+    this->FlushLenBytes(this->tf.buf, this->tf.offset);
+    this->tf.offset = 0;
 }
