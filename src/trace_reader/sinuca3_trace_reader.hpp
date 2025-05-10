@@ -30,13 +30,17 @@ namespace sinuca {
 namespace traceReader {
 namespace sinuca3TraceReader {
 
+struct ContextInfo {
+  unsigned int currentBBL;
+  unsigned int currentOpcode;
+  bool isInsideBBL;
+};
+
 class SinucaTraceReader : public TraceReader {
   private:
     DynamicTraceFile **threadsDynFiles;
     MemoryTraceFile **threadsMemFiles;
-    unsigned int *currentBBL;
-    unsigned int *currentOpcode;
-    bool *isInsideBBL;
+    struct ContextInfo *ThrInfo;
 
     unsigned int numThreads;
 

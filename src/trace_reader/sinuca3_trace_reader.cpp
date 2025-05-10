@@ -39,14 +39,12 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
     this->binaryTotalBBLs = staticFile.GetTotalBBLs();
     this->numThreads = staticFile.GetNumThreads();
 
-    this->isInsideBBL = new bool[this->numThreads];
-    this->currentBBL = new unsigned int[this->numThreads];
-    this->currentOpcode = new unsigned int[this->numThreads];
+    this->ThrInfo = new struct ContextInfo[this->numThreads];
     this->threadsDynFiles = new DynamicTraceFile *[this->numThreads];
     this->threadsMemFiles = new MemoryTraceFile *[this->numThreads];
 
     for (int i = 0; i < this->numThreads; i++) {
-        this->isInsideBBL[i] = false;
+        this->ThrInfo[i].isInsideBBL = false;
         this->threadsDynFiles[i] =
             new DynamicTraceFile(folderPath, executableName, i);
         this->threadsMemFiles[i] =
@@ -66,9 +64,7 @@ void sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::CloseTrace() {
 
     delete[] this->threadsDynFiles;
     delete[] this->threadsMemFiles;
-    delete[] this->currentBBL;
-    delete[] this->currentOpcode;
-    delete[] this->isInsideBBL;
+    delete[] this->ThrInfo;
     delete[] this->binaryBBLsSize;
     delete[] this->pool;
     delete[] this->binaryDict;
@@ -117,26 +113,25 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
 sinuca::traceReader::FetchResult
 sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::Fetch(
     InstructionPacket *ret, unsigned int tid) {
-    if (!this->isInsideBBL[tid]) {
-        if (this->threadsDynFiles[tid]->ReadNextBBl(&this->currentBBL[tid])) {
+    if (!this->ThrInfo[tid].isInsideBBL) {
+        if (this->threadsDynFiles[tid]->ReadNextBBl(&this->ThrInfo[tid].currentBBL)) {
             SINUCA3_DEBUG_PRINTF("Fetch ended!\n");
-            return FetchResultEnd;  // Maybe this is not suitable for multiple
-                                    // threads
+            return FetchResultEnd;  // Maybe this is not suitable for multiple threads
         }
-        this->isInsideBBL[tid] = true;
-        this->currentOpcode[tid] = 0;
+        this->ThrInfo[tid].isInsideBBL = true;
+        this->ThrInfo[tid].currentOpcode = 0;
     }
 
     InstructionInfo *packageInfo =
-        &this->binaryDict[this->currentBBL[tid]][this->currentOpcode[tid]];
+        &this->binaryDict[this->ThrInfo[tid].currentBBL][this->ThrInfo[tid].currentOpcode];
     this->threadsMemFiles[tid]->ReadNextMemAccess(packageInfo,
                                                   &ret->dynamicInfo);
     ret->staticInfo = &(packageInfo->staticInfo);
 
-    this->currentOpcode[tid]++;
-    if (this->currentOpcode[tid] >=
-        this->binaryBBLsSize[this->currentBBL[tid]]) {
-        this->isInsideBBL[tid] = false;
+    this->ThrInfo[tid].currentOpcode++;
+    if (this->ThrInfo[tid].currentOpcode >=
+        this->binaryBBLsSize[this->ThrInfo[tid].currentBBL]) {
+        this->ThrInfo[tid].isInsideBBL = false;
     }
 
     this->fetchInstructions++;
