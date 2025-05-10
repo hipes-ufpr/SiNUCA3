@@ -37,6 +37,12 @@ void trace::TraceFileReader::RetrieveBuffer() {
     this->tf.offset = 0;
 }
 
+void* trace::TraceFileReader::GetData(size_t len) {
+    void *ptr = (void*)(this->tf.buf + this->tf.offset);
+    this->tf.offset += len;
+    return ptr;
+}
+
 trace::TraceFileWriter::TraceFileWriter(std::string path) {
     char mode[] = "wb";
     this->tf.file = fopen(path.c_str(), mode);

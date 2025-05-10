@@ -32,16 +32,23 @@ enum BooleanValuesIndex {
 };
 
 struct DataINS {
-    char name[MAX_INSTRUCTION_NAME_LENGTH];
     long addr;
+    char name[MAX_INSTRUCTION_NAME_LENGTH];
     unsigned short int readRegs[64];
     unsigned short int writeRegs[64];
     unsigned short int baseReg;
     unsigned short int indexReg;
     unsigned char size;
-    unsigned char booleanValues;
     unsigned char numReadRegs;
     unsigned char numWriteRegs;
+    unsigned char isPredicated : 1;
+    unsigned char isPrefetch : 1;
+    unsigned char isControlFlow : 1;
+    unsigned char isIndirectControlFlow : 1;
+    unsigned char isNonStandardMemOp : 1;
+    unsigned char isRead : 1;
+    unsigned char isRead2 : 1;
+    unsigned char isWrite : 1;
     sinuca::Branch branchType;
 } __attribute__((packed));  // no padding
 
@@ -75,6 +82,7 @@ class TraceFileReader {
     int RetrieveLenBytes(void *, size_t);
     int SetBufActiveSize(size_t);
     void RetrieveBuffer();
+    void *GetData(size_t);
     virtual void InterpretData(void *, int) = 0;
 };
 

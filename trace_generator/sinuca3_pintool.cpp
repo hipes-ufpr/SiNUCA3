@@ -12,7 +12,7 @@ extern "C" {
 
 #include "../src/sinuca3.hpp"
 #include "../src/utils/logging.hpp"
-#include "generator_file_handler.hpp"
+#include "x86_generator_file_handler.hpp"
 #include "sinuca3_pintool.hpp"
 
 // Set this to 1 to print all rotines
@@ -199,11 +199,8 @@ void createDataINS(const INS* ins, struct DataINS* data) {
     data->indexReg = INS_MemoryIndexReg(*ins);
     data->booleanValues = 0;
 
-    if (INS_IsPredicated(*ins))
-        traceGenerator::SetBit(&data->booleanValues, IS_PREDICATED, true);
-
-    if (INS_IsPrefetch(*ins))
-        traceGenerator::SetBit(&data->booleanValues, IS_PREFETCH, true);
+    if (INS_IsPredicated(*ins)) {data->isPredicated = 1;}
+    if (INS_IsPrefetch(*ins)) {data->isPrefetch = 1;}
 
     bool isSyscall = INS_IsSyscall(*ins);
     bool isControlFlow = INS_IsControlFlow(*ins) || isSyscall;
@@ -220,23 +217,27 @@ void createDataINS(const INS* ins, struct DataINS* data) {
         else
             data->branchType = sinuca::BranchUncond;
 
-        traceGenerator::SetBit(&data->booleanValues, IS_CONTROL_FLOW, true);
-        traceGenerator::SetBit(&data->booleanValues, IS_INDIRECT_CONTROL_FLOW,
-                               INS_IsIndirectControlFlow(*ins));
+        data->isControlFlow = 1;
+        data->isIndirectControlFlow = 1;
     }
 
-    // INS_IsStandardMemop() returns false if this instruction has a memory
-    // operand which has unconventional meaning; Returns true otherwise.
-    bool isNonStandard = !INS_IsStandardMemop(*ins);
-
-    traceGenerator::SetBit(&data->booleanValues, IS_NON_STANDARD_MEM_OP,
-                           isNonStandard);
-    traceGenerator::SetBit(&data->booleanValues, IS_READ,
-                           INS_IsMemoryRead(*ins));
-    traceGenerator::SetBit(&data->booleanValues, IS_READ2,
-                           INS_HasMemoryRead2(*ins));
-    traceGenerator::SetBit(&data->booleanValues, IS_WRITE,
-                           INS_IsMemoryWrite(*ins));
+    /*
+    * INS_IsStandardMemop() returns false if this instruction has a memory
+    * operand which has unconventional meaning; returns true otherwise
+    */
+    if (!INS_IsStandardMemop(*ins)) {
+        data->isNonStandardMemOp = 1;
+    } else {
+        if (INS_IsMemoryRead(*ins)) {
+            data->isRead = 1;
+        }
+        if (INS_HasMemoryRead2(*ins)) {
+            data->isRead2 = 1;
+        }
+        if (INS_IsMemoryWrite(*ins)) {
+            data->isWrite = 1;
+        }
+    }
 
     for (unsigned long int i = 0; i < INS_MaxNumRRegs(*ins); ++i) {
         REG regValue = INS_RegR(*ins, i);
