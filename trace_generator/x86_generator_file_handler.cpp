@@ -1,4 +1,5 @@
 #include "x86_generator_file_handler.hpp"
+#include "../src/utils/logging.hpp"
 #include <cstddef>
 
 trace::traceGenerator::StaticTraceFile::StaticTraceFile(std::string source,
@@ -25,16 +26,23 @@ trace::traceGenerator::StaticTraceFile::~StaticTraceFile() {
 
 void trace::traceGenerator::StaticTraceFile::PrepareData(struct DataINS* data,
                                                          const INS* ins) {
-    this->SetInsName(data, ins);
+    std::string insName = INS_Mnemonic(*ins);
+    size_t nameSize = insName.size();
+    if (nameSize >= MAX_INSTRUCTION_NAME_LENGTH) {
+        nameSize = MAX_INSTRUCTION_NAME_LENGTH - 1;
+    }
+    memcpy(data->name, insName.c_str(), nameSize);
+    data->name[nameSize] = '\0';
+
     data->addr = INS_Address(*ins);
     data->size = INS_Size(*ins);
     data->baseReg = INS_MemoryBaseReg(*ins);
     data->indexReg = INS_MemoryIndexReg(*ins);
+
     this->ResetFlags(data);
     this->SetFlags(data, ins);
     this->SetBranchFields(data, ins);
-    this->FillRegs(data, ins, FILL_READ_REGS);
-    this->FillRegs(data, ins, FILL_WRITE_REGS);
+    this->FillRegs(data, ins);
 }
 
 void trace::traceGenerator::StaticTraceFile::StAppendToBuffer(void *ptr, size_t len) {
@@ -50,6 +58,7 @@ trace::traceGenerator::DynamicTraceFile::DynamicTraceFile(std::string source,
     : TraceFileWriter(FormatPathTidIn(source, "dynamic", img, tid)) {}
 
 trace::traceGenerator::DynamicTraceFile::~DynamicTraceFile() {
+    SINUCA3_DEBUG_PRINTF("Last DynamicTraceFile flush\n");
     if (this->tf.offset > 0) {
         this->FlushBuffer();
     }
@@ -68,27 +77,27 @@ trace::traceGenerator::MemoryTraceFile::MemoryTraceFile(std::string source,
     : TraceFileWriter(FormatPathTidIn(source, "memory", img, tid)) {}
 
 trace::traceGenerator::MemoryTraceFile::~MemoryTraceFile() {
+    SINUCA3_DEBUG_PRINTF("Last MemoryTraceFile flush\n");
     if (this->tf.offset > 0) {
         this->FlushLenBytes(&this->tf.offset, sizeof(this->tf.offset));
         this->FlushBuffer();
     }
 }
 
-void trace::traceGenerator::MemoryTraceFile::PrepareData(
-    struct DataMEM readings[], struct DataMEM writings[],
+void trace::traceGenerator::MemoryTraceFile::PrepareDataNonStdAccess(
+    unsigned short *numR, struct DataMEM r[], unsigned short *numW, struct DataMEM w[],
     PIN_MULTI_MEM_ACCESS_INFO* info) {
-    unsigned short numR, numW;
-    numR = numW = 0;
+    *numR = *numW = 0;
     for (unsigned short it = 0; it < info->numberOfMemops; it++) {
         PIN_MEM_ACCESS_INFO* memOp = &info->memop[it];
         if (memOp->memopType == PIN_MEMOP_LOAD) {
-            readings[numR].addr = memOp->memoryAddress;
-            readings[numR].size = memOp->bytesAccessed;
-            numR++;
+            r[*numR].addr = memOp->memoryAddress;
+            r[*numR].size = memOp->bytesAccessed;
+            (*numR)++;
         } else {
-            writings[numW].addr = memOp->memoryAddress;
-            writings[numW].size = memOp->bytesAccessed;
-            numW++;
+            w[*numW].addr = memOp->memoryAddress;
+            w[*numW].size = memOp->bytesAccessed;
+            (*numW)++;
         }
     }
 }
@@ -99,12 +108,6 @@ void trace::traceGenerator::MemoryTraceFile::MemAppendToBuffer(void *ptr, size_t
         this->FlushBuffer();
         this->AppendToBuffer(ptr, len);
     }
-}
-
-void trace::traceGenerator::StaticTraceFile::SetInsName(struct DataINS* data,
-                                                        const INS* ins) {
-    std::string name = INS_Mnemonic(*ins);
-    strncpy(data->name, name.c_str(), MAX_INSTRUCTION_NAME_LENGTH);
 }
 
 void trace::traceGenerator::StaticTraceFile::ResetFlags(struct DataINS* data) {
@@ -172,27 +175,20 @@ void trace::traceGenerator::StaticTraceFile::SetBranchFields(
 }
 
 void trace::traceGenerator::StaticTraceFile::FillRegs(struct DataINS* data,
-                                                      const INS* ins, int op) {
-    REG (*func)(INS, UINT32);
-    unsigned char* count;
-    unsigned short int* arr;
-    switch (op) {
-        case FILL_READ_REGS:
-            func = INS_RegR;
-            count = &data->numReadRegs;
-            arr = data->readRegs;
-            break;
-        case FILL_WRITE_REGS:
-            func = INS_RegW;
-            count = &data->numWriteRegs;
-            arr = data->writeRegs;
-            break;
-    }
+                                                      const INS* ins) {
+    unsigned int operandCount = INS_OperandCount(*ins);
+    data->numReadRegs = data->numWriteRegs = 0;
+    for (unsigned int i = 0; i < operandCount; ++i) {
+        if (!INS_OperandIsReg(*ins, i)) {continue;}
 
-    for (unsigned long int i = 0; i < INS_MaxNumRRegs(*ins); ++i) {
-        REG regValue = func(*ins, i);
-        if (regValue != REG_INVALID()) {
-            arr[(*count)++] = regValue;
+        if (INS_OperandWritten(*ins, i)) {
+            data->writeRegs[data->numWriteRegs++] = INS_OperandReg(*ins, i);
+        }
+        if (INS_OperandRead(*ins, i)) {
+            data->readRegs[data->numReadRegs++] = INS_OperandReg(*ins, i);
         }
     }
+
+    SINUCA3_DEBUG_PRINTF("Number Read Regs [%d]\n", data->numReadRegs);
+    SINUCA3_DEBUG_PRINTF("Number Write Regs [%d]\n", data->numWriteRegs);
 }

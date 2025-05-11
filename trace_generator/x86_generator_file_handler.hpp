@@ -11,20 +11,16 @@
 namespace trace {
 namespace traceGenerator {
 
-const int FILL_READ_REGS = 2;
-const int FILL_WRITE_REGS = 3;
-
 class StaticTraceFile : public TraceFileWriter {
   private:
     unsigned int threadCount;
     unsigned int bblCount;
     unsigned int instCount;
 
-    void SetInsName(struct DataINS *, const INS *);
     void ResetFlags(struct DataINS *);
     void SetFlags(struct DataINS *, const INS *);
     void SetBranchFields(struct DataINS *, const INS *);
-    void FillRegs(struct DataINS *, const INS *, int);
+    void FillRegs(struct DataINS *, const INS *);
   public:
     StaticTraceFile(std::string, std::string);
     ~StaticTraceFile();
@@ -47,7 +43,7 @@ class MemoryTraceFile : public TraceFileWriter {
   public:
     MemoryTraceFile(std::string, std::string, THREADID);
     ~MemoryTraceFile();
-    void PrepareData(unsigned short, struct DataMEM[], unsigned short,
+    void PrepareDataNonStdAccess(unsigned short *, struct DataMEM[], unsigned short *,
                      struct DataMEM[], PIN_MULTI_MEM_ACCESS_INFO *);
     void MemAppendToBuffer(void *, size_t);
 };
