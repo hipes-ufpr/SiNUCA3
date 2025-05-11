@@ -99,7 +99,7 @@ template< typename ADDRTYPE > class /*<UTILITY>*/ RANGE
      *
      * @return  TRUE if range contains \a range.
      */
-    bool Contains(const RANGE& range) const { return (Contains(range.m_base) && !range.Contains(GetEnd())); }
+    bool Contains(const RANGE& range) const { return (Contains(range._base) && !range.Contains(GetEnd())); }
 
   private:
     ADDRTYPE _base;
