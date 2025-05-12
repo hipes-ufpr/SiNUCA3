@@ -28,9 +28,9 @@
 
 namespace sinuca {
 
-#define MAX_REGISTERS 32
-#define MAX_MEM_OPERATIONS 16
-#define TRACE_LINE_SIZE 256
+const unsigned int MAX_REGISTERS = 32;
+const unsigned int MAX_MEM_OPERATIONS = 16;
+const unsigned int TRACE_LINE_SIZE = 256;
 
 /** @brief Enumerates the types of branches. */
 enum Branch {

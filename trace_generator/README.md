@@ -4,6 +4,6 @@ make
 ```
 
 To use the trace generator, you need to load the program via the Intel Pin.
-Example command (from trace_generator folder):
+Example command:
 
-./pin/pin -t ./obj_intel64/*.so -- ./program_to_trace
+./pin/pin -t ./obj_intel64/*.so -trace_folder "..." -- ./program_to_trace

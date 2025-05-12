@@ -43,11 +43,11 @@ enum FetchResult {
 class TraceReader {
   public:
     /** @brief Return non-zero on failure. */
-    virtual int OpenTrace(const char* traceFileName) = 0;
+    virtual int OpenTrace(const char *traceFileName, const char *tracePath) = 0;
     virtual unsigned long GetTraceSize() = 0;
     virtual unsigned long GetNumberOfFetchedInstructions() = 0;
     virtual void PrintStatistics() = 0;
-    virtual FetchResult Fetch(InstructionPacket* ret) = 0;
+    virtual FetchResult Fetch(InstructionPacket* ret, unsigned int tid) = 0;
     virtual ~TraceReader() {}
 };
 
