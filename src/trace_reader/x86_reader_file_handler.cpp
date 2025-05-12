@@ -92,15 +92,35 @@ sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(std::string folderPath,
     this->RetrieveBuffer();
 }
 
+void sinuca::traceReader::MemoryTraceFile::MemRetrieveBuffer() {
+    this->RetrieveLenBytes((void *)this->bufActiveSize, sizeof(unsigned long));
+    this->RetrieveBuffer();
+}
+
+unsigned short sinuca::traceReader::MemoryTraceFile::GetNumOps() {
+    unsigned short numOps;
+
+    numOps = *(unsigned short*)this->GetData(SIZE_NUM_MEM_R_W);
+    if (this->tf.offset >= this->bufActiveSize) {
+        this->MemRetrieveBuffer();
+    }
+    return numOps;
+}
+
+DataMEM *sinuca::traceReader::MemoryTraceFile::GetDataMemArr(unsigned short len) {
+    DataMEM *arrPtr;
+
+    arrPtr = (DataMEM *)(this->GetData(len * sizeof(DataMEM)));
+    if (this->tf.offset >= this->bufActiveSize) {
+        this->MemRetrieveBuffer();
+    }
+    return arrPtr;
+}
+
 int sinuca::traceReader::MemoryTraceFile::ReadNextMemAccess(
     InstructionInfo *insInfo, DynamicInstructionInfo *dynInfo) {
-    DataMEM *data;
-
-    if (this->tf.offset >= this->bufActiveSize) {
-        this->RetrieveLenBytes((void *)this->bufActiveSize,
-                               sizeof(this->tf.offset));
-        this->RetrieveBuffer();
-    }
+    DataMEM *writeOps;
+    DataMEM *readOps;
 
     /*
      * In case the instruction performs non standard memory operations
@@ -110,27 +130,22 @@ int sinuca::traceReader::MemoryTraceFile::ReadNextMemAccess(
      * Otherwise, it was written in the static trace file.
      */
     if (insInfo->staticInfo.isNonStdMemOp) {
-        dynInfo->numReadings =
-            *(unsigned short *)(this->GetData(SIZE_NUM_MEM_R_W));
-        dynInfo->numWritings =
-            *(unsigned short *)(this->GetData(SIZE_NUM_MEM_R_W));
+        dynInfo->numReadings = this->GetNumOps();
+        dynInfo->numWritings = this->GetNumOps();
     } else {
         dynInfo->numReadings = insInfo->staticNumReadings;
         dynInfo->numWritings = insInfo->staticNumWritings;
     }
 
-    data = (DataMEM *)(this->GetData(dynInfo->numReadings * sizeof(DataMEM)));
-    for (unsigned short readIt = 0; readIt < dynInfo->numReadings; readIt++) {
-        dynInfo->readsAddr[readIt] = data->addr;
-        dynInfo->readsSize[readIt] = data->size;
-        data++;
+    readOps = this->GetDataMemArr(dynInfo->numReadings);
+    writeOps = this->GetDataMemArr(dynInfo->numWritings);
+    for (unsigned short it = 0; it < dynInfo->numReadings; it++) {
+        dynInfo->readsAddr[it] = readOps[it].addr;
+        dynInfo->readsSize[it] = readOps[it].size;
     }
-    data = (DataMEM *)(this->GetData(dynInfo->numWritings * sizeof(DataMEM)));
-    for (unsigned short writeIt = 0; writeIt < dynInfo->numWritings;
-         writeIt++) {
-        dynInfo->writesAddr[writeIt] = data->addr;
-        dynInfo->writesSize[writeIt] = data->size;
-        data++;
+    for (unsigned short it = 0; it < dynInfo->numWritings; it++) {
+        dynInfo->writesAddr[it] = writeOps[it].addr;
+        dynInfo->writesSize[it] = writeOps[it].size;
     }
 
     return 0;

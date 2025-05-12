@@ -60,8 +60,12 @@ class DynamicTraceFile : public TraceFileReader {
 };
 
 class MemoryTraceFile : public TraceFileReader {
+  private:
+    unsigned short GetNumOps();
+    DataMEM *GetDataMemArr(unsigned short len);
   public:
     MemoryTraceFile(std::string, std::string, THREADID);
+    void MemRetrieveBuffer();
     int ReadNextMemAccess(InstructionInfo *, DynamicInstructionInfo *);
 };
 

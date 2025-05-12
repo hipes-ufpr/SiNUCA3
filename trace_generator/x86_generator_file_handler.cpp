@@ -109,7 +109,7 @@ void trace::traceGenerator::MemoryTraceFile::PrepareDataNonStdAccess(
 void trace::traceGenerator::MemoryTraceFile::MemAppendToBuffer(void* ptr,
                                                                size_t len) {
     if (this->AppendToBuffer(ptr, len)) {
-        this->FlushLenBytes(&this->tf.offset, sizeof(this->tf.offset));
+        this->FlushLenBytes(&this->tf.offset, sizeof(unsigned long));
         this->FlushBuffer();
         this->AppendToBuffer(ptr, len);
     }

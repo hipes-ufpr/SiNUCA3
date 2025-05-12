@@ -128,12 +128,13 @@ VOID AppendToMemTraceStd(ADDRINT addr, UINT32 size) {
 VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
     THREADID tid = PIN_ThreadId();
     if (!isThreadInstrumentatingEnabled[tid]) return;
+    
     static trace::DataMEM readings[64];
     static trace::DataMEM writings[64];
-    static unsigned short numR;
-    static unsigned short numW;
-    memoryTraces[tid]->PrepareDataNonStdAccess(&numR, readings, &numW, writings, accessInfo);
+    unsigned short numR;
+    unsigned short numW;
 
+    memoryTraces[tid]->PrepareDataNonStdAccess(&numR, readings, &numW, writings, accessInfo);
     memoryTraces[tid]->MemAppendToBuffer(&numR, SIZE_NUM_MEM_R_W);
     memoryTraces[tid]->MemAppendToBuffer(&numW, SIZE_NUM_MEM_R_W);
     memoryTraces[tid]->MemAppendToBuffer(readings, numR * sizeof(*readings));
