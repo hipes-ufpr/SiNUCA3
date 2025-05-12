@@ -31,9 +31,9 @@ namespace traceReader {
 namespace sinuca3TraceReader {
 
 struct ContextInfo {
-  unsigned int currentBBL;
-  unsigned int currentOpcode;
-  bool isInsideBBL;
+    unsigned int currentBBL;
+    unsigned int currentOpcode;
+    bool isInsideBBL;
 };
 
 class SinucaTraceReader : public TraceReader {
@@ -42,7 +42,7 @@ class SinucaTraceReader : public TraceReader {
     MemoryTraceFile **threadsMemFiles;
     struct ContextInfo *thrInfo;
 
-    unsigned int numThreads;
+    int numThreads;
 
     /** @brief Total number of basic blocks in static file */
     unsigned int binaryTotalBBLs;
@@ -66,6 +66,7 @@ class SinucaTraceReader : public TraceReader {
      * Branch Type
      */
     int GenerateBinaryDict(StaticTraceFile *);
+
   public:
     virtual int OpenTrace(const char *, const char *);
     virtual unsigned long GetTraceSize();
@@ -74,9 +75,7 @@ class SinucaTraceReader : public TraceReader {
     virtual FetchResult Fetch(InstructionPacket *, unsigned int);
     void CloseTrace();
 
-    inline ~SinucaTraceReader() {
-        this->CloseTrace();
-    }
+    inline ~SinucaTraceReader() { this->CloseTrace(); }
 };
 
 }  // namespace sinuca3TraceReader

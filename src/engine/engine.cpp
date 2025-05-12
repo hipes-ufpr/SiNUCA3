@@ -71,7 +71,7 @@ int sinuca::engine::Engine::Simulate(
     SINUCA3_LOG_PRINTF("engine: Simulation started at %s", ctime(&start));
     SINUCA3_LOG_PRINTF("engine: Total instructions: %ld.\n", traceSize);
 
-    while ((result = traceReader->Fetch(&packet)) ==
+    while ((result = traceReader->Fetch(&packet, 0)) ==
            traceReader::FetchResultOk) {
         if (cycle % (1 << 8) == 0) {
             const unsigned long fetched =
