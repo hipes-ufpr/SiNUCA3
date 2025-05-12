@@ -1,5 +1,4 @@
 #include <cassert>  // assert
-#include <cstddef>  // size_t
 
 #include "pin.H"
 
@@ -22,8 +21,8 @@ static bool isInstrumentating;
 // And this enable instrumentation per thread.
 static std::vector<bool> isThreadInstrumentatingEnabled;
 
-std::string imageName;
-std::string folderPath;
+char* imageName;
+const char* folderPath;
 
 trace::traceGenerator::StaticTraceFile* staticTrace;
 std::vector<trace::traceGenerator::DynamicTraceFile*> dynamicTraces;
@@ -34,8 +33,8 @@ std::vector<const char*> OMP_ignore;
 
 KNOB<INT> KnobNumberIns(KNOB_MODE_WRITEONCE, "pintool", "number_max_inst", "-1",
                         "Maximum number of instructions to be traced");
-KNOB<std::string> KnobFolder(KNOB_MODE_WRITEONCE, "pintool", "trace_folder", "./",
-                             "Path to store trace");
+KNOB<std::string> KnobFolder(KNOB_MODE_WRITEONCE, "pintool", "trace_folder",
+                             "./", "Path to store trace");
 
 int Usage() {
     SINUCA3_LOG_PRINTF("Tool knob summary: %s\n",
@@ -45,7 +44,7 @@ int Usage() {
 
 bool StrStartsWithGomp(const char* s) {
     const char* prefix = "gomp";
-    for (size_t i = 0; prefix[i] != '\0'; ++i) {
+    for (int i = 0; prefix[i] != '\0'; ++i) {
         if (std::tolower(s[i]) != prefix[i]) {
             return false;
         }
@@ -61,11 +60,11 @@ void PrintRtnName(const char* s, THREADID tid) {
 
 VOID ThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
     PIN_GetLock(&pinLock, tid);
-    SINUCA3_DEBUG_PRINTF("New thread created! N => %d (%s)\n", tid, imageName.c_str());
+    SINUCA3_DEBUG_PRINTF("New thread created! N => %d (%s)\n", tid, imageName);
     staticTrace->IncThreadCount();
     isThreadInstrumentatingEnabled.push_back(false);
-    dynamicTraces.push_back(
-        new trace::traceGenerator::DynamicTraceFile(folderPath, imageName, tid));
+    dynamicTraces.push_back(new trace::traceGenerator::DynamicTraceFile(
+        folderPath, imageName, tid));
     memoryTraces.push_back(
         new trace::traceGenerator::MemoryTraceFile(folderPath, imageName, tid));
     PIN_ReleaseLock(&pinLock);
@@ -132,7 +131,8 @@ VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
     static trace::DataMEM writings[64];
     static unsigned short numR;
     static unsigned short numW;
-    memoryTraces[tid]->PrepareDataNonStdAccess(&numR, readings, &numW, writings, accessInfo);
+    memoryTraces[tid]->PrepareDataNonStdAccess(&numR, readings, &numW, writings,
+                                               accessInfo);
 
     memoryTraces[tid]->MemAppendToBuffer(&numR, SIZE_NUM_MEM_R_W);
     memoryTraces[tid]->MemAppendToBuffer(&numW, SIZE_NUM_MEM_R_W);
@@ -184,11 +184,11 @@ VOID Trace(TRACE trace, VOID* ptr) {
         }
 #endif
         /*
-        * This will make every function call from libgomp that have a
-        * PAUSE instruction to be ignored
-        * Still not sure if this is fully correct
-        */
-        for (size_t i = 0; i < OMP_ignore.size(); ++i) {
+         * This will make every function call from libgomp that have a
+         * PAUSE instruction to be ignored
+         * Still not sure if this is fully correct
+         */
+        for (unsigned int i = 0; i < OMP_ignore.size(); ++i) {
             if (strcmp(traceRtnName, OMP_ignore[i]) == 0) {
                 // has SPIN_LOCK
                 return;
@@ -222,10 +222,25 @@ VOID ImageLoad(IMG img, VOID* ptr) {
     if (IMG_IsMainExecutable(img) == false) return;
 
     std::string completeImgPath = IMG_Name(img);
-    size_t it = completeImgPath.find_last_of('/') + 1;
-    imageName = &completeImgPath[it];
+    unsigned long imgPathLen = completeImgPath.size();
+    const char* completeImgPathPtr = completeImgPath.c_str();
 
-    staticTrace = new trace::traceGenerator::StaticTraceFile(folderPath, imageName);
+    // As Pin gives us the absolute path for the executable, it always have at
+    // least a / (the root of the filesystem).
+    int idx = 0;
+    for (int i = imgPathLen - 1; i >= 0; --i) {
+        if (completeImgPathPtr[i] == '/') {
+            idx = i + 1;
+            break;
+        }
+    }
+
+    unsigned long pathLen = imgPathLen - idx + 1;
+    imageName = (char*)malloc(pathLen);
+    memcpy(imageName, completeImgPathPtr, imgPathLen);
+
+    staticTrace =
+        new trace::traceGenerator::StaticTraceFile(folderPath, imageName);
 
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
         for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn)) {
@@ -274,9 +289,9 @@ int main(int argc, char* argv[]) {
         return Usage();
     }
 
-    folderPath = KnobFolder.Value();
-    if (access(folderPath.c_str(), F_OK) != 0) {
-        mkdir(folderPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH);
+    folderPath = KnobFolder.Value().c_str();
+    if (access(folderPath, F_OK) != 0) {
+        mkdir(folderPath, S_IRWXU | S_IRWXG | S_IROTH);
     }
 
     PIN_InitLock(&pinLock);

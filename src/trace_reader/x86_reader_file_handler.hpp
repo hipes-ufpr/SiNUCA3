@@ -44,7 +44,7 @@ class StaticTraceFile {
     void GetWriteRegs(sinuca::StaticInstructionInfo *, DataINS *);
 
   public:
-    StaticTraceFile(std::string, std::string);
+    StaticTraceFile(const char *folderPath, const char *img);
     ~StaticTraceFile();
     inline unsigned int GetTotalBBLs() { return this->totalBBLs; }
     inline unsigned int GetTotalIns() { return this->totalIns; }
@@ -55,13 +55,13 @@ class StaticTraceFile {
 
 class DynamicTraceFile : public TraceFileReader {
   public:
-    DynamicTraceFile(std::string, std::string, THREADID);
+    DynamicTraceFile(const char *folderPath, const char *img, THREADID tid);
     int ReadNextBBl(BBLID *);
 };
 
 class MemoryTraceFile : public TraceFileReader {
   public:
-    MemoryTraceFile(std::string, std::string, THREADID);
+    MemoryTraceFile(const char *folderPath, const char *img, THREADID tid);
     int ReadNextMemAccess(InstructionInfo *, DynamicInstructionInfo *);
 };
 

@@ -2,13 +2,12 @@
 #define FILEHANDLER_HPP_
 
 #include <cstddef>
-#include <cstdio> // FILE*
-#include <string>
+#include <cstdio>  // FILE*
 
-#include "../engine/default_packets.hpp" // sinuca::Branch
+#include "../engine/default_packets.hpp"  // sinuca::Branch
 
 const int MAX_INSTRUCTION_NAME_LENGTH = 32;
-// 1MiB 
+// 1MiB
 const unsigned long BUFFER_SIZE = 1 << 20;
 // Used in alignas to avoid false sharing
 const unsigned long CACHE_LINE_SIZE = 64;
@@ -73,7 +72,7 @@ class TraceFileReader {
     size_t bufActiveSize;
     TraceFile tf;
 
-    TraceFileReader(std::string);
+    void UseFile(const char *path);
     size_t RetrieveLenBytes(void *, size_t);
     int SetBufActiveSize(size_t);
     void RetrieveBuffer();
@@ -84,15 +83,22 @@ class TraceFileWriter {
   protected:
     TraceFile tf;
 
-    TraceFileWriter(std::string);
+    void UseFile(const char *);
     int AppendToBuffer(void *, size_t);
     void FlushLenBytes(void *, size_t);
     void FlushBuffer();
 };
 
-std::string FormatPathTidIn(std::string, std::string, std::string, THREADID);
+unsigned long GetPathTidInSize(const char *sourceDir, const char *prefix,
+                               const char *imageName);
+void FormatPathTidIn(char *dest, const char *sourceDir, const char *prefix,
+                     const char *imageName, unsigned long bufferSize,
+                     THREADID tid);
 
-std::string FormatPathTidOut(std::string, std::string, std::string);
+unsigned long GetPathTidOutSize(const char *sourceDir, const char *prefix,
+                                const char *imageName);
+void FormatPathTidOut(char *dest, const char *sourceDir, const char *prefix,
+                      const char *imageName, unsigned long bufferSize);
 
 }  // namespace trace
 

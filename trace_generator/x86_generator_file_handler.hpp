@@ -3,7 +3,6 @@
 
 #include <cassert>
 #include <cstddef>
-#include <string>
 
 #include "../src/utils/file_handler.hpp"
 #include "pin.H"
@@ -23,7 +22,7 @@ class StaticTraceFile : public TraceFileWriter {
     void FillRegs(struct DataINS *, const INS *);
 
   public:
-    StaticTraceFile(std::string, std::string);
+    StaticTraceFile(const char *, const char *);
     ~StaticTraceFile();
     void PrepareData(struct DataINS *, const INS *);
     void StAppendToBuffer(void *, size_t);
@@ -35,14 +34,14 @@ class StaticTraceFile : public TraceFileWriter {
 
 class DynamicTraceFile : public TraceFileWriter {
   public:
-    DynamicTraceFile(std::string, std::string, THREADID);
+    DynamicTraceFile(const char *, const char *, THREADID);
     ~DynamicTraceFile();
     void DynAppendToBuffer(void *, size_t);
 };
 
 class MemoryTraceFile : public TraceFileWriter {
   public:
-    MemoryTraceFile(std::string, std::string, THREADID);
+    MemoryTraceFile(const char *, const char *, THREADID);
     ~MemoryTraceFile();
     void PrepareDataNonStdAccess(unsigned short *, struct DataMEM[],
                                  unsigned short *, struct DataMEM[],
