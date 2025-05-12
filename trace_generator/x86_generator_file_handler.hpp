@@ -21,6 +21,7 @@ class StaticTraceFile : public TraceFileWriter {
     void SetFlags(struct DataINS *, const INS *);
     void SetBranchFields(struct DataINS *, const INS *);
     void FillRegs(struct DataINS *, const INS *);
+
   public:
     StaticTraceFile(std::string, std::string);
     ~StaticTraceFile();
@@ -43,8 +44,9 @@ class MemoryTraceFile : public TraceFileWriter {
   public:
     MemoryTraceFile(std::string, std::string, THREADID);
     ~MemoryTraceFile();
-    void PrepareDataNonStdAccess(unsigned short *, struct DataMEM[], unsigned short *,
-                     struct DataMEM[], PIN_MULTI_MEM_ACCESS_INFO *);
+    void PrepareDataNonStdAccess(unsigned short *, struct DataMEM[],
+                                 unsigned short *, struct DataMEM[],
+                                 PIN_MULTI_MEM_ACCESS_INFO *);
     void MemAppendToBuffer(void *, size_t);
 };
 

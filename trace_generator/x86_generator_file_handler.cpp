@@ -1,6 +1,8 @@
 #include "x86_generator_file_handler.hpp"
-#include "../src/utils/logging.hpp"
+
 #include <cstddef>
+
+#include "../src/utils/logging.hpp"
 
 trace::traceGenerator::StaticTraceFile::StaticTraceFile(std::string source,
                                                         std::string img)
@@ -45,7 +47,8 @@ void trace::traceGenerator::StaticTraceFile::PrepareData(struct DataINS* data,
     this->FillRegs(data, ins);
 }
 
-void trace::traceGenerator::StaticTraceFile::StAppendToBuffer(void *ptr, size_t len) {
+void trace::traceGenerator::StaticTraceFile::StAppendToBuffer(void* ptr,
+                                                              size_t len) {
     if (this->AppendToBuffer(ptr, len)) {
         this->FlushBuffer();
         this->AppendToBuffer(ptr, len);
@@ -64,7 +67,8 @@ trace::traceGenerator::DynamicTraceFile::~DynamicTraceFile() {
     }
 }
 
-void trace::traceGenerator::DynamicTraceFile::DynAppendToBuffer(void *ptr, size_t len) {
+void trace::traceGenerator::DynamicTraceFile::DynAppendToBuffer(void* ptr,
+                                                                size_t len) {
     if (this->AppendToBuffer(ptr, len)) {
         this->FlushBuffer();
         this->AppendToBuffer(ptr, len);
@@ -85,8 +89,8 @@ trace::traceGenerator::MemoryTraceFile::~MemoryTraceFile() {
 }
 
 void trace::traceGenerator::MemoryTraceFile::PrepareDataNonStdAccess(
-    unsigned short *numR, struct DataMEM r[], unsigned short *numW, struct DataMEM w[],
-    PIN_MULTI_MEM_ACCESS_INFO* info) {
+    unsigned short* numR, struct DataMEM r[], unsigned short* numW,
+    struct DataMEM w[], PIN_MULTI_MEM_ACCESS_INFO* info) {
     *numR = *numW = 0;
     for (unsigned short it = 0; it < info->numberOfMemops; it++) {
         PIN_MEM_ACCESS_INFO* memOp = &info->memop[it];
@@ -102,7 +106,8 @@ void trace::traceGenerator::MemoryTraceFile::PrepareDataNonStdAccess(
     }
 }
 
-void trace::traceGenerator::MemoryTraceFile::MemAppendToBuffer(void *ptr, size_t len) {
+void trace::traceGenerator::MemoryTraceFile::MemAppendToBuffer(void* ptr,
+                                                               size_t len) {
     if (this->AppendToBuffer(ptr, len)) {
         this->FlushLenBytes(&this->tf.offset, sizeof(this->tf.offset));
         this->FlushBuffer();
@@ -179,12 +184,16 @@ void trace::traceGenerator::StaticTraceFile::FillRegs(struct DataINS* data,
     unsigned int operandCount = INS_OperandCount(*ins);
     data->numReadRegs = data->numWriteRegs = 0;
     for (unsigned int i = 0; i < operandCount; ++i) {
-        if (!INS_OperandIsReg(*ins, i)) {continue;}
+        if (!INS_OperandIsReg(*ins, i)) {
+            continue;
+        }
 
         if (INS_OperandWritten(*ins, i)) {
+            assert(data->numWriteRegs < MAX_REG_OPERANDS && "[FillRegs] Error");
             data->writeRegs[data->numWriteRegs++] = INS_OperandReg(*ins, i);
         }
         if (INS_OperandRead(*ins, i)) {
+            assert(data->numReadRegs < MAX_REG_OPERANDS && "[FillRegs] Error");
             data->readRegs[data->numReadRegs++] = INS_OperandReg(*ins, i);
         }
     }
