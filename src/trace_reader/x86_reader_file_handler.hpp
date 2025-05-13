@@ -4,6 +4,7 @@
 #include <cstddef>
 
 #include "../utils/file_handler.hpp"
+#include "../engine/default_packets.hpp"
 
 extern "C" {
 #include <fcntl.h>     // open
