@@ -49,7 +49,7 @@ static bool isInstrumentating;
 /** @brief Enables instrumentation per thread. */
 static std::vector<bool> isThreadInstrumentatingEnabled;
 
-char* imageName;
+char* imageName = NULL;
 const char* folderPath;
 
 trace::traceGenerator::StaticTraceFile* staticTrace;
@@ -264,13 +264,12 @@ VOID ImageLoad(IMG img, VOID* ptr) {
         }
     }
 
-    unsigned long pathLen = imgPathLen - idx + 1;
-    imageName = (char*)malloc(pathLen);
-    memcpy(imageName, completeImgPathPtr, imgPathLen);
+    unsigned long imageNameLen = imgPathLen - idx;
+    imageName = (char*)malloc(imageNameLen); // freed in Fini()
+    memcpy(imageName, completeImgPathPtr + idx, imageNameLen);
 
     staticTrace =
         new trace::traceGenerator::StaticTraceFile(folderPath, imageName);
-
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
         for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn)) {
             RTN_Open(rtn);
@@ -306,6 +305,9 @@ VOID ImageLoad(IMG img, VOID* ptr) {
 VOID Fini(INT32 code, VOID* ptr) {
     SINUCA3_LOG_PRINTF("End of tool execution\n");
     SINUCA3_DEBUG_PRINTF("Number of BBLs [%u]\n", staticTrace->GetBBlCount());
+
+    if(imageName != NULL)
+        free(imageName);
 
     // Close static trace file
     delete staticTrace;
