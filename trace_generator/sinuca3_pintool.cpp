@@ -234,7 +234,7 @@ VOID ImageLoad(IMG img, VOID* ptr) {
             const char* name = RTN_Name(rtn).c_str();
 
             if (strcmp(name, "BeginInstrumentationBlock") == 0) {
-                RTN_InsertCall(rtn, IPOINT_AFTER, (AFUNPTR)InitInstrumentation,
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)InitInstrumentation,
                                IARG_END);
             }
 
@@ -244,7 +244,7 @@ VOID ImageLoad(IMG img, VOID* ptr) {
             }
 
             if (strcmp(name, "EnableThreadInstrumentation") == 0) {
-                RTN_InsertCall(rtn, IPOINT_AFTER,
+                RTN_InsertCall(rtn, IPOINT_BEFORE,
                                (AFUNPTR)EnableInstrumentationInThread,
                                IARG_THREAD_ID, IARG_END);
             }
