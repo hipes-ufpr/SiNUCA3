@@ -90,7 +90,7 @@ trace::traceGenerator::DynamicTraceFile::DynamicTraceFile(const char* source,
                                                           THREADID tid) {
     unsigned long bufferSize = trace::GetPathTidInSize(source, "dynamic", img);
     char* path = (char*)alloca(bufferSize);
-    FormatPathTidIn(path, source, "dynamic", img, bufferSize, tid);
+    FormatPathTidIn(path, source, "dynamic", img, tid, bufferSize);
 
     this->::trace::TraceFileWriter::UseFile(path);
 }
@@ -115,7 +115,7 @@ trace::traceGenerator::MemoryTraceFile::MemoryTraceFile(const char* source,
                                                         THREADID tid) {
     unsigned long bufferSize = trace::GetPathTidInSize(source, "memory", img);
     char* path = (char*)alloca(bufferSize);
-    FormatPathTidIn(path, source, "static", img, bufferSize, tid);
+    FormatPathTidIn(path, source, "memory", img, tid, bufferSize);
 
     this->::trace::TraceFileWriter::UseFile(path);
 }

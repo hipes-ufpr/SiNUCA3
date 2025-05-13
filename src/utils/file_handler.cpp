@@ -123,7 +123,7 @@ unsigned long trace::GetPathTidInSize(const char *sourceDir, const char *prefix,
 
 void trace::FormatPathTidIn(char *dest, const char *sourceDir,
                             const char *prefix, const char *imageName,
-                            unsigned long bufferSize, THREADID tid) {
+                            THREADID tid, unsigned long bufferSize) {
     snprintf(dest, bufferSize, "%s/%s_%s_tid%u.trace", sourceDir, prefix,
              imageName, tid);
 }

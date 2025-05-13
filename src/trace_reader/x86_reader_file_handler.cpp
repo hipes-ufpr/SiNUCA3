@@ -115,9 +115,9 @@ int sinuca::traceReader::DynamicTraceFile::ReadNextBBl(BBLID *bbl) {
 sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(const char *folderPath,
                                                       const char *img,
                                                       THREADID tid) {
-    unsigned long bufferSize = GetPathTidInSize(folderPath, "dynamic", img);
+    unsigned long bufferSize = GetPathTidInSize(folderPath, "memory", img);
     char *path = (char *)alloca(bufferSize);
-    FormatPathTidIn(path, folderPath, "dynamic", img, tid, bufferSize);
+    FormatPathTidIn(path, folderPath, "memory", img, tid, bufferSize);
 
     this->::TraceFileReader::UseFile(path);
 

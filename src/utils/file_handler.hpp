@@ -121,8 +121,7 @@ class TraceFileWriter {
 unsigned long GetPathTidInSize(const char *sourceDir, const char *prefix,
                                const char *imageName);
 void FormatPathTidIn(char *dest, const char *sourceDir, const char *prefix,
-                     const char *imageName, unsigned long bufferSize,
-                     THREADID tid);
+                     const char *imageName, THREADID tid, unsigned long bufferSize);
 
 unsigned long GetPathTidOutSize(const char *sourceDir, const char *prefix,
                                 const char *imageName);

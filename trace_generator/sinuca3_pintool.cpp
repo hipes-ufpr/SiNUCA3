@@ -264,7 +264,7 @@ VOID ImageLoad(IMG img, VOID* ptr) {
         }
     }
 
-    unsigned long imageNameLen = imgPathLen - idx;
+    unsigned long imageNameLen = imgPathLen - idx + sizeof('\0');
     imageName = (char*)malloc(imageNameLen); // freed in Fini()
     memcpy(imageName, completeImgPathPtr + idx, imageNameLen);
 
