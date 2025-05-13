@@ -40,7 +40,7 @@
  */
 
 #include "../engine/component.hpp"
-#include "../utils/bimodalPredictor.hpp"
+#include "../utils/bimodal_predictor.hpp"
 
 const int MAX_INTERLEAVING_FACTOR = 16;
 

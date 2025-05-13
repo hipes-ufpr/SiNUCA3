@@ -1,20 +1,49 @@
-#ifndef INSTRUMENTATION_CONTROL_H
-#define INSTRUMENTATION_CONTROL_H
+#ifndef SINUCA3_INSTRUMENTATION_CONTROL_H_
+#define SINUCA3_INSTRUMENTATION_CONTROL_H_
 
-// Inicia a definição de um bloco que será instrumentado.
-// Após essa chamada, instrumentos de análise serão adicionados ao código.
+//
+// Copyright (C) 2024  HiPES - Universidade Federal do Paraná
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
+/**
+ * @file instrumentation_control.h
+ * @brief API for instrumenting applications with SiNUCA3.
+ */
+
+/**
+ * @brief Begins an instrumentation block. Code after this call will be
+ * instrumented.
+ */
 __attribute__((noinline, used)) void BeginInstrumentationBlock() {}
 
-// Finaliza a definição do bloco instrumentado.
-// Nenhum novo instrumento de análise será inserida após essa chamada.
+/**
+ * @brief Ends an instrumentation block.
+ */
 __attribute__((noinline, used)) void EndInstrumentationBlock() {}
 
-// Habilita a execução das instruções de análise para a thread que chama a
-// função. Deve ser chamada dentro de um bloco instrumentado.
+/**
+ * @brief Enables thread instrumentation for the current thread. Must be called
+ * inside an instrumentation block (i.e., after BeginInstrumentationBlock and
+ * before EndInstrumentationBlock).
+ */
 __attribute__((noinline, used)) void EnableThreadInstrumentation() {}
 
-// Desabilita a execução das instruções de análise para a thread que chama a
-// função. Deve ser chamada dentro de um bloco instrumentado.
+/**
+ * @brief Disables thread instrumentation for the current thread.
+ */
 __attribute__((noinline, used)) void DisableThreadInstrumentation() {}
 
 #endif

@@ -22,17 +22,14 @@
 #include "sinuca3_trace_reader.hpp"
 
 #include <cassert>
-#include <cstddef>
 
 #include "../utils/logging.hpp"
-#include "x86_reader_file_handler.hpp"
 #include "trace_reader.hpp"
+#include "x86_reader_file_handler.hpp"
 
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
     const char *executableName, const char *traceFolderPath) {
-    std::string folderPath = std::string(traceFolderPath);
-
-    StaticTraceFile staticFile(folderPath, executableName);
+    StaticTraceFile staticFile(traceFolderPath, executableName);
 
     this->binaryTotalBBLs = staticFile.GetTotalBBLs();
     this->numThreads = staticFile.GetNumThreads();
@@ -44,9 +41,9 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
     for (int i = 0; i < this->numThreads; i++) {
         this->thrInfo[i].isInsideBBL = false;
         this->threadsDynFiles[i] =
-            new DynamicTraceFile(folderPath, executableName, i);
+            new DynamicTraceFile(traceFolderPath, executableName, i);
         this->threadsMemFiles[i] =
-            new MemoryTraceFile(folderPath, executableName, i);
+            new MemoryTraceFile(traceFolderPath, executableName, i);
     }
 
     if (this->GenerateBinaryDict(&staticFile)) return 1;
@@ -81,11 +78,11 @@ unsigned long sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
 int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     GenerateBinaryDict(StaticTraceFile *stFile) {
     InstructionInfo *package;
-    size_t poolOffset;
+    unsigned long poolOffset;
     unsigned int bblSize;
     unsigned int instCounter;
     unsigned int bblCounter;
-    
+
     this->binaryBBLsSize = new unsigned int[this->binaryTotalBBLs];
     this->binaryDict = new InstructionInfo *[this->binaryTotalBBLs];
     this->pool = new InstructionInfo[stFile->GetTotalIns()];
@@ -114,7 +111,8 @@ sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::Fetch(
     InstructionInfo *packageInfo;
 
     if (!this->thrInfo[tid].isInsideBBL) {
-        if (this->threadsDynFiles[tid]->ReadNextBBl(&this->thrInfo[tid].currentBBL)) {
+        if (this->threadsDynFiles[tid]->ReadNextBBl(
+                &this->thrInfo[tid].currentBBL)) {
             return FetchResultEnd;
         }
         this->thrInfo[tid].isInsideBBL = true;
@@ -159,7 +157,8 @@ int main() {
 
     do {
         ret = tracer->Fetch(&package, 0);
-        SINUCA3_DEBUG_PRINTF("INS NAME [%s]\n", package.staticInfo->opcodeAssembly);
+        SINUCA3_DEBUG_PRINTF("INS NAME [%s]\n",
+                             package.staticInfo->opcodeAssembly);
         SINUCA3_DEBUG_PRINTF("INS SIZE [%d]\n", package.staticInfo->opcodeSize);
         SINUCA3_DEBUG_PRINTF("NUM READ REGS [%d]\n", package.staticInfo->numReadRegs);
         SINUCA3_DEBUG_PRINTF("IS BRANCH [%d]\n", package.staticInfo->isControlFlow);

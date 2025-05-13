@@ -16,11 +16,11 @@
 //
 
 /**
- * @file circularBuffer.cpp
- * @brief Implementation of CircularBuffer class
+ * @file circular_buffer.cpp
+ * @brief Implementation of the CircularBuffer class.
  */
 
-#include "circularBuffer.hpp"
+#include "circular_buffer.hpp"
 
 void CircularBuffer::Allocate(int bufferSize, int elementSize) {
     if ((bufferSize == 0) || (elementSize == 0)) return;

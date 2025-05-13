@@ -1,15 +1,40 @@
+//
+// Copyright (C) 2024  HiPES - Universidade Federal do Paraná
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
+/**
+ * @file x86_reader_file_handler.cpp
+ * @brief Implementation of the x86_64 trace reader.
+ */
+
 #include "x86_reader_file_handler.hpp"
 
-#include <cstddef>
+#include <alloca.h>
 
 #include "../utils/logging.hpp"
 
-sinuca::traceReader::StaticTraceFile::StaticTraceFile(std::string folderPath,
-                                                      std::string img) {
-    std::string staticPath = FormatPathTidOut(folderPath, "static", img);
-    this->fd = open(staticPath.c_str(), O_RDONLY);
+sinuca::traceReader::StaticTraceFile::StaticTraceFile(const char *folderPath,
+                                                      const char *img) {
+    unsigned long bufferLen = GetPathTidOutSize(folderPath, "static", img);
+    char *staticPath = (char *)alloca(bufferLen);
+    FormatPathTidOut(staticPath, folderPath, "static", img, bufferLen);
+
+    this->fd = open(staticPath, O_RDONLY);
     if (fd == -1) {
-        SINUCA3_ERROR_PRINTF("Could not open [%s]\n", staticPath.c_str());
+        SINUCA3_ERROR_PRINTF("Could not open [%s]\n", staticPath);
         return;
     }
     this->mmapSize = lseek(fd, 0, SEEK_END);
@@ -37,14 +62,14 @@ void sinuca::traceReader::StaticTraceFile::ReadNextPackage(
     InstructionInfo *info) {
     DataINS *data = (DataINS *)(this->GetData(sizeof(DataINS)));
 
-    size_t len = strlen(data->name);
+    unsigned long len = strlen(data->name);
     memcpy(info->staticInfo.opcodeAssembly, data->name, len + 1);
-    
+
     info->staticInfo.opcodeSize = data->size;
     info->staticInfo.baseReg = data->baseReg;
     info->staticInfo.indexReg = data->indexReg;
     info->staticInfo.opcodeAddress = data->addr;
-    
+
     this->GetFlagValues(info, data);
     this->GetBranchFields(&info->staticInfo, data);
     this->GetRegs(&info->staticInfo, data);
@@ -61,10 +86,15 @@ sinuca::traceReader::StaticTraceFile::~StaticTraceFile() {
     close(this->fd);
 }
 
-sinuca::traceReader::DynamicTraceFile::DynamicTraceFile(std::string folderPath,
-                                                        std::string img,
-                                                        THREADID tid)
-    : TraceFileReader(FormatPathTidIn(folderPath, "dynamic", img, tid)) {
+sinuca::traceReader::DynamicTraceFile::DynamicTraceFile(const char *folderPath,
+                                                        const char *img,
+                                                        THREADID tid) {
+    unsigned long bufferSize = GetPathTidInSize(folderPath, "dynamic", img);
+    char *path = (char *)alloca(bufferSize);
+    FormatPathTidIn(path, folderPath, "dynamic", img, tid, bufferSize);
+
+    this->::TraceFileReader::UseFile(path);
+
     this->bufActiveSize =
         (unsigned int)(BUFFER_SIZE / sizeof(BBLID)) * sizeof(BBLID);
     this->RetrieveBuffer();  // First buffer read
@@ -82,11 +112,16 @@ int sinuca::traceReader::DynamicTraceFile::ReadNextBBl(BBLID *bbl) {
     return 0;
 }
 
-sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(std::string folderPath,
-                                                      std::string img,
-                                                      THREADID tid)
-    : TraceFileReader(FormatPathTidIn(folderPath, "memory", img, tid)) {
-    this->RetrieveLenBytes(&this->bufActiveSize,
+sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(const char *folderPath,
+                                                      const char *img,
+                                                      THREADID tid) {
+    unsigned long bufferSize = GetPathTidInSize(folderPath, "dynamic", img);
+    char *path = (char *)alloca(bufferSize);
+    FormatPathTidIn(path, folderPath, "dynamic", img, tid, bufferSize);
+
+    this->::TraceFileReader::UseFile(path);
+
+    this->RetrieveLenBytes((void *)&this->bufActiveSize,
                            sizeof(this->tf.offset));
     this->RetrieveBuffer();
 }
@@ -150,8 +185,8 @@ int sinuca::traceReader::MemoryTraceFile::ReadNextMemAccess(
     return 0;
 }
 
-void *sinuca::traceReader::StaticTraceFile::GetData(size_t len) {
-    void *ptr = (this->mmapPtr + this->mmapOffset);
+void *sinuca::traceReader::StaticTraceFile::GetData(unsigned long len) {
+    void *ptr = (void *)(this->mmapPtr + this->mmapOffset);
     this->mmapOffset += len;
     return ptr;
 }
@@ -162,7 +197,7 @@ void sinuca::traceReader::StaticTraceFile::GetFlagValues(InstructionInfo *info,
     info->staticInfo.isPrefetch = static_cast<bool>(data->isPrefetch);
     info->staticInfo.isNonStdMemOp = static_cast<bool>(data->isNonStandardMemOp);
     if (!info->staticInfo.isNonStdMemOp) {
-        info->staticNumReadings = data->isRead + data->isRead2; 
+        info->staticNumReadings = data->isRead + data->isRead2;
         info->staticNumWritings = data->isWrite;
     }
 }

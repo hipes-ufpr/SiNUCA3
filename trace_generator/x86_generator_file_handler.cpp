@@ -1,12 +1,42 @@
+//
+// Copyright (C) 2024  HiPES - Universidade Federal do Paraná
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
+/**
+ * @file x86_generator_file_handler.cpp
+ * @details Implementation of the SiNUCA3 x86_64 tracer.
+ */
+
 #include "x86_generator_file_handler.hpp"
 
-#include <cstddef>
+#include <alloca.h>
+#include <pin.H>
+
+#include <string>
 
 #include "../src/utils/logging.hpp"
 
-trace::traceGenerator::StaticTraceFile::StaticTraceFile(std::string source,
-                                                        std::string img)
-    : TraceFileWriter(FormatPathTidOut(source, "static", img)) {
+trace::traceGenerator::StaticTraceFile::StaticTraceFile(const char* source,
+                                                        const char* img) {
+    unsigned long bufferSize = trace::GetPathTidOutSize(source, "static", img);
+    char* path = (char*)alloca(bufferSize);
+    FormatPathTidOut(path, source, "static", img, bufferSize);
+
+    this->::trace::TraceFileWriter::UseFile(path);
+
     this->threadCount = 0;
     this->bblCount = 0;
     this->instCount = 0;
@@ -29,7 +59,7 @@ trace::traceGenerator::StaticTraceFile::~StaticTraceFile() {
 void trace::traceGenerator::StaticTraceFile::PrepareData(struct DataINS* data,
                                                          const INS* ins) {
     std::string insName = INS_Mnemonic(*ins);
-    size_t nameSize = insName.size();
+    unsigned long nameSize = insName.size();
     if (nameSize >= MAX_INSTRUCTION_NAME_LENGTH) {
         nameSize = MAX_INSTRUCTION_NAME_LENGTH - 1;
     }
@@ -47,18 +77,23 @@ void trace::traceGenerator::StaticTraceFile::PrepareData(struct DataINS* data,
     this->FillRegs(data, ins);
 }
 
-void trace::traceGenerator::StaticTraceFile::StAppendToBuffer(void* ptr,
-                                                              size_t len) {
+void trace::traceGenerator::StaticTraceFile::StAppendToBuffer(
+    void* ptr, unsigned long len) {
     if (this->AppendToBuffer(ptr, len)) {
         this->FlushBuffer();
         this->AppendToBuffer(ptr, len);
     }
 }
 
-trace::traceGenerator::DynamicTraceFile::DynamicTraceFile(std::string source,
-                                                          std::string img,
-                                                          THREADID tid)
-    : TraceFileWriter(FormatPathTidIn(source, "dynamic", img, tid)) {}
+trace::traceGenerator::DynamicTraceFile::DynamicTraceFile(const char* source,
+                                                          const char* img,
+                                                          THREADID tid) {
+    unsigned long bufferSize = trace::GetPathTidInSize(source, "dynamic", img);
+    char* path = (char*)alloca(bufferSize);
+    FormatPathTidIn(path, source, "dynamic", img, bufferSize, tid);
+
+    this->::trace::TraceFileWriter::UseFile(path);
+}
 
 trace::traceGenerator::DynamicTraceFile::~DynamicTraceFile() {
     SINUCA3_DEBUG_PRINTF("Last DynamicTraceFile flush\n");
@@ -67,18 +102,23 @@ trace::traceGenerator::DynamicTraceFile::~DynamicTraceFile() {
     }
 }
 
-void trace::traceGenerator::DynamicTraceFile::DynAppendToBuffer(void* ptr,
-                                                                size_t len) {
+void trace::traceGenerator::DynamicTraceFile::DynAppendToBuffer(
+    void* ptr, unsigned long len) {
     if (this->AppendToBuffer(ptr, len)) {
         this->FlushBuffer();
         this->AppendToBuffer(ptr, len);
     }
 }
 
-trace::traceGenerator::MemoryTraceFile::MemoryTraceFile(std::string source,
-                                                        std::string img,
-                                                        THREADID tid)
-    : TraceFileWriter(FormatPathTidIn(source, "memory", img, tid)) {}
+trace::traceGenerator::MemoryTraceFile::MemoryTraceFile(const char* source,
+                                                        const char* img,
+                                                        THREADID tid) {
+    unsigned long bufferSize = trace::GetPathTidInSize(source, "memory", img);
+    char* path = (char*)alloca(bufferSize);
+    FormatPathTidIn(path, source, "static", img, bufferSize, tid);
+
+    this->::trace::TraceFileWriter::UseFile(path);
+}
 
 trace::traceGenerator::MemoryTraceFile::~MemoryTraceFile() {
     SINUCA3_DEBUG_PRINTF("Last MemoryTraceFile flush\n");
@@ -106,8 +146,8 @@ void trace::traceGenerator::MemoryTraceFile::PrepareDataNonStdAccess(
     }
 }
 
-void trace::traceGenerator::MemoryTraceFile::MemAppendToBuffer(void* ptr,
-                                                               size_t len) {
+void trace::traceGenerator::MemoryTraceFile::MemAppendToBuffer(
+    void* ptr, unsigned long len) {
     if (this->AppendToBuffer(ptr, len)) {
         this->FlushLenBytes(&this->tf.offset, sizeof(unsigned long));
         this->FlushBuffer();

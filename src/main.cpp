@@ -98,16 +98,20 @@ sinuca::traceReader::TraceReader* AllocTraceReader(const char* traceReader) {
 int main(int argc, char* const argv[]) {
     const char* traceReaderName = "sinuca3";
     const char* rootConfigFile = NULL;
+    const char* traceDir = ".";
     const char* traceFileName = NULL;
     char nextOpt;
 
-    while ((nextOpt = getopt(argc, argv, "lc:t:T:")) != -1) {
+    while ((nextOpt = getopt(argc, argv, "lc:t:d:T:")) != -1) {
         switch (nextOpt) {
             case 'c':
                 rootConfigFile = optarg;
                 break;
             case 't':
                 traceFileName = optarg;
+                break;
+            case 'd':
+                traceDir = optarg;
                 break;
             case 'T':
                 traceReaderName = optarg;
@@ -137,10 +141,11 @@ int main(int argc, char* const argv[]) {
     sinuca::traceReader::TraceReader* traceReader =
         AllocTraceReader(traceReaderName);
     if (traceReader == NULL) {
-        SINUCA3_ERROR_PRINTF("The trace reader %s does not exist.", traceReaderName);
+        SINUCA3_ERROR_PRINTF("The trace reader %s does not exist.",
+                             traceReaderName);
         return 1;
     }
-    if (traceReader->OpenTrace(traceFileName)) return 1;
+    if (traceReader->OpenTrace(traceFileName, traceDir)) return 1;
 
     sinuca::ENGINE->Simulate(traceReader);
     delete sinuca::ENGINE;

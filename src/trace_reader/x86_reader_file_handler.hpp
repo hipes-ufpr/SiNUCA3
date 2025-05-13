@@ -1,7 +1,27 @@
-#ifndef X86READERFILEHANDLER_HPP_
-#define X86READERFILEHANDLER_HPP_
+#ifndef X86_READER_FILE_HANDLER_HPP_
+#define X86_READER_FILE_HANDLER_HPP_
 
-#include <cstddef>
+//
+// Copyright (C) 2024  HiPES - Universidade Federal do Paraná
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
+/**
+ * @file x86_reader_file_handler.hpp
+ * @brief Public API of the x86_64 trace reader.
+ */
 
 #include "../utils/file_handler.hpp"
 #include "../engine/default_packets.hpp"
@@ -34,17 +54,17 @@ class StaticTraceFile {
     unsigned int totalIns;
     unsigned int numThreads;
     char *mmapPtr;
-    size_t mmapOffset;
-    size_t mmapSize;
+    unsigned long mmapOffset;
+    unsigned long mmapSize;
     int fd;
 
-    void *GetData(size_t);
+    void *GetData(unsigned long);
     void GetFlagValues(InstructionInfo *, DataINS *);
     void GetBranchFields(sinuca::StaticInstructionInfo *, DataINS *);
     void GetRegs(sinuca::StaticInstructionInfo *, DataINS *);
 
   public:
-    StaticTraceFile(std::string, std::string);
+    StaticTraceFile(const char *folderPath, const char *img);
     ~StaticTraceFile();
     inline unsigned int GetTotalBBLs() { return this->totalBBLs; }
     inline unsigned int GetTotalIns() { return this->totalIns; }
@@ -55,7 +75,7 @@ class StaticTraceFile {
 
 class DynamicTraceFile : public TraceFileReader {
   public:
-    DynamicTraceFile(std::string, std::string, THREADID);
+    DynamicTraceFile(const char *folderPath, const char *img, THREADID tid);
     int ReadNextBBl(BBLID *);
 };
 
@@ -64,7 +84,7 @@ class MemoryTraceFile : public TraceFileReader {
     unsigned short GetNumOps();
     DataMEM *GetDataMemArr(unsigned short len);
   public:
-    MemoryTraceFile(std::string, std::string, THREADID);
+    MemoryTraceFile(const char *folderPath, const char *img, THREADID tid);
     void MemRetrieveBuffer();
     int ReadNextMemAccess(InstructionInfo *, DynamicInstructionInfo *);
 };
