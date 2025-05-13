@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <cstring>
 
 #include "../utils/logging.hpp"
 

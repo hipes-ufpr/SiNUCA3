@@ -162,15 +162,15 @@ void trace::traceGenerator::StaticTraceFile::SetBranchFields(
 
     if (isControlFlow) {
         if (isSyscall)
-            data->branchType = sinuca::BranchSyscall;
+            data->branchType = BRANCH_SYSCALL;
         else if (INS_IsCall(*ins))
-            data->branchType = sinuca::BranchCall;
+            data->branchType = BRANCH_CALL;
         else if (INS_IsRet(*ins))
-            data->branchType = sinuca::BranchReturn;
+            data->branchType = BRANCH_RETURN;
         else if (INS_HasFallThrough(*ins))
-            data->branchType = sinuca::BranchCond;
+            data->branchType = BRANCH_COND;
         else
-            data->branchType = sinuca::BranchUncond;
+            data->branchType = BRANCH_UNCOND;
 
         data->isControlFlow = 1;
         if (INS_IsIndirectControlFlow(*ins)) {

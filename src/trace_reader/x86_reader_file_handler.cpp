@@ -184,7 +184,23 @@ void sinuca::traceReader::StaticTraceFile::GetBranchFields(
     sinuca::StaticInstructionInfo *info, struct DataINS *data) {
     info->isIndirect = GetBitBool(data->isIndirectControlFlow);
     info->isControlFlow = GetBitBool(data->isControlFlow);
-    info->branchType = data->branchType;
+    switch (data->branchType) {
+        case BRANCH_CALL:
+            info->branchType = BranchCall;
+            break;
+        case BRANCH_SYSCALL:
+            info->branchType = BranchSyscall;
+            break;
+        case BRANCH_RETURN:
+            info->branchType = BranchReturn;
+            break;
+        case BRANCH_COND:
+            info->branchType = BranchCond;
+            break;
+        case BRANCH_UNCOND:
+            info->branchType = BranchUncond;
+            break;
+    }
 }
 
 void sinuca::traceReader::StaticTraceFile::GetReadRegs(
