@@ -24,7 +24,7 @@
  */
 
 #include "../config/config.hpp"
-#include "../utils/circularBuffer.hpp"
+#include "../utils/circular_buffer.hpp"
 
 static const int SOURCE_ID = 0;
 static const int DEST_ID = 1;

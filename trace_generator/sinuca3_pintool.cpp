@@ -1,3 +1,25 @@
+//
+// Copyright (C) 2024  HiPES - Universidade Federal do Paraná
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
+/**
+ * @file sinuca3_pintool.cpp
+ * @brief Implementation of the SiNUCA3 x86_64 tracer based on Intel Pin.
+ */
+
 #include <cassert>  // assert
 
 #include "pin.H"
@@ -8,17 +30,23 @@ extern "C" {
 }
 
 #include "../src/utils/logging.hpp"
-#include "sinuca3_pintool.hpp"
 #include "x86_generator_file_handler.hpp"
 
-// Set this to 1 to print all rotines
-// that name begins with "gomp", case insensitive
-// (Statically linking GOMP is recommended)
-#define DEBUG_PRINT_GOMP_RNT 0
+const int MEMREAD_EA = IARG_MEMORYREAD_EA;
+const int MEMREAD_SIZE = IARG_MEMORYREAD_SIZE;
+const int MEMWRITE_EA = IARG_MEMORYWRITE_EA;
+const int MEMWRITE_SIZE = IARG_MEMORYWRITE_SIZE;
+const int MEMREAD2_EA = IARG_MEMORYREAD2_EA;
 
-// When this is enabled, every thread will be instrumented;
+/**
+ * @brief Set this to 1 to print all rotines that name begins with "gomp",
+ * case insensitive (Statically linking GOMP is recommended).
+ */
+const int DEBUG_PRINT_GOMP_RNT = 0;
+
+/** @brief When this is enabled, every thread will be instrumented. */
 static bool isInstrumentating;
-// And this enable instrumentation per thread.
+/** @brief Enables instrumentation per thread. */
 static std::vector<bool> isThreadInstrumentatingEnabled;
 
 char* imageName;

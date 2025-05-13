@@ -1,7 +1,29 @@
-#ifndef FILEHANDLER_HPP_
-#define FILEHANDLER_HPP_
+#ifndef SINUCA3_FILE_HANDLER_HPP_
+#define SINUCA3_FILE_HANDLER_HPP_
 
-#include <cstddef>
+//
+// Copyright (C) 2024  HiPES - Universidade Federal do Paraná
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
+/**
+ * @file file_handler.hpp
+ * @details Public API of the file handler, a helper class for handling trace
+ * files.
+ */
+
 #include <cstdio>  // FILE*
 
 #include "../engine/default_packets.hpp"  // sinuca::Branch
@@ -14,9 +36,9 @@ const unsigned long CACHE_LINE_SIZE = 64;
 // Adjust if needed
 const unsigned long MAX_IMAGE_NAME_SIZE = 255;
 // Used to standardize reading and writing
-const size_t SIZE_NUM_MEM_R_W = sizeof(unsigned short);
+const unsigned long SIZE_NUM_MEM_R_W = sizeof(unsigned short);
 // Used to standardize reading and writing
-const size_t SIZE_NUM_BBL_INS = sizeof(unsigned int);
+const unsigned long SIZE_NUM_BBL_INS = sizeof(unsigned int);
 // Adjust if needed
 const unsigned long MAX_REG_OPERANDS = 8;
 
@@ -54,7 +76,7 @@ struct DataMEM {
 struct TraceFile {
     unsigned char *buf;
     FILE *file;
-    size_t offset;  // in bytes
+    unsigned long offset;  // in bytes
 
     inline TraceFile() : offset(0) {
         this->buf = new unsigned char[BUFFER_SIZE];
@@ -68,15 +90,15 @@ struct TraceFile {
 class TraceFileReader {
   protected:
     bool eofFound;
-    size_t eofLocation;
-    size_t bufActiveSize;
+    unsigned long eofLocation;
+    unsigned long bufActiveSize;
     TraceFile tf;
 
     void UseFile(const char *path);
-    size_t RetrieveLenBytes(void *, size_t);
-    int SetBufActiveSize(size_t);
+    unsigned long RetrieveLenBytes(void *, unsigned long);
+    int SetBufActiveSize(unsigned long);
     void RetrieveBuffer();
-    void *GetData(size_t);
+    void *GetData(unsigned long);
 };
 
 class TraceFileWriter {
@@ -84,8 +106,8 @@ class TraceFileWriter {
     TraceFile tf;
 
     void UseFile(const char *);
-    int AppendToBuffer(void *, size_t);
-    void FlushLenBytes(void *, size_t);
+    int AppendToBuffer(void *, unsigned long);
+    void FlushLenBytes(void *, unsigned long);
     void FlushBuffer();
 };
 

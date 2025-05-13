@@ -19,13 +19,12 @@
 //
 
 /**
- * @file circularBuffer.hpp
- * @brief Circular Buffer Class
+ * @file circular_buffer.hpp
+ * @brief Circular Buffer Class.
  * @details This class implements a Circular Buffer, useful for several other
  * classes within the simulator.
  */
 
-#include <cstddef>
 #include <cstring>
 
 class CircularBuffer {

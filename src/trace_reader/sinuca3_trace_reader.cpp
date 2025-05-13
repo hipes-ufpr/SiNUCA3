@@ -22,7 +22,6 @@
 #include "sinuca3_trace_reader.hpp"
 
 #include <cassert>
-#include <cstddef>
 
 #include "../utils/logging.hpp"
 #include "trace_reader.hpp"
