@@ -30,7 +30,7 @@ extern "C" {
 }
 
 #include "../src/utils/logging.hpp"
-#include "x86_generator_file_handler.hpp"
+#include "generator_file_handler.hpp"
 
 const int MEMREAD_EA = IARG_MEMORYREAD_EA;
 const int MEMREAD_SIZE = IARG_MEMORYREAD_SIZE;

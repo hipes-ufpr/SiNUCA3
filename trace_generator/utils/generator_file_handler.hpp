@@ -1,5 +1,5 @@
-#ifndef SINUCA3_X86_GENERATOR_FILE_HANDLER_HPP_
-#define SINUCA3_X86_GENERATOR_FILE_HANDLER_HPP_
+#ifndef SINUCA3_GENERATOR_FILE_HANDLER_HPP_
+#define SINUCA3_GENERATOR_FILE_HANDLER_HPP_
 
 //
 // Copyright (C) 2024  HiPES - Universidade Federal do Paraná
@@ -23,7 +23,7 @@
  * @details Public API of the SiNUCA3 x86_64 tracer.
  */
 
-#include "../src/utils/file_handler.hpp"
+#include "../../src/utils/file_handler.hpp"
 #include "pin.H"
 
 namespace trace {

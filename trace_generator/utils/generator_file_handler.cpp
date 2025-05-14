@@ -16,18 +16,18 @@
 //
 
 /**
- * @file x86_generator_file_handler.cpp
+ * @file generator_file_handler.cpp
  * @details Implementation of the SiNUCA3 x86_64 tracer.
  */
 
-#include "x86_generator_file_handler.hpp"
+#include "generator_file_handler.hpp"
+#include "../../src/utils/logging.hpp"
 
-#include <alloca.h>
-#include <pin.H>
-
+#include <cassert>
 #include <string>
-
-#include "../src/utils/logging.hpp"
+extern "C" {
+#include <alloca.h>
+}
 
 trace::traceGenerator::StaticTraceFile::StaticTraceFile(const char* source,
                                                         const char* img) {
@@ -90,7 +90,7 @@ trace::traceGenerator::DynamicTraceFile::DynamicTraceFile(const char* source,
                                                           THREADID tid) {
     unsigned long bufferSize = trace::GetPathTidInSize(source, "dynamic", img);
     char* path = (char*)alloca(bufferSize);
-    FormatPathTidIn(path, source, "dynamic", img, ,bufferSize);
+    FormatPathTidIn(path, source, "dynamic", img, tid, bufferSize);
 
     this->::trace::TraceFileWriter::UseFile(path);
 }
