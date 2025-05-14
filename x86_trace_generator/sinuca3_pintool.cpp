@@ -34,6 +34,27 @@ extern "C" {
 #include "./utils/dynamic_trace_writer.hpp"
 #include "./utils/memory_trace_writer.hpp"
 
+/* Prototypes */
+int Usage();
+bool StrStartsWithGomp(const char* s);
+void InitGompHandling();
+void DebugPrintRtnName(const char* s, THREADID tid);
+VOID InitInstrumentation();
+VOID StopInstrumentation();
+VOID EnableInstrumentationInThread(THREADID tid);
+VOID DisableInstrumentationInThread(THREADID tid);
+VOID InsertInstrumentionOnMemoryOperations(const INS* ins);
+
+VOID AppendToDynamicTrace(UINT32 bblId);
+VOID AppendToMemTraceStd(ADDRINT addr, UINT32 size);
+VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* accessInfo);
+
+VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v);
+VOID OnThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v);
+VOID OnTrace(TRACE trace, VOID* ptr);
+VOID OnImageLoad(IMG img, VOID* ptr);
+VOID OnFini(INT32 code, VOID* ptr);
+
 const int MEMREAD_EA = IARG_MEMORYREAD_EA;
 const int MEMREAD_SIZE = IARG_MEMORYREAD_SIZE;
 const int MEMWRITE_EA = IARG_MEMORYWRITE_EA;
@@ -63,8 +84,8 @@ std::vector<const char*> OMP_ignore;
 
 KNOB<INT> KnobNumberIns(KNOB_MODE_WRITEONCE, "pintool", "number_max_inst", "-1",
                         "Maximum number of instructions to be traced");
-KNOB<std::string> KnobFolder(KNOB_MODE_WRITEONCE, "pintool", "trace_folder",
-                             "./", "Path to store trace");
+KNOB<std::string> KnobFolder(KNOB_MODE_WRITEONCE, "pintool", "o",
+                             "./", "Path to store the trace files");
 
 int Usage() {
     SINUCA3_LOG_PRINTF("Tool knob summary: %s\n",
@@ -82,28 +103,21 @@ bool StrStartsWithGomp(const char* s) {
     return true;
 }
 
-void PrintRtnName(const char* s, THREADID tid) {
+void InitGompHandling(){
+    // All these functions have a PAUSE instruction (Spin-lock hint)
+    OMP_ignore.push_back("gomp_barrier_wait_end");
+    OMP_ignore.push_back("gomp_team_barrier_wait_end");
+    OMP_ignore.push_back("gomp_team_barrier_wait_cancel_end");
+    OMP_ignore.push_back("gomp_mutex_lock_slow");
+    OMP_ignore.push_back("GOMP_doacross_wait");
+    OMP_ignore.push_back("GOMP_doacross_ull_wait");
+    OMP_ignore.push_back("gomp_ptrlock_get_slow");
+    OMP_ignore.push_back("gomp_sem_wait_slow");
+}
+
+void DebugPrintRtnName(const char* s, THREADID tid) {
     PIN_GetLock(&pinLock, tid);
     SINUCA3_DEBUG_PRINTF("RNT called: %s\n", s);
-    PIN_ReleaseLock(&pinLock);
-}
-
-VOID ThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
-    PIN_GetLock(&pinLock, tid);
-    SINUCA3_DEBUG_PRINTF("New thread created! N => %d (%s)\n", tid, imageName);
-    staticTrace->IncThreadCount();
-    isThreadInstrumentatingEnabled.push_back(false);
-    dynamicTraces.push_back(new trace::traceGenerator::DynamicTraceFile(
-        folderPath, imageName, tid));
-    memoryTraces.push_back(
-        new trace::traceGenerator::MemoryTraceFile(folderPath, imageName, tid));
-    PIN_ReleaseLock(&pinLock);
-}
-
-VOID ThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
-    PIN_GetLock(&pinLock, tid);
-    delete dynamicTraces[tid];
-    delete memoryTraces[tid];
     PIN_ReleaseLock(&pinLock);
 }
 
@@ -160,7 +174,26 @@ VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
     memoryTraces[tid]->AppendToBufferLastMemoryAccess();
 }
 
-VOID InstrumentMemoryOperations(const INS* ins) {
+VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
+    PIN_GetLock(&pinLock, tid);
+    SINUCA3_DEBUG_PRINTF("New thread created! N => %d (%s)\n", tid, imageName);
+    staticTrace->IncThreadCount();
+    isThreadInstrumentatingEnabled.push_back(false);
+    dynamicTraces.push_back(new trace::traceGenerator::DynamicTraceFile(
+        folderPath, imageName, tid));
+    memoryTraces.push_back(
+        new trace::traceGenerator::MemoryTraceFile(folderPath, imageName, tid));
+    PIN_ReleaseLock(&pinLock);
+}
+
+VOID OnThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
+    PIN_GetLock(&pinLock, tid);
+    delete dynamicTraces[tid];
+    delete memoryTraces[tid];
+    PIN_ReleaseLock(&pinLock);
+}
+
+VOID InsertInstrumentionOnMemoryOperations(const INS* ins) {
     /*
      * INS_IsStandardMemop() returns false if this instruction has a memory
      * operand which has unconventional meaning; returns true otherwise
@@ -189,7 +222,7 @@ VOID InstrumentMemoryOperations(const INS* ins) {
     }
 }
 
-VOID Trace(TRACE trace, VOID* ptr) {
+VOID OnTrace(TRACE trace, VOID* ptr) {
     if (!isInstrumentating) return;
 
     THREADID tid = PIN_ThreadId();
@@ -197,12 +230,12 @@ VOID Trace(TRACE trace, VOID* ptr) {
 
     if (RTN_Valid(traceRtn)) {
         const char* traceRtnName = RTN_Name(traceRtn).c_str();
-#if DEBUG_PRINT_GOMP_RNT == 1
+        #if DEBUG_PRINT_GOMP_RNT == 1
         if (StrStartsWithGomp(traceRtnName)) {
-            TRACE_InsertCall(trace, IPOINT_BEFORE, (AFUNPTR)PrintRtnName,
+            TRACE_InsertCall(trace, IPOINT_BEFORE, (AFUNPTR)DebugPrintRtnName,
                              IARG_PTR, traceRtnName, IARG_THREAD_ID, IARG_END);
         }
-#endif
+        #endif
         /*
          * This will make every function call from libgomp that have a
          * PAUSE instruction to be ignored
@@ -227,7 +260,7 @@ VOID Trace(TRACE trace, VOID* ptr) {
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
             staticTrace->PrepareDataINS(&ins);
             staticTrace->AppendToBufferDataINS();
-            InstrumentMemoryOperations(&ins);
+            InsertInstrumentionOnMemoryOperations(&ins);
             staticTrace->IncInstCount();
         }
     }
@@ -236,15 +269,15 @@ VOID Trace(TRACE trace, VOID* ptr) {
     return;
 }
 
-VOID ImageLoad(IMG img, VOID* ptr) {
+VOID OnImageLoad(IMG img, VOID* ptr) {
     if (IMG_IsMainExecutable(img) == false) return;
 
     std::string completeImgPath = IMG_Name(img);
     unsigned long imgPathLen = completeImgPath.size();
     const char* completeImgPathPtr = completeImgPath.c_str();
-
     // As Pin gives us the absolute path for the executable, it always have at
-    // least a / (the root of the filesystem).
+    // least a '/' (the root of the filesystem).
+    // We need to find the word after the last '/'.
     int idx = 0;
     for (int i = imgPathLen - 1; i >= 0; --i) {
         if (completeImgPathPtr[i] == '/') {
@@ -252,7 +285,6 @@ VOID ImageLoad(IMG img, VOID* ptr) {
             break;
         }
     }
-
     unsigned long imageNameLen = imgPathLen - idx + sizeof('\0');
     imageName = (char*)malloc(imageNameLen); // freed in Fini()
     memcpy(imageName, completeImgPathPtr + idx, imageNameLen);
@@ -291,7 +323,7 @@ VOID ImageLoad(IMG img, VOID* ptr) {
     }
 }
 
-VOID Fini(INT32 code, VOID* ptr) {
+VOID OnFini(INT32 code, VOID* ptr) {
     SINUCA3_LOG_PRINTF("End of tool execution\n");
     SINUCA3_DEBUG_PRINTF("Number of BBLs [%u]\n", staticTrace->GetBBlCount());
 
@@ -318,22 +350,14 @@ int main(int argc, char* argv[]) {
 
     isInstrumentating = false;
 
-    // All these functions have a PAUSE instruction (Spin-lock hint)
-    OMP_ignore.push_back("gomp_barrier_wait_end");
-    OMP_ignore.push_back("gomp_team_barrier_wait_end");
-    OMP_ignore.push_back("gomp_team_barrier_wait_cancel_end");
-    OMP_ignore.push_back("gomp_mutex_lock_slow");
-    OMP_ignore.push_back("GOMP_doacross_wait");
-    OMP_ignore.push_back("GOMP_doacross_ull_wait");
-    OMP_ignore.push_back("gomp_ptrlock_get_slow");
-    OMP_ignore.push_back("gomp_sem_wait_slow");
+    InitGompHandling();
 
-    IMG_AddInstrumentFunction(ImageLoad, NULL);
-    TRACE_AddInstrumentFunction(Trace, NULL);
-    PIN_AddFiniFunction(Fini, NULL);
+    IMG_AddInstrumentFunction(OnImageLoad, NULL);
+    TRACE_AddInstrumentFunction(OnTrace, NULL);
+    PIN_AddFiniFunction(OnFini, NULL);
 
-    PIN_AddThreadStartFunction(ThreadStart, NULL);
-    PIN_AddThreadFiniFunction(ThreadFini, NULL);
+    PIN_AddThreadStartFunction(OnThreadStart, NULL);
+    PIN_AddThreadFiniFunction(OnThreadFini, NULL);
 
     // Never returns
     PIN_StartProgram();
