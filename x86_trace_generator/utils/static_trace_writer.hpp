@@ -1,5 +1,5 @@
-#ifndef SINUCA3_GENERATOR_FILE_HANDLER_HPP_
-#define SINUCA3_GENERATOR_FILE_HANDLER_HPP_
+#ifndef SINUCA3_GENERATOR_STATIC_FILE_HPP_
+#define SINUCA3_GENERATOR_STATIC_FILE_HPP_
 
 //
 // Copyright (C) 2024  HiPES - Universidade Federal do Paraná
@@ -19,7 +19,7 @@
 //
 
 /**
- * @file generator_file_handler.hpp
+ * @file static_trace_writer.hpp
  * @details All classes defined here inherit from TraceFileWriter and implement
  * the preparation and buffering/flush of data to each file making up a trace
  * (static, dynamic and memory files). All of them implement a PrepareData**
@@ -33,9 +33,6 @@
 
 namespace trace {
 namespace traceGenerator {
-
-// Set to be equal to same constant declared in default_packets.hpp
-const unsigned int MAX_MEM_OPERATIONS = 16;
 
 class StaticTraceFile : public TraceFileWriter {
   private:
@@ -60,38 +57,6 @@ class StaticTraceFile : public TraceFileWriter {
     inline void IncInstCount() { this->instCount++; }
     inline void IncThreadCount() { this->threadCount++; }
     inline unsigned int GetBBlCount() { return this->bblCount; }
-};
-
-class DynamicTraceFile : public TraceFileWriter {
-  private:
-    BBLID bblId;
-
-    void DynamicAppendToBuffer(void *ptr, unsigned long len);
-
-  public:
-    DynamicTraceFile(const char *source, const char *img, THREADID tid);
-    ~DynamicTraceFile();
-    void PrepareId(BBLID id);
-    void AppendToBufferId();
-};
-
-class MemoryTraceFile : public TraceFileWriter {
-  private:
-    struct DataMEM readOps[MAX_MEM_OPERATIONS];
-    struct DataMEM writeOps[MAX_MEM_OPERATIONS];
-    struct DataMEM stdAccessOp;
-    unsigned int numReadOps;
-    unsigned int numWriteOps;
-    bool wasLastOperationStd;
-
-    void MemoryAppendToBuffer(void *ptr, unsigned long len);
-
-  public:
-    MemoryTraceFile(const char *source, const char *img, THREADID tid);
-    ~MemoryTraceFile();
-    void PrepareDataNonStdAccess(PIN_MULTI_MEM_ACCESS_INFO *pinNonStdInfo);
-    void PrepareDataStdMemAccess(unsigned long addr, unsigned int opSize);
-    void AppendToBufferLastMemoryAccess();
 };
 
 }  // namespace traceGenerator

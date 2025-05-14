@@ -30,7 +30,9 @@ extern "C" {
 }
 
 #include "../src/utils/logging.hpp"
-#include "./utils/generator_file_handler.hpp"
+#include "./utils/static_trace_writer.hpp"
+#include "./utils/dynamic_trace_writer.hpp"
+#include "./utils/memory_trace_writer.hpp"
 
 const int MEMREAD_EA = IARG_MEMORYREAD_EA;
 const int MEMREAD_SIZE = IARG_MEMORYREAD_SIZE;
