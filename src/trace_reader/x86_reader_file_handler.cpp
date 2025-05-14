@@ -72,8 +72,7 @@ void sinuca::traceReader::StaticTraceFile::ReadNextPackage(
 
     this->GetFlagValues(info, data);
     this->GetBranchFields(&info->staticInfo, data);
-    this->GetReadRegs(&info->staticInfo, data);
-    this->GetWriteRegs(&info->staticInfo, data);
+    this->GetRegs(&info->staticInfo, data);
 }
 
 unsigned int sinuca::traceReader::StaticTraceFile::GetNewBBlSize() {
@@ -116,9 +115,9 @@ int sinuca::traceReader::DynamicTraceFile::ReadNextBBl(BBLID *bbl) {
 sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(const char *folderPath,
                                                       const char *img,
                                                       THREADID tid) {
-    unsigned long bufferSize = GetPathTidInSize(folderPath, "dynamic", img);
+    unsigned long bufferSize = GetPathTidInSize(folderPath, "memory", img);
     char *path = (char *)alloca(bufferSize);
-    FormatPathTidIn(path, folderPath, "dynamic", img, tid, bufferSize);
+    FormatPathTidIn(path, folderPath, "memory", img, tid, bufferSize);
 
     this->::TraceFileReader::UseFile(path);
 
@@ -127,15 +126,35 @@ sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(const char *folderPath,
     this->RetrieveBuffer();
 }
 
+void sinuca::traceReader::MemoryTraceFile::MemRetrieveBuffer() {
+    this->RetrieveLenBytes(&this->bufActiveSize, sizeof(unsigned long));
+    this->RetrieveBuffer();
+}
+
+unsigned short sinuca::traceReader::MemoryTraceFile::GetNumOps() {
+    unsigned short numOps;
+
+    numOps = *(unsigned short*)this->GetData(SIZE_NUM_MEM_R_W);
+    if (this->tf.offset >= this->bufActiveSize) {
+        this->MemRetrieveBuffer();
+    }
+    return numOps;
+}
+
+DataMEM *sinuca::traceReader::MemoryTraceFile::GetDataMemArr(unsigned short len) {
+    DataMEM *arrPtr;
+
+    arrPtr = (DataMEM *)(this->GetData(len * sizeof(DataMEM)));
+    if (this->tf.offset >= this->bufActiveSize) {
+        this->MemRetrieveBuffer();
+    }
+    return arrPtr;
+}
+
 int sinuca::traceReader::MemoryTraceFile::ReadNextMemAccess(
     InstructionInfo *insInfo, DynamicInstructionInfo *dynInfo) {
-    DataMEM *data;
-
-    if (this->tf.offset >= this->bufActiveSize) {
-        this->RetrieveLenBytes((void *)this->bufActiveSize,
-                               sizeof(this->tf.offset));
-        this->RetrieveBuffer();
-    }
+    DataMEM *writeOps;
+    DataMEM *readOps;
 
     /*
      * In case the instruction performs non standard memory operations
@@ -145,33 +164,26 @@ int sinuca::traceReader::MemoryTraceFile::ReadNextMemAccess(
      * Otherwise, it was written in the static trace file.
      */
     if (insInfo->staticInfo.isNonStdMemOp) {
-        dynInfo->numReadings =
-            *(unsigned short *)(this->GetData(SIZE_NUM_MEM_R_W));
-        dynInfo->numWritings =
-            *(unsigned short *)(this->GetData(SIZE_NUM_MEM_R_W));
+        dynInfo->numReadings = this->GetNumOps();
+        dynInfo->numWritings = this->GetNumOps();
     } else {
         dynInfo->numReadings = insInfo->staticNumReadings;
         dynInfo->numWritings = insInfo->staticNumWritings;
     }
 
-    data = (DataMEM *)(this->GetData(dynInfo->numReadings * sizeof(DataMEM)));
-    for (unsigned short readIt = 0; readIt < dynInfo->numReadings; readIt++) {
-        dynInfo->readsAddr[readIt] = data->addr;
-        dynInfo->readsSize[readIt] = data->size;
-        data++;
+    readOps = this->GetDataMemArr(dynInfo->numReadings);
+    writeOps = this->GetDataMemArr(dynInfo->numWritings);
+    for (unsigned short it = 0; it < dynInfo->numReadings; it++) {
+        dynInfo->readsAddr[it] = readOps[it].addr;
+        dynInfo->readsSize[it] = readOps[it].size;
     }
-    data = (DataMEM *)(this->GetData(dynInfo->numWritings * sizeof(DataMEM)));
-    for (unsigned short writeIt = 0; writeIt < dynInfo->numWritings;
-         writeIt++) {
-        dynInfo->writesAddr[writeIt] = data->addr;
-        dynInfo->writesSize[writeIt] = data->size;
-        data++;
+    for (unsigned short it = 0; it < dynInfo->numWritings; it++) {
+        dynInfo->writesAddr[it] = writeOps[it].addr;
+        dynInfo->writesSize[it] = writeOps[it].size;
     }
 
     return 0;
 }
-
-bool GetBitBool(unsigned char byte) { return (byte == 1); }
 
 void *sinuca::traceReader::StaticTraceFile::GetData(unsigned long len) {
     void *ptr = (void *)(this->mmapPtr + this->mmapOffset);
@@ -181,41 +193,44 @@ void *sinuca::traceReader::StaticTraceFile::GetData(unsigned long len) {
 
 void sinuca::traceReader::StaticTraceFile::GetFlagValues(InstructionInfo *info,
                                                          struct DataINS *data) {
-    info->staticInfo.isPredicated = GetBitBool(data->isPredicated);
-    info->staticInfo.isPrefetch = GetBitBool(data->isPrefetch);
-    info->staticInfo.isNonStdMemOp = GetBitBool(data->isNonStandardMemOp);
-
-    info->staticNumReadings = 0;
-    info->staticNumWritings = 0;
-    if (info->staticInfo.isNonStdMemOp == false) {
-        if (GetBitBool(data->isRead)) {
-            info->staticNumReadings++;
-        }
-        if (GetBitBool(data->isRead2)) {
-            info->staticNumReadings++;
-        }
-        if (GetBitBool(data->isWrite)) {
-            info->staticNumWritings++;
-        }
+    info->staticInfo.isPredicated = static_cast<bool>(data->isPredicated);
+    info->staticInfo.isPrefetch = static_cast<bool>(data->isPrefetch);
+    info->staticInfo.isNonStdMemOp = static_cast<bool>(data->isNonStandardMemOp);
+    if (!info->staticInfo.isNonStdMemOp) {
+        info->staticNumReadings = data->isRead + data->isRead2;
+        info->staticNumWritings = data->isWrite;
     }
 }
 
 void sinuca::traceReader::StaticTraceFile::GetBranchFields(
     sinuca::StaticInstructionInfo *info, struct DataINS *data) {
-    info->isIndirect = GetBitBool(data->isIndirectControlFlow);
-    info->isControlFlow = GetBitBool(data->isControlFlow);
-    info->branchType = data->branchType;
+    info->isIndirect = static_cast<bool>(data->isIndirectControlFlow);
+    info->isControlFlow = static_cast<bool>(data->isControlFlow);
+    switch (data->branchType) {
+        case BRANCH_CALL:
+            info->branchType = BranchCall;
+            break;
+        case BRANCH_SYSCALL:
+            info->branchType = BranchSyscall;
+            break;
+        case BRANCH_RETURN:
+            info->branchType = BranchReturn;
+            break;
+        case BRANCH_COND:
+            info->branchType = BranchCond;
+            break;
+        case BRANCH_UNCOND:
+            info->branchType = BranchUncond;
+            break;
+    }
 }
 
-void sinuca::traceReader::StaticTraceFile::GetReadRegs(
+void sinuca::traceReader::StaticTraceFile::GetRegs(
     sinuca::StaticInstructionInfo *info, struct DataINS *data) {
     info->numReadRegs = data->numReadRegs;
     memcpy(info->readRegs, data->readRegs,
            data->numReadRegs * sizeof(*data->readRegs));
-}
 
-void sinuca::traceReader::StaticTraceFile::GetWriteRegs(
-    sinuca::StaticInstructionInfo *info, struct DataINS *data) {
     info->numWriteRegs = data->numWriteRegs;
     memcpy(info->writeRegs, data->writeRegs,
            data->numWriteRegs * sizeof(*data->writeRegs));

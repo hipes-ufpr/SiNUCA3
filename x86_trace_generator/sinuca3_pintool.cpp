@@ -30,7 +30,7 @@ extern "C" {
 }
 
 #include "../src/utils/logging.hpp"
-#include "x86_generator_file_handler.hpp"
+#include "./utils/generator_file_handler.hpp"
 
 const int MEMREAD_EA = IARG_MEMORYREAD_EA;
 const int MEMREAD_SIZE = IARG_MEMORYREAD_SIZE;
@@ -49,7 +49,7 @@ static bool isInstrumentating;
 /** @brief Enables instrumentation per thread. */
 static std::vector<bool> isThreadInstrumentatingEnabled;
 
-char* imageName;
+char* imageName = NULL;
 const char* folderPath;
 
 trace::traceGenerator::StaticTraceFile* staticTrace;
@@ -140,32 +140,22 @@ VOID DisableInstrumentationInThread(THREADID tid) {
 VOID AppendToDynamicTrace(UINT32 bblId) {
     THREADID tid = PIN_ThreadId();
     if (!isThreadInstrumentatingEnabled[tid]) return;
-    dynamicTraces[tid]->DynAppendToBuffer(&bblId, sizeof(trace::BBLID));
+    dynamicTraces[tid]->PrepareId(bblId);
+    dynamicTraces[tid]->AppendToBufferId();
 }
 
 VOID AppendToMemTraceStd(ADDRINT addr, UINT32 size) {
     THREADID tid = PIN_ThreadId();
     if (!isThreadInstrumentatingEnabled[tid]) return;
-    static trace::DataMEM data;
-    data.addr = addr;
-    data.size = size;
-    memoryTraces[tid]->MemAppendToBuffer(&data, sizeof(data));
+    memoryTraces[tid]->PrepareDataStdMemAccess(addr, size);
+    memoryTraces[tid]->AppendToBufferLastMemoryAccess();
 }
 
 VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
     THREADID tid = PIN_ThreadId();
     if (!isThreadInstrumentatingEnabled[tid]) return;
-    static trace::DataMEM readings[64];
-    static trace::DataMEM writings[64];
-    static unsigned short numR;
-    static unsigned short numW;
-    memoryTraces[tid]->PrepareDataNonStdAccess(&numR, readings, &numW, writings,
-                                               accessInfo);
-
-    memoryTraces[tid]->MemAppendToBuffer(&numR, SIZE_NUM_MEM_R_W);
-    memoryTraces[tid]->MemAppendToBuffer(&numW, SIZE_NUM_MEM_R_W);
-    memoryTraces[tid]->MemAppendToBuffer(readings, numR * sizeof(*readings));
-    memoryTraces[tid]->MemAppendToBuffer(writings, numW * sizeof(*writings));
+    memoryTraces[tid]->PrepareDataNonStdAccess(accessInfo);
+    memoryTraces[tid]->AppendToBufferLastMemoryAccess();
 }
 
 VOID InstrumentMemoryOperations(const INS* ins) {
@@ -231,12 +221,10 @@ VOID Trace(TRACE trace, VOID* ptr) {
                        IARG_UINT32, staticTrace->GetBBlCount(), IARG_END);
 
         staticTrace->IncBBlCount();
-        unsigned int numIns = BBL_NumIns(bbl);
-        staticTrace->StAppendToBuffer(&numIns, SIZE_NUM_BBL_INS);
+        staticTrace->AppendToBufferNumIns(BBL_NumIns(bbl));
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
-            static struct trace::DataINS data;
-            staticTrace->PrepareData(&data, &ins);
-            staticTrace->StAppendToBuffer(&data, sizeof(data));
+            staticTrace->PrepareDataINS(&ins);
+            staticTrace->AppendToBufferDataINS();
             InstrumentMemoryOperations(&ins);
             staticTrace->IncInstCount();
         }
@@ -263,20 +251,19 @@ VOID ImageLoad(IMG img, VOID* ptr) {
         }
     }
 
-    unsigned long pathLen = imgPathLen - idx + 1;
-    imageName = (char*)malloc(pathLen);
-    memcpy(imageName, completeImgPathPtr, imgPathLen);
+    unsigned long imageNameLen = imgPathLen - idx + sizeof('\0');
+    imageName = (char*)malloc(imageNameLen); // freed in Fini()
+    memcpy(imageName, completeImgPathPtr + idx, imageNameLen);
 
     staticTrace =
         new trace::traceGenerator::StaticTraceFile(folderPath, imageName);
-
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
         for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn)) {
             RTN_Open(rtn);
             const char* name = RTN_Name(rtn).c_str();
 
             if (strcmp(name, "BeginInstrumentationBlock") == 0) {
-                RTN_InsertCall(rtn, IPOINT_AFTER, (AFUNPTR)InitInstrumentation,
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)InitInstrumentation,
                                IARG_END);
             }
 
@@ -286,7 +273,7 @@ VOID ImageLoad(IMG img, VOID* ptr) {
             }
 
             if (strcmp(name, "EnableThreadInstrumentation") == 0) {
-                RTN_InsertCall(rtn, IPOINT_AFTER,
+                RTN_InsertCall(rtn, IPOINT_BEFORE,
                                (AFUNPTR)EnableInstrumentationInThread,
                                IARG_THREAD_ID, IARG_END);
             }
@@ -305,6 +292,9 @@ VOID ImageLoad(IMG img, VOID* ptr) {
 VOID Fini(INT32 code, VOID* ptr) {
     SINUCA3_LOG_PRINTF("End of tool execution\n");
     SINUCA3_DEBUG_PRINTF("Number of BBLs [%u]\n", staticTrace->GetBBlCount());
+
+    if(imageName != NULL)
+        free(imageName);
 
     // Close static trace file
     delete staticTrace;

@@ -160,8 +160,8 @@ int main() {
         SINUCA3_DEBUG_PRINTF("INS NAME [%s]\n",
                              package.staticInfo->opcodeAssembly);
         SINUCA3_DEBUG_PRINTF("INS SIZE [%d]\n", package.staticInfo->opcodeSize);
-        SINUCA3_DEBUG_PRINTF("NUM READ REGS [%d]\n",
-                             package.staticInfo->numReadRegs);
+        SINUCA3_DEBUG_PRINTF("NUM READ REGS [%d]\n", package.staticInfo->numReadRegs);
+        SINUCA3_DEBUG_PRINTF("IS BRANCH [%d]\n", package.staticInfo->isControlFlow);
     } while (ret == sinuca::traceReader::FetchResultOk);
 
     delete tracer;

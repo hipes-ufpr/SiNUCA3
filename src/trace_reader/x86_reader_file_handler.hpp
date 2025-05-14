@@ -24,6 +24,7 @@
  */
 
 #include "../utils/file_handler.hpp"
+#include "../engine/default_packets.hpp"
 
 extern "C" {
 #include <fcntl.h>     // open
@@ -60,8 +61,7 @@ class StaticTraceFile {
     void *GetData(unsigned long);
     void GetFlagValues(InstructionInfo *, DataINS *);
     void GetBranchFields(sinuca::StaticInstructionInfo *, DataINS *);
-    void GetReadRegs(sinuca::StaticInstructionInfo *, DataINS *);
-    void GetWriteRegs(sinuca::StaticInstructionInfo *, DataINS *);
+    void GetRegs(sinuca::StaticInstructionInfo *, DataINS *);
 
   public:
     StaticTraceFile(const char *folderPath, const char *img);
@@ -80,8 +80,12 @@ class DynamicTraceFile : public TraceFileReader {
 };
 
 class MemoryTraceFile : public TraceFileReader {
+  private:
+    unsigned short GetNumOps();
+    DataMEM *GetDataMemArr(unsigned short len);
   public:
     MemoryTraceFile(const char *folderPath, const char *img, THREADID tid);
+    void MemRetrieveBuffer();
     int ReadNextMemAccess(InstructionInfo *, DynamicInstructionInfo *);
 };
 
