@@ -31,6 +31,9 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
     const char *executableName, const char *traceFolderPath) {
     StaticTraceFile staticFile(traceFolderPath, executableName);
 
+    if( !staticFile.Valid())
+        return 1;
+
     this->binaryTotalBBLs = staticFile.GetTotalBBLs();
     this->numThreads = staticFile.GetNumThreads();
 
@@ -40,13 +43,19 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
 
     for (int i = 0; i < this->numThreads; i++) {
         this->thrInfo[i].isInsideBBL = false;
+
         this->threadsDynFiles[i] =
             new DynamicTraceFile(traceFolderPath, executableName, i);
+        if( !this->threadsDynFiles[i]->Valid())
+            return 1;
+
         this->threadsMemFiles[i] =
             new MemoryTraceFile(traceFolderPath, executableName, i);
+        if( !this->threadsMemFiles[i]->Valid())
+            return 1;
     }
 
-    if (this->GenerateBinaryDict(&staticFile)) return 1;
+    this->GenerateBinaryDict(&staticFile);
 
     return 0;
 }
@@ -75,7 +84,7 @@ unsigned long sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     return this->fetchInstructions;
 }
 
-int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
+void sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     GenerateBinaryDict(StaticTraceFile *stFile) {
     InstructionInfo *package;
     unsigned long poolOffset;
@@ -101,8 +110,6 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
             stFile->ReadNextPackage(package);
         }
     }
-
-    return 0;
 }
 
 sinuca::traceReader::FetchResult

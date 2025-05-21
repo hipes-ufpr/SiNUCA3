@@ -101,7 +101,7 @@ class TraceFileReader {
     unsigned long bufActiveSize;
     TraceFile tf;
 
-    void UseFile(const char *path);
+    FILE *UseFile(const char *path);
     unsigned long RetrieveLenBytes(void *, unsigned long);
     int SetBufActiveSize(unsigned long);
     void RetrieveBuffer();
@@ -112,7 +112,7 @@ class TraceFileWriter {
   protected:
     TraceFile tf;
 
-    void UseFile(const char *);
+    FILE *UseFile(const char *);
     int AppendToBuffer(void *, unsigned long);
     void FlushLenBytes(void *, unsigned long);
     void FlushBuffer();

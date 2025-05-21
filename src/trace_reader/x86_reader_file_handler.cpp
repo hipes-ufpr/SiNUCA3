@@ -22,9 +22,21 @@
 
 #include "x86_reader_file_handler.hpp"
 
-#include <alloca.h>
+#include <cstring>
+
+extern "C" {
+    #include <fcntl.h>     // open
+    #include <sys/mman.h>  // mmap
+    #include <unistd.h>    // lseek
+    #include <alloca.h>
+    #include <errno.h>
+}
 
 #include "../utils/logging.hpp"
+
+inline void printFileErrorLog(const char *path) {
+    SINUCA3_ERROR_PRINTF("Could not open [%s]: %s\n", path, strerror(errno));
+}
 
 sinuca::traceReader::StaticTraceFile::StaticTraceFile(const char *folderPath,
                                                       const char *img) {
@@ -34,13 +46,20 @@ sinuca::traceReader::StaticTraceFile::StaticTraceFile(const char *folderPath,
 
     this->fd = open(staticPath, O_RDONLY);
     if (fd == -1) {
-        SINUCA3_ERROR_PRINTF("Could not open [%s]\n", staticPath);
+        printFileErrorLog(staticPath);
+        this->isValid = false;
         return;
     }
     this->mmapSize = lseek(fd, 0, SEEK_END);
     SINUCA3_DEBUG_PRINTF("Mmap Size [%lu]\n", this->mmapSize);
     this->mmapPtr =
         (char *)mmap(0, this->mmapSize, PROT_READ, MAP_PRIVATE, fd, 0);
+    if(this->mmapPtr == MAP_FAILED){
+        printFileErrorLog(staticPath);
+        this->isValid = false;
+        return;
+    }
+
     this->mmapOffset = 3 * sizeof(unsigned int);
 
     // Get number of threads
@@ -56,6 +75,7 @@ sinuca::traceReader::StaticTraceFile::StaticTraceFile(const char *folderPath,
         *(unsigned int *)(this->mmapPtr + sizeof(this->numThreads) +
                           sizeof(this->totalBBLs));
     SINUCA3_DEBUG_PRINTF("Number of Instructions [%u]\n", this->totalIns);
+    this->isValid = true;
 }
 
 void sinuca::traceReader::StaticTraceFile::ReadNextPackage(
@@ -81,6 +101,10 @@ unsigned int sinuca::traceReader::StaticTraceFile::GetNewBBlSize() {
     return *numIns;
 }
 
+bool sinuca::traceReader::StaticTraceFile::Valid(){
+    return this->isValid;
+}
+
 sinuca::traceReader::StaticTraceFile::~StaticTraceFile() {
     munmap(this->mmapPtr, this->mmapSize);
     close(this->fd);
@@ -93,11 +117,15 @@ sinuca::traceReader::DynamicTraceFile::DynamicTraceFile(const char *folderPath,
     char *path = (char *)alloca(bufferSize);
     FormatPathTidIn(path, folderPath, "dynamic", img, tid, bufferSize);
 
-    this->::TraceFileReader::UseFile(path);
+    if(this->::TraceFileReader::UseFile(path) == NULL){
+        this->isValid = false;
+        return;
+    }
 
     this->bufActiveSize =
         (unsigned int)(BUFFER_SIZE / sizeof(BBLID)) * sizeof(BBLID);
     this->RetrieveBuffer();  // First buffer read
+    this->isValid = true;
 }
 
 int sinuca::traceReader::DynamicTraceFile::ReadNextBBl(BBLID *bbl) {
@@ -112,6 +140,10 @@ int sinuca::traceReader::DynamicTraceFile::ReadNextBBl(BBLID *bbl) {
     return 0;
 }
 
+bool sinuca::traceReader::DynamicTraceFile::Valid(){
+    return this->isValid;
+}
+
 sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(const char *folderPath,
                                                       const char *img,
                                                       THREADID tid) {
@@ -119,11 +151,15 @@ sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(const char *folderPath,
     char *path = (char *)alloca(bufferSize);
     FormatPathTidIn(path, folderPath, "memory", img, tid, bufferSize);
 
-    this->::TraceFileReader::UseFile(path);
+    if(this->::TraceFileReader::UseFile(path) == NULL){
+        this->isValid = false;
+        return;
+    }
 
     this->RetrieveLenBytes((void *)&this->bufActiveSize,
                            sizeof(this->tf.offset));
     this->RetrieveBuffer();
+    this->isValid = true;
 }
 
 void sinuca::traceReader::MemoryTraceFile::MemRetrieveBuffer() {
@@ -183,6 +219,10 @@ int sinuca::traceReader::MemoryTraceFile::ReadNextMemAccess(
     }
 
     return 0;
+}
+
+bool sinuca::traceReader::MemoryTraceFile::Valid(){
+    return this->isValid;
 }
 
 void *sinuca::traceReader::StaticTraceFile::GetData(unsigned long len) {

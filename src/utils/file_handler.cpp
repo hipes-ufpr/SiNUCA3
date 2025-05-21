@@ -27,20 +27,26 @@
 #include <cstdio>
 #include <cstring>
 
+extern "C" {
+    #include <errno.h>
+}
+
 #include "../utils/logging.hpp"
 
 inline void printFileErrorLog(const char *path, const char *mode) {
-    SINUCA3_ERROR_PRINTF("Could not open [%s] in [%s] mode\n", path, mode);
+    SINUCA3_ERROR_PRINTF("Could not open [%s] in [%s] mode: %s\n", path, mode, strerror(errno));
 }
 
-void trace::TraceFileReader::UseFile(const char *path) {
+FILE *trace::TraceFileReader::UseFile(const char *path) {
     char mode[] = "rb";
-    tf.file = fopen(path, mode);
-    if (tf.file == NULL) {
+    this->tf.file = fopen(path, mode);
+    if (this->tf.file == NULL) {
         printFileErrorLog(path, mode);
+        return NULL;
     }
     this->eofLocation = 0;
     this->eofFound = false;
+    return this->tf.file;
 }
 
 unsigned long trace::TraceFileReader::RetrieveLenBytes(void *ptr,
@@ -73,12 +79,14 @@ void *trace::TraceFileReader::GetData(unsigned long len) {
     return ptr;
 }
 
-void trace::TraceFileWriter::UseFile(const char *path) {
+FILE *trace::TraceFileWriter::UseFile(const char *path) {
     char mode[] = "wb";
     this->tf.file = fopen(path, mode);
     if (this->tf.file == NULL) {
         printFileErrorLog(path, mode);
+        return NULL;
     }
+    return this->tf.file;
 }
 
 /*
@@ -95,15 +103,13 @@ int trace::TraceFileWriter::AppendToBuffer(void *ptr, unsigned long len) {
 }
 
 void trace::TraceFileWriter::FlushLenBytes(void *ptr, unsigned long len) {
-#ifndef NDEBUG
     SINUCA3_DEBUG_PRINTF("len size [FlushLenBytes] [%lu]\n", len);
     unsigned long written = fwrite(ptr, 1, len, this->tf.file);
     SINUCA3_DEBUG_PRINTF("written size [FlushLenBytes] [%lu]\n", written);
-
-    assert(written == len && "fwrite returned something wrong");
-#else
-    fwrite(ptr, 1, len, this->tf.file);
-#endif
+    if(written != len){
+        SINUCA3_ERROR_PRINTF("fwrite returned something wrong: %s\n", strerror(errno));
+        assert(false && "fwrite error");
+    }
 }
 
 void trace::TraceFileWriter::FlushBuffer() {

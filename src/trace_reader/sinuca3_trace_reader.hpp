@@ -65,7 +65,7 @@ class SinucaTraceReader : public TraceReader {
      * Num. Read Regs | Read Regs   | Write Regs  | Ins. Mnemonic   |
      * Branch Type
      */
-    int GenerateBinaryDict(StaticTraceFile *);
+    void GenerateBinaryDict(StaticTraceFile *);
 
   public:
     virtual int OpenTrace(const char *, const char *);

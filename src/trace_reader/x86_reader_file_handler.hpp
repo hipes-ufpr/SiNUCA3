@@ -26,12 +26,6 @@
 #include "../utils/file_handler.hpp"
 #include "../engine/default_packets.hpp"
 
-extern "C" {
-#include <fcntl.h>     // open
-#include <sys/mman.h>  // mmap
-#include <unistd.h>    // lseek
-}
-
 using namespace trace;
 
 namespace sinuca {
@@ -57,6 +51,7 @@ class StaticTraceFile {
     unsigned long mmapOffset;
     unsigned long mmapSize;
     int fd;
+    bool isValid;
 
     void *GetData(unsigned long);
     void GetFlagValues(InstructionInfo *, DataINS *);
@@ -71,22 +66,28 @@ class StaticTraceFile {
     inline unsigned int GetNumThreads() { return this->numThreads; }
     void ReadNextPackage(InstructionInfo *);
     unsigned int GetNewBBlSize();
+    bool Valid();
 };
 
 class DynamicTraceFile : public TraceFileReader {
+  private:
+    bool isValid;
   public:
     DynamicTraceFile(const char *folderPath, const char *img, THREADID tid);
     int ReadNextBBl(BBLID *);
+    bool Valid();
 };
 
 class MemoryTraceFile : public TraceFileReader {
   private:
     unsigned short GetNumOps();
     DataMEM *GetDataMemArr(unsigned short len);
+    bool isValid;
   public:
     MemoryTraceFile(const char *folderPath, const char *img, THREADID tid);
     void MemRetrieveBuffer();
     int ReadNextMemAccess(InstructionInfo *, DynamicInstructionInfo *);
+    bool Valid();
 };
 
 }  // namespace traceReader
