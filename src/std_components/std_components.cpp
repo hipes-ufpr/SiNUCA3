@@ -25,6 +25,7 @@
 
 #include "../sinuca3.hpp"
 #include "engine_debug_component.hpp"
+#include "simple_core.hpp"
 #include "simple_memory.hpp"
 
 using namespace sinuca;
@@ -35,6 +36,7 @@ engine::Linkable* sinuca::CreateDefaultComponentByClass(const char* name) {
 #endif
 
     COMPONENT(SimpleMemory);
+    COMPONENT(SimpleCore);
 
     return NULL;
 }

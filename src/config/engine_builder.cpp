@@ -549,7 +549,7 @@ sinuca::engine::Engine* sinuca::config::EngineBuilder::Instantiate(
 
         // No such class.
         if (component->component == NULL) {
-            SINUCA3_ERROR_PRINTF("No such component class: %s.",
+            SINUCA3_ERROR_PRINTF("No such component class: %s.\n",
                                  component->definition->clazz);
             return this->FreeSelfOnInstantiationFailure(yamlConfig);
         }
@@ -569,8 +569,6 @@ sinuca::engine::Engine* sinuca::config::EngineBuilder::Instantiate(
     for (long i = 0; i < this->numberOfCores; ++i) {
         coresInstantiations.push_back(
             builder::ComponentInstantiation(NULL, this->cores[i], true));
-        if (this->SetupComponentConfig(&coresInstantiations[i]))
-            return this->FreeSelfOnInstantiationFailure(yamlConfig);
     }
     for (unsigned long i = 0; i < coresInstantiations.size(); ++i) {
         coresInstantiations[i].component =
@@ -578,10 +576,14 @@ sinuca::engine::Engine* sinuca::config::EngineBuilder::Instantiate(
 
         // No such class.
         if (coresInstantiations[i].component == NULL) {
-            SINUCA3_ERROR_PRINTF("No such component class: %s.",
+            SINUCA3_ERROR_PRINTF("No such component class: %s.\n",
                                  coresInstantiations[i].definition->clazz);
             return this->FreeSelfOnInstantiationFailure(yamlConfig);
         }
+    }
+    for (unsigned long i = 0; i < coresInstantiations.size(); ++i) {
+        if (this->SetupComponentConfig(&coresInstantiations[i]))
+            return this->FreeSelfOnInstantiationFailure(yamlConfig);
     }
 
     engine::Engine* engine = this->BuildEngine(&coresInstantiations);

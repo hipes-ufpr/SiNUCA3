@@ -1,0 +1,9 @@
+core:
+  class: SimpleCore
+  dataMemory:
+    class: SimpleMemory
+  instructionMemory:
+    class: SimpleMemory
+
+cores:
+  - core
