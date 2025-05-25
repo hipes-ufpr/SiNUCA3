@@ -31,7 +31,9 @@
  * meaning that analysis code may be inserted into target program
  * during the instrumentation phase.
  */
-__attribute__((noinline, used)) void BeginInstrumentationBlock() {}
+__attribute__((noinline)) void BeginInstrumentationBlock() {
+    __asm__ volatile("" :::);
+}
 
 /**
  * @brief Ends an instrumentation block.
@@ -39,7 +41,9 @@ __attribute__((noinline, used)) void BeginInstrumentationBlock() {}
  * Code following this call will no longer be instrumented.
  * This must be paired with a preceding BeginInstrumentationBlock call.
  */
-__attribute__((noinline, used)) void EndInstrumentationBlock() {}
+__attribute__((noinline)) void EndInstrumentationBlock() {
+    __asm__ volatile("" :::);
+}
 
 /**
  * @brief Enables thread instrumentation for the current thread. Must be called
@@ -52,11 +56,15 @@ __attribute__((noinline, used)) void EndInstrumentationBlock() {}
  * This function allows the execution of previously inserted instrumentation
  * code (analysis) for the calling thread.
  */
-__attribute__((noinline, used)) void EnableThreadInstrumentation() {}
+__attribute__((noinline)) void EnableThreadInstrumentation() {
+    __asm__ volatile("" :::);
+}
 
 /**
  * @brief Disables analysis code execution for the current thread.
  */
-__attribute__((noinline, used)) void DisableThreadInstrumentation() {}
+__attribute__((noinline)) void DisableThreadInstrumentation() {
+    __asm__ volatile("" :::);
+}
 
 #endif
