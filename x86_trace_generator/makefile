@@ -9,9 +9,11 @@
 #
 ##############################################################
 
+SINUCA_PROJECT_ROOT := ..
+
 # If the tool is built out of the kit, PIN_ROOT must be specified in the make invocation and point to the kit root.
 ifndef PIN_ROOT
-PIN_ROOT := $(realpath ./pin)
+PIN_ROOT := $(realpath $(SINUCA_PROJECT_ROOT)/external/pin)
 endif
 CONFIG_ROOT := $(PIN_ROOT)/source/tools/Config
 include $(CONFIG_ROOT)/makefile.config

@@ -6,8 +6,8 @@
 #include <cstring>
 #include <vector>
 
-#include "../sinuca3.hpp"
-#include "../utils/logging.hpp"
+#include "sinuca3.hpp"
+#include "utils/logging.hpp"
 #include "config.hpp"
 #include "yaml_parser.hpp"
 

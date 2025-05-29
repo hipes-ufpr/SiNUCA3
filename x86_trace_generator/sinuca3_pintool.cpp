@@ -29,7 +29,7 @@ extern "C" {
 #include <unistd.h>    // access
 }
 
-#include "../src/utils/logging.hpp"
+#include "src/utils/logging.hpp"
 #include "./utils/static_trace_writer.hpp"
 #include "./utils/dynamic_trace_writer.hpp"
 #include "./utils/memory_trace_writer.hpp"
