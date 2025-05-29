@@ -340,19 +340,19 @@ $(TARGET): $(CPP_OBJS) $(C_OBJS) | $(BUILD_TARGET_DIRECTORIES)
 	$(LD) $^ -o $@ $(LD_FLAGS)
 
 $(BUILD_TARGET)%.o: $(SRC)%.c | $(BUILD_TARGET_DIRECTORIES)
-	$(CC) $(CFLAGS) $(C_RELEASE_FLAGS) -c $^ -o $@
+	$(CC) $(CFLAGS) $(C_RELEASE_FLAGS) -c $< -o $@
 
 $(BUILD_TARGET)%.o: $(SRC)%.$(CPP_EXTENSION) | $(BUILD_TARGET_DIRECTORIES)
-	$(CPP) $(CPPFLAGS) $(CPP_RELEASE_FLAGS) -c $^ -o $@
+	$(CPP) $(CPPFLAGS) $(CPP_RELEASE_FLAGS) -c $< -o $@
 
 $(TARGET)$(DEBUG_SUFFIX): $(CPP_DEBUG_OBJS) $(C_DEBUG_OBJS) | $(BUILD_TARGET_DIRECTORIES)
 	$(LD) $^ -o $@ $(LD_FLAGS)
 
 $(BUILD_TARGET)%$(DEBUG_SUFFIX).o: $(SRC)%.c | $(BUILD_TARGET_DIRECTORIES)
-	$(CC) $(CFLAGS) $(C_DEBUG_FLAGS) -c $^ -o $@
+	$(CC) $(CFLAGS) $(C_DEBUG_FLAGS) -c $< -o $@
 
 $(BUILD_TARGET)%$(DEBUG_SUFFIX).o: $(SRC)%.$(CPP_EXTENSION) | $(BUILD_TARGET_DIRECTORIES)
-	$(CPP) $(CPPFLAGS) $(CPP_DEBUG_FLAGS) -c $^ -o $@
+	$(CPP) $(CPPFLAGS) $(CPP_DEBUG_FLAGS) -c $< -o $@
 
 $(BUILD_TARGET_DIRECTORIES):
 	-mkdir -p $@
@@ -361,3 +361,8 @@ clean:
 	-rm -r $(BUILD_TARGET)
 	-rm $(TARGET)
 	-rm $(TARGET)$(DEBUG_SUFFIX)
+
+-include $(C_OBJS:%.o=%.d)
+-include $(C_DEBUG_OBJS:%.o=%.d)
+-include $(CPP_OBJS:%.o=%.d)
+-include $(CPP_DEBUG_OBJS:%.o=%.d)
