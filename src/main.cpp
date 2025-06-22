@@ -34,6 +34,11 @@
 #include "trace_reader/trace_reader.hpp"
 #include "utils/logging.hpp"
 
+// Include our testing facilities in debug mode.
+#ifndef NDEBUG
+#include "tests.hpp"
+#endif
+
 sinuca::engine::Engine* sinuca::ENGINE;
 
 /**
@@ -102,8 +107,22 @@ int main(int argc, char* const argv[]) {
     const char* traceFileName = NULL;
     char nextOpt;
 
-    while ((nextOpt = getopt(argc, argv, "lc:t:d:T:")) != -1) {
+    // When compiling debug mode, enable our testing facilities.
+#ifdef NDEBUG
+#define SINUCA3_SWITCHES "lc:t:d:T:"
+#else
+#define SINUCA3_SWITCHES "r:lc:t:d:T:"
+    const char* testToRun = NULL;
+#endif
+
+    while ((nextOpt = getopt(argc, argv, SINUCA3_SWITCHES)) != -1) {
         switch (nextOpt) {
+            // When compiling debug mode, enable our testing facilities.
+#ifndef NDEBUG
+            case 'r':
+                testToRun = optarg;
+                break;
+#endif
             case 'c':
                 rootConfigFile = optarg;
                 break;
@@ -124,6 +143,19 @@ int main(int argc, char* const argv[]) {
                 return 0;
         }
     }
+
+    // When compiling debug mode and there's a test to run, run it.
+#ifndef NDEBUG
+    if (testToRun != NULL) {
+        int ret = Test(testToRun);
+        if (ret < 0) {
+            SINUCA3_LOG_PRINTF("No such test: %s\n", testToRun);
+        } else if (ret > 0) {
+            SINUCA3_LOG_PRINTF("Test failed with code %d.\n", ret);
+        }
+        return ret;
+    }
+#endif
 
     if (rootConfigFile == NULL) {
         usage();

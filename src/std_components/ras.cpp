@@ -84,7 +84,7 @@ void Ras::Clock() {
     long numberOfConnections = this->GetNumberOfConnections();
     sinuca::PredictorPacket packet;
     for (long i = 0; i < numberOfConnections; ++i) {
-        if (this->ReceiveRequestFromConnection(i, &packet) != 0) {
+        if (this->ReceiveRequestFromConnection(i, &packet) == 0) {
             switch (packet.type) {
                 case sinuca::RequestQuery:
                     this->RequestQuery(i);
@@ -107,3 +107,115 @@ void Ras::Flush() {}
 Ras::~Ras() {
     if (this->buffer != NULL) delete[] this->buffer;
 }
+
+#ifndef NDEBUG
+
+int TestRas() {
+    Ras ras;
+
+    ras.SetConfigParameter("size", sinuca::config::ConfigValue((long)5));
+    int id = ras.Connect(1);
+    ras.FinishSetup();
+
+    ras.Clock();
+    ras.PosClock();
+
+    sinuca::PredictorPacket msg;
+    msg.type = sinuca::RequestUpdate;
+
+    ras.Clock();
+    msg.data.requestUpdate.targetAddress = 0xcafebabe;
+    ras.SendRequest(id, &msg);
+    ras.PosClock();
+
+    ras.Clock();
+    ras.PosClock();
+
+    ras.Clock();
+    msg.data.requestUpdate.targetAddress = 0xdeadbeef;
+    ras.SendRequest(id, &msg);
+    ras.PosClock();
+
+    ras.Clock();
+    ras.PosClock();
+
+    ras.Clock();
+    msg.type = sinuca::RequestQuery;
+    ras.SendRequest(id, &msg);
+    ras.PosClock();
+
+    ras.Clock();
+    ras.PosClock();
+
+    ras.Clock();
+    if (ras.ReceiveResponse(id, &msg)) {
+        SINUCA3_LOG_PRINTF("Ras did not respond first query!\n");
+        return 1;
+    }
+    if (msg.data.responseAddress != 0xdeadbeef) {
+        SINUCA3_LOG_PRINTF(
+            "Ras responded first query with wrong address %ld!\n",
+            msg.data.responseAddress);
+        return 1;
+    }
+    ras.PosClock();
+
+    ras.Clock();
+    ras.PosClock();
+
+    ras.Clock();
+    msg.type = sinuca::RequestUpdate;
+    msg.data.requestUpdate.targetAddress = 0xb16b00b5;
+    ras.SendRequest(id, &msg);
+    ras.PosClock();
+
+    ras.Clock();
+    ras.PosClock();
+
+    ras.Clock();
+    msg.type = sinuca::RequestQuery;
+    ras.SendRequest(id, &msg);
+    ras.PosClock();
+
+    ras.Clock();
+    ras.PosClock();
+
+    if (ras.ReceiveResponse(id, &msg)) {
+        SINUCA3_LOG_PRINTF("Ras did not respond second query!\n");
+        return 1;
+    }
+    if (msg.data.responseAddress != 0xb16b00b5) {
+        SINUCA3_LOG_PRINTF(
+            "Ras responded second query with wrong address %ld!\n",
+            msg.data.responseAddress);
+        return 1;
+    }
+
+    ras.Clock();
+    ras.PosClock();
+
+    ras.Clock();
+    msg.type = sinuca::RequestQuery;
+    ras.SendRequest(id, &msg);
+    ras.PosClock();
+
+    ras.Clock();
+    ras.PosClock();
+
+    if (ras.ReceiveResponse(id, &msg)) {
+        SINUCA3_LOG_PRINTF("Ras did not respond third query!\n");
+        return 1;
+    }
+    if (msg.data.responseAddress != 0xcafebabe) {
+        SINUCA3_LOG_PRINTF(
+            "Ras responded third query with wrong address %ld!\n",
+            msg.data.responseAddress);
+        return 1;
+    }
+
+    SINUCA3_LOG_PRINTF("Ras test was successful!\n");
+
+    return 0;
+}
+
+#endif
