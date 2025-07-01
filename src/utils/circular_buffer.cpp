@@ -22,15 +22,24 @@
 
 #include "circular_buffer.hpp"
 
+#include <cstdlib>
+
 void CircularBuffer::Allocate(int bufferSize, int elementSize) {
-    if ((bufferSize == 0) || (elementSize == 0)) return;
+    if (elementSize == 0) return;
 
     this->occupation = 0;
     this->startOfBuffer = 0;
     this->endOfBuffer = 0;
-    this->bufferSize = bufferSize;
     this->elementSize = elementSize;
-    this->buffer = (void*)new char[bufferSize * elementSize];
+
+    this->maxBufferSize = bufferSize;
+
+    if (bufferSize == 0) {
+        this->buffer = (void*)malloc(8 * elementSize);
+        this->bufferSize = 8;
+    } else {
+        this->buffer = (void*)malloc(bufferSize * elementSize);
+    }
 
     if (!this->buffer) {
         this->buffer = NULL;
@@ -45,27 +54,47 @@ void CircularBuffer::Deallocate() {
 }
 
 bool CircularBuffer::Enqueue(void* elementInput) {
-    if (!this->IsFull()) {
-        /*
-         * Target stores the memory address where the element should be
-         * inserted, based on pointer arithmetic. After its definition, memcpy
-         * stores the element in the most recent position in the buffer.
-         */
-        void* memoryAddress = static_cast<char*>(this->buffer) +
-                              (this->endOfBuffer * this->elementSize);
-
-        memcpy(memoryAddress, elementInput, this->elementSize);
-        ++this->occupation;
-        ++this->endOfBuffer;
-
-        if (this->endOfBuffer == this->bufferSize) {
-            this->endOfBuffer = 0;
+    if (this->IsFull()) {
+        if (this->maxBufferSize != 0) {
+            return 1;
         }
 
-        return 0;
+        void* newBuffer =
+            (void*)malloc(this->bufferSize * 2 * this->elementSize);
+        if (this->startOfBuffer >= this->endOfBuffer) {
+            long offset = this->bufferSize - this->startOfBuffer;
+            memcpy(newBuffer, &((char*)this->buffer)[this->startOfBuffer],
+                   offset);
+            memcpy(&((char*)newBuffer)[offset], this->buffer,
+                   this->bufferSize - offset);
+            this->startOfBuffer = 0;
+            this->endOfBuffer = this->bufferSize - 1;
+        } else {
+            memcpy(newBuffer, this->buffer, this->bufferSize * elementSize);
+        }
+
+        this->bufferSize *= 2;
+        free(this->buffer);
+        this->buffer = newBuffer;
     }
 
-    return 1;
+    /*
+     * Target stores the memory address where the element should be
+     * inserted, based on pointer arithmetic. After its definition, memcpy
+     * stores the element in the most recent position in the buffer.
+     */
+    void* memoryAddress = static_cast<char*>(this->buffer) +
+                          (this->endOfBuffer * this->elementSize);
+
+    memcpy(memoryAddress, elementInput, this->elementSize);
+    ++this->occupation;
+    ++this->endOfBuffer;
+
+    if (this->endOfBuffer == this->bufferSize) {
+        this->endOfBuffer = 0;
+    }
+
+    return 0;
 }
 
 bool CircularBuffer::Dequeue(void* elementOutput) {
@@ -99,5 +128,4 @@ void CircularBuffer::Flush() {
     this->occupation = 0;
     this->startOfBuffer = 0;
     this->endOfBuffer = 0;
-    memset(this->buffer, 0, this->bufferSize * this->elementSize);
 }
