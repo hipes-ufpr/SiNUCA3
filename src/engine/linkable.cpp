@@ -113,11 +113,8 @@ void sinuca::engine::Linkable::DeallocateConnectionsBuffer() {
 }
 
 void sinuca::engine::Linkable::AddConnection(Connection* newConnection) {
-    int connectionsSize = this->connections.size();
     this->connections.push_back(newConnection);
-
-    if (connectionsSize > this->numberOfConnections)
-        this->numberOfConnections = connectionsSize;
+    this->numberOfConnections += 1;
 }
 
 long sinuca::engine::Linkable::GetNumberOfConnections() {

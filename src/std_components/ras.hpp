@@ -52,4 +52,8 @@ class Ras : public sinuca::Component<sinuca::PredictorPacket> {
     virtual ~Ras();
 };
 
+#ifndef NDEBUG
+int TestRas();
+#endif
+
 #endif  // SINUCA3_RAS_HPP_
