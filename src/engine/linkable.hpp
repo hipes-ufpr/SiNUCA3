@@ -261,6 +261,12 @@ class Linkable {
      */
     virtual void Flush() = 0;
 
+    /**
+     * @brief This method is called by the engine after the simulation stops, so
+     * each component can print it's statistics.
+     */
+    virtual void PrintStatistics() = 0;
+
     virtual ~Linkable();
 };
 

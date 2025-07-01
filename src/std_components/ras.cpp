@@ -87,9 +87,11 @@ void Ras::Clock() {
         if (this->ReceiveRequestFromConnection(i, &packet) == 0) {
             switch (packet.type) {
                 case sinuca::RequestQuery:
+                    ++this->numQueries;
                     this->RequestQuery(i);
                     break;
                 case sinuca::RequestUpdate:
+                    ++this->numUpdates;
                     this->RequestUpdate(
                         packet.data.requestUpdate.targetAddress);
                     break;
@@ -103,6 +105,11 @@ void Ras::Clock() {
 }
 
 void Ras::Flush() {}
+
+void Ras::PrintStatistics() {
+    SINUCA3_LOG_PRINTF("Ras %p: %lu queries\n", this, this->numQueries);
+    SINUCA3_LOG_PRINTF("Ras %p: %lu updates\n", this, this->numUpdates);
+}
 
 Ras::~Ras() {
     if (this->buffer != NULL) delete[] this->buffer;

@@ -46,6 +46,11 @@ class Engine {
      * of the next clock.
      */
     bool flush;
+    /**
+     * @brief This variable tells wether a global stall should occur in the
+     * beggining of the next clock.
+     */
+    bool stall;
 
   public:
     inline Engine(Linkable** components, long numberOfComponents)
@@ -77,6 +82,11 @@ class Engine {
      *
      */
     inline void Flush() { this->flush = true; }
+
+    /**
+     * @brief A stall call stops the fetching of instructions for a cycle.
+     */
+    inline void Stall() { this->flush = true; }
 
     inline ~Engine() {
         for (long i = 0; i < this->numberOfComponents; ++i)

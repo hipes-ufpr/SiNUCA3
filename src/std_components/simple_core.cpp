@@ -31,10 +31,13 @@
 int SimpleCore::SetConfigParameter(const char* parameter,
                                    sinuca::config::ConfigValue value) {
     sinuca::Component<sinuca::MemoryPacket>** ptrToParameter;
+    int* connectionIDPtr;
     if (strcmp(parameter, "instructionMemory") == 0) {
         ptrToParameter = &this->instructionMemory;
+        connectionIDPtr = &this->instructionConnectionID;
     } else if (strcmp(parameter, "dataMemory") == 0) {
         ptrToParameter = &this->dataMemory;
+        connectionIDPtr = &this->dataConnectionID;
     } else {
         SINUCA3_ERROR_PRINTF(
             "Component SimpleCore received unknown parameter %s.\n", parameter);
@@ -57,13 +60,45 @@ int SimpleCore::SetConfigParameter(const char* parameter,
         return 1;
     }
 
+    *connectionIDPtr = (*ptrToParameter)->Connect(0);
+
     return 0;
 }
 
 int SimpleCore::FinishSetup() { return 0; }
 
-void SimpleCore::Clock() {}
+void SimpleCore::Clock() {
+    long numberOfConnections = this->GetNumberOfConnections();
+    sinuca::InstructionPacket instruction;
+
+    for (long i = 0; i < numberOfConnections; ++i) {
+        if (this->ReceiveRequestFromConnection(i, &instruction)) {
+            ++this->numFetchedInstructions;
+
+            sinuca::MemoryPacket fetchPacket =
+                instruction.staticInfo->opcodeAddress;
+            this->instructionMemory->SendRequest(this->instructionConnectionID,
+                                                 &fetchPacket);
+            for (long i = 0; i < instruction.dynamicInfo.numReadings; ++i) {
+                this->dataMemory->SendRequest(
+                    this->dataConnectionID,
+                    (unsigned long*)&(instruction.dynamicInfo.readsAddr[i]));
+            }
+
+            for (long i = 0; i < instruction.dynamicInfo.numWritings; ++i) {
+                this->dataMemory->SendRequest(
+                    this->dataConnectionID,
+                    (unsigned long*)&(instruction.dynamicInfo.writesAddr[i]));
+            }
+        }
+    }
+}
 
 void SimpleCore::Flush() {}
+
+void SimpleCore::PrintStatistics() {
+    SINUCA3_LOG_PRINTF("SimpleCore %p: %lu instructions fetched\n", this,
+                       this->numFetchedInstructions);
+}
 
 SimpleCore::~SimpleCore() {}

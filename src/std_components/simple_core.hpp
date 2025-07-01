@@ -36,13 +36,21 @@ class SimpleCore : public sinuca::Component<sinuca::InstructionPacket> {
     sinuca::Component<sinuca::MemoryPacket>* instructionMemory;
     sinuca::Component<sinuca::MemoryPacket>* dataMemory;
 
+    int instructionConnectionID;
+    int dataConnectionID;
+    unsigned long numFetchedInstructions;
+
   public:
-    inline SimpleCore() : instructionMemory(NULL), dataMemory(NULL) {}
+    inline SimpleCore()
+        : instructionMemory(NULL),
+          dataMemory(NULL),
+          numFetchedInstructions(0) {}
     virtual int FinishSetup();
     virtual int SetConfigParameter(const char* parameter,
                                    sinuca::config::ConfigValue value);
     virtual void Clock();
     virtual void Flush();
+    virtual void PrintStatistics();
     ~SimpleCore();
 };
 

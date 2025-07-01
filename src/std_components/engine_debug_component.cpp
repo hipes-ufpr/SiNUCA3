@@ -157,6 +157,10 @@ void EngineDebugComponent::Flush() {
     SINUCA3_DEBUG_PRINTF("%p: A flush happened!\n", this);
 }
 
+void EngineDebugComponent::PrintStatistics() {
+    SINUCA3_LOG_PRINTF("EngineDebugComponent %p: printing statistics\n", this);
+}
+
 EngineDebugComponent::~EngineDebugComponent() {}
 
 #endif  // NDEBUG

@@ -60,6 +60,13 @@ class CustomExample : public sinuca::Component<int> {
      * a flush calling sinuca::ENGINE->flush().
      */
     virtual void Flush();
+
+    /**
+     * @brief This method is called at the end of the simulation for each
+     * component to print it's useful statistics. A simulator is worth nothing
+     * if you cannot gather any data from it.
+     */
+    virtual void PrintStatistics();
 };
 
 #endif  // SINUCA3_CUSTOM_EXAMPLE_HPP_

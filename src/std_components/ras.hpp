@@ -36,6 +36,8 @@ class Ras : public sinuca::Component<sinuca::PredictorPacket> {
     unsigned long* buffer;
     long size;
     long end;
+    unsigned long numQueries;
+    unsigned long numUpdates;
 
     inline void RequestQuery(int connectionID);
 
@@ -48,6 +50,7 @@ class Ras : public sinuca::Component<sinuca::PredictorPacket> {
                                    sinuca::config::ConfigValue value);
     virtual void Clock();
     virtual void Flush();
+    virtual void PrintStatistics();
 
     virtual ~Ras();
 };

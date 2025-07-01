@@ -106,16 +106,9 @@ struct InstructionPacket {
 };
 
 /**
- * @brief The core shall respond this to inform the engine to stall the
- * fetching for the next cycle.
+ * @brief Used by memory components.
  */
-// TODO: Deve ser atualizado para o formato mais completo do InstructionPacket
-// const InstructionPacket STALL_FETCHING = {NULL, 0, 0};
-
-/**
- * @brief Used by SimpleMemory.
- */
-struct MemoryPacket {};
+typedef unsigned long MemoryPacket;
 
 enum PredictorPacketType {
     RequestQuery,

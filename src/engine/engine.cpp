@@ -51,6 +51,8 @@ int sinuca::engine::Engine::AddCPUs(sinuca::engine::Linkable** cpus,
                 i);
             return 1;
         }
+
+        this->cpus[i]->Connect(1);
     }
 
     delete[] cpus;
@@ -71,8 +73,8 @@ int sinuca::engine::Engine::Simulate(
     SINUCA3_LOG_PRINTF("engine: Simulation started at %s", ctime(&start));
     SINUCA3_LOG_PRINTF("engine: Total instructions: %ld.\n", traceSize);
 
-    while ((result = traceReader->Fetch(&packet, 0)) ==
-           traceReader::FetchResultOk) {
+    while (this->stall || (result = traceReader->Fetch(&packet, 0)) ==
+                              traceReader::FetchResultOk) {
         if (cycle % (1 << 8) == 0) {
             const unsigned long fetched =
                 traceReader->GetNumberOfFetchedInstructions();
@@ -98,6 +100,13 @@ int sinuca::engine::Engine::Simulate(
                 this->components[i]->LinkableFlush();
             }
             this->flush = false;
+        }
+
+        if (!this->stall) {
+            for (long i = 0; i < this->numberOfCPUs; ++i) {
+                this->cpus[i]->SendRequest(0, &packet);
+            }
+            this->stall = false;
         }
 
         for (long i = 0; i < this->numberOfCPUs; ++i) this->cpus[i]->Clock();

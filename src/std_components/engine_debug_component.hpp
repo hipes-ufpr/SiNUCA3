@@ -66,6 +66,7 @@ class EngineDebugComponent
                                    sinuca::config::ConfigValue value);
     virtual void Clock();
     virtual void Flush();
+    virtual void PrintStatistics();
 
     virtual ~EngineDebugComponent();
 };

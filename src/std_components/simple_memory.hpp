@@ -33,12 +33,17 @@
  * speed!
  */
 class SimpleMemory : public sinuca::Component<sinuca::MemoryPacket> {
+  private:
+    unsigned long numberOfRequests;
+
   public:
+    inline SimpleMemory() : numberOfRequests(0){};
     virtual int FinishSetup();
     virtual int SetConfigParameter(const char* parameter,
                                    sinuca::config::ConfigValue value);
     virtual void Clock();
     virtual void Flush();
+    virtual void PrintStatistics();
     ~SimpleMemory();
 };
 
