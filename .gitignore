@@ -11,6 +11,8 @@ docs/
 trace_generator/pin/**/*.a
 pin.log
 
+*pintool.log
+
 # The Intel Pin comes with some .o files already compiled.
 # So they should not be ignored by git.
 !trace_generator/pin/intel64/runtime/pincrt/crtendS.o
