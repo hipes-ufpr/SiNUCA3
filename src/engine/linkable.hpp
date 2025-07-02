@@ -42,7 +42,7 @@ struct Connection {
                                            swapped each cycle.*/
 
   public:
-    Connection() : bufferSize(0), messageSize(0){};
+    Connection() : bufferSize(0), messageSize(0) {};
 
     /**
      * @brief Allocate the buffers used to channels

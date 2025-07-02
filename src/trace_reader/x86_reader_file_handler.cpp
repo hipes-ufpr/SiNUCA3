@@ -25,11 +25,11 @@
 #include <cstring>
 
 extern "C" {
-    #include <fcntl.h>     // open
-    #include <sys/mman.h>  // mmap
-    #include <unistd.h>    // lseek
-    #include <alloca.h>
-    #include <errno.h>
+#include <alloca.h>
+#include <errno.h>
+#include <fcntl.h>     // open
+#include <sys/mman.h>  // mmap
+#include <unistd.h>    // lseek
 }
 
 #include "../utils/logging.hpp"
@@ -54,7 +54,7 @@ sinuca::traceReader::StaticTraceFile::StaticTraceFile(const char *folderPath,
     SINUCA3_DEBUG_PRINTF("Mmap Size [%lu]\n", this->mmapSize);
     this->mmapPtr =
         (char *)mmap(0, this->mmapSize, PROT_READ, MAP_PRIVATE, fd, 0);
-    if(this->mmapPtr == MAP_FAILED){
+    if (this->mmapPtr == MAP_FAILED) {
         printFileErrorLog(staticPath);
         this->isValid = false;
         return;
@@ -101,9 +101,7 @@ unsigned int sinuca::traceReader::StaticTraceFile::GetNewBBlSize() {
     return *numIns;
 }
 
-bool sinuca::traceReader::StaticTraceFile::Valid(){
-    return this->isValid;
-}
+bool sinuca::traceReader::StaticTraceFile::Valid() { return this->isValid; }
 
 sinuca::traceReader::StaticTraceFile::~StaticTraceFile() {
     munmap(this->mmapPtr, this->mmapSize);
@@ -117,7 +115,7 @@ sinuca::traceReader::DynamicTraceFile::DynamicTraceFile(const char *folderPath,
     char *path = (char *)alloca(bufferSize);
     FormatPathTidIn(path, folderPath, "dynamic", img, tid, bufferSize);
 
-    if(this->::TraceFileReader::UseFile(path) == NULL){
+    if (this->::TraceFileReader::UseFile(path) == NULL) {
         this->isValid = false;
         return;
     }
@@ -140,9 +138,7 @@ int sinuca::traceReader::DynamicTraceFile::ReadNextBBl(BBLID *bbl) {
     return 0;
 }
 
-bool sinuca::traceReader::DynamicTraceFile::Valid(){
-    return this->isValid;
-}
+bool sinuca::traceReader::DynamicTraceFile::Valid() { return this->isValid; }
 
 sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(const char *folderPath,
                                                       const char *img,
@@ -151,7 +147,7 @@ sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(const char *folderPath,
     char *path = (char *)alloca(bufferSize);
     FormatPathTidIn(path, folderPath, "memory", img, tid, bufferSize);
 
-    if(this->::TraceFileReader::UseFile(path) == NULL){
+    if (this->::TraceFileReader::UseFile(path) == NULL) {
         this->isValid = false;
         return;
     }
@@ -170,14 +166,15 @@ void sinuca::traceReader::MemoryTraceFile::MemRetrieveBuffer() {
 unsigned short sinuca::traceReader::MemoryTraceFile::GetNumOps() {
     unsigned short numOps;
 
-    numOps = *(unsigned short*)this->GetData(SIZE_NUM_MEM_R_W);
+    numOps = *(unsigned short *)this->GetData(SIZE_NUM_MEM_R_W);
     if (this->tf.offset >= this->bufActiveSize) {
         this->MemRetrieveBuffer();
     }
     return numOps;
 }
 
-DataMEM *sinuca::traceReader::MemoryTraceFile::GetDataMemArr(unsigned short len) {
+DataMEM *sinuca::traceReader::MemoryTraceFile::GetDataMemArr(
+    unsigned short len) {
     DataMEM *arrPtr;
 
     arrPtr = (DataMEM *)(this->GetData(len * sizeof(DataMEM)));
@@ -221,9 +218,7 @@ int sinuca::traceReader::MemoryTraceFile::ReadNextMemAccess(
     return 0;
 }
 
-bool sinuca::traceReader::MemoryTraceFile::Valid(){
-    return this->isValid;
-}
+bool sinuca::traceReader::MemoryTraceFile::Valid() { return this->isValid; }
 
 void *sinuca::traceReader::StaticTraceFile::GetData(unsigned long len) {
     void *ptr = (void *)(this->mmapPtr + this->mmapOffset);
@@ -235,7 +230,8 @@ void sinuca::traceReader::StaticTraceFile::GetFlagValues(InstructionInfo *info,
                                                          struct DataINS *data) {
     info->staticInfo.isPredicated = static_cast<bool>(data->isPredicated);
     info->staticInfo.isPrefetch = static_cast<bool>(data->isPrefetch);
-    info->staticInfo.isNonStdMemOp = static_cast<bool>(data->isNonStandardMemOp);
+    info->staticInfo.isNonStdMemOp =
+        static_cast<bool>(data->isNonStandardMemOp);
     if (!info->staticInfo.isNonStdMemOp) {
         info->staticNumReadings = data->isRead + data->isRead2;
         info->staticNumWritings = data->isWrite;

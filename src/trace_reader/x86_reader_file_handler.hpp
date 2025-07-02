@@ -23,8 +23,8 @@
  * @brief Public API of the x86_64 trace reader.
  */
 
-#include "../utils/file_handler.hpp"
 #include "../engine/default_packets.hpp"
+#include "../utils/file_handler.hpp"
 
 using namespace trace;
 
@@ -72,6 +72,7 @@ class StaticTraceFile {
 class DynamicTraceFile : public TraceFileReader {
   private:
     bool isValid;
+
   public:
     DynamicTraceFile(const char *folderPath, const char *img, THREADID tid);
     int ReadNextBBl(BBLID *);
@@ -83,6 +84,7 @@ class MemoryTraceFile : public TraceFileReader {
     unsigned short GetNumOps();
     DataMEM *GetDataMemArr(unsigned short len);
     bool isValid;
+
   public:
     MemoryTraceFile(const char *folderPath, const char *img, THREADID tid);
     void MemRetrieveBuffer();

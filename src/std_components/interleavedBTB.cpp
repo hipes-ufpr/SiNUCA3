@@ -96,7 +96,7 @@ BranchTargetBuffer::BranchTargetBuffer()
       interleavingFactor(0),
       numEntries(0),
       interleavingBits(0),
-      entriesBits(0){};
+      entriesBits(0) {};
 
 int BranchTargetBuffer::SetConfigParameter(const char* parameter,
                                            sinuca::config::ConfigValue value) {

@@ -28,13 +28,14 @@
 #include <cstring>
 
 extern "C" {
-    #include <errno.h>
+#include <errno.h>
 }
 
 #include "../utils/logging.hpp"
 
 inline void printFileErrorLog(const char *path, const char *mode) {
-    SINUCA3_ERROR_PRINTF("Could not open [%s] in [%s] mode: %s\n", path, mode, strerror(errno));
+    SINUCA3_ERROR_PRINTF("Could not open [%s] in [%s] mode: %s\n", path, mode,
+                         strerror(errno));
 }
 
 FILE *trace::TraceFileReader::UseFile(const char *path) {
@@ -106,8 +107,9 @@ void trace::TraceFileWriter::FlushLenBytes(void *ptr, unsigned long len) {
     SINUCA3_DEBUG_PRINTF("len size [FlushLenBytes] [%lu]\n", len);
     unsigned long written = fwrite(ptr, 1, len, this->tf.file);
     SINUCA3_DEBUG_PRINTF("written size [FlushLenBytes] [%lu]\n", written);
-    if(written != len){
-        SINUCA3_ERROR_PRINTF("fwrite returned something wrong: %s\n", strerror(errno));
+    if (written != len) {
+        SINUCA3_ERROR_PRINTF("fwrite returned something wrong: %s\n",
+                             strerror(errno));
         assert(false && "fwrite error");
     }
 }

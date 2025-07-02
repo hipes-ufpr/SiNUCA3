@@ -37,7 +37,7 @@ class SimpleMemory : public sinuca::Component<sinuca::MemoryPacket> {
     unsigned long numberOfRequests;
 
   public:
-    inline SimpleMemory() : numberOfRequests(0){};
+    inline SimpleMemory() : numberOfRequests(0) {};
     virtual int FinishSetup();
     virtual int SetConfigParameter(const char* parameter,
                                    sinuca::config::ConfigValue value);

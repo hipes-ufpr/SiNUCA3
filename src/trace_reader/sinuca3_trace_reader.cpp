@@ -31,8 +31,7 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
     const char *executableName, const char *traceFolderPath) {
     StaticTraceFile staticFile(traceFolderPath, executableName);
 
-    if( !staticFile.Valid())
-        return 1;
+    if (!staticFile.Valid()) return 1;
 
     this->binaryTotalBBLs = staticFile.GetTotalBBLs();
     this->numThreads = staticFile.GetNumThreads();
@@ -46,13 +45,11 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
 
         this->threadsDynFiles[i] =
             new DynamicTraceFile(traceFolderPath, executableName, i);
-        if( !this->threadsDynFiles[i]->Valid())
-            return 1;
+        if (!this->threadsDynFiles[i]->Valid()) return 1;
 
         this->threadsMemFiles[i] =
             new MemoryTraceFile(traceFolderPath, executableName, i);
-        if( !this->threadsMemFiles[i]->Valid())
-            return 1;
+        if (!this->threadsMemFiles[i]->Valid()) return 1;
     }
 
     this->GenerateBinaryDict(&staticFile);
@@ -167,8 +164,10 @@ int main() {
         SINUCA3_DEBUG_PRINTF("INS NAME [%s]\n",
                              package.staticInfo->opcodeAssembly);
         SINUCA3_DEBUG_PRINTF("INS SIZE [%d]\n", package.staticInfo->opcodeSize);
-        SINUCA3_DEBUG_PRINTF("NUM READ REGS [%d]\n", package.staticInfo->numReadRegs);
-        SINUCA3_DEBUG_PRINTF("IS BRANCH [%d]\n", package.staticInfo->isControlFlow);
+        SINUCA3_DEBUG_PRINTF("NUM READ REGS [%d]\n",
+                             package.staticInfo->numReadRegs);
+        SINUCA3_DEBUG_PRINTF("IS BRANCH [%d]\n",
+                             package.staticInfo->isControlFlow);
     } while (ret == sinuca::traceReader::FetchResultOk);
 
     delete tracer;

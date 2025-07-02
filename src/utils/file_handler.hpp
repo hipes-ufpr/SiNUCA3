@@ -26,8 +26,6 @@
 
 #include <cstdio>  // FILE*
 
-#include "../engine/default_packets.hpp"  // sinuca::Branch
-
 const int MAX_INSTRUCTION_NAME_LENGTH = 32;
 // 1MiB
 const unsigned long BUFFER_SIZE = 1 << 20;
@@ -121,7 +119,8 @@ class TraceFileWriter {
 unsigned long GetPathTidInSize(const char *sourceDir, const char *prefix,
                                const char *imageName);
 void FormatPathTidIn(char *dest, const char *sourceDir, const char *prefix,
-                     const char *imageName, THREADID tid, unsigned long bufferSize);
+                     const char *imageName, THREADID tid,
+                     unsigned long bufferSize);
 
 unsigned long GetPathTidOutSize(const char *sourceDir, const char *prefix,
                                 const char *imageName);
