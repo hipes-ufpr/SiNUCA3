@@ -1,4 +1,5 @@
-#ifndef NDEBUG
+#ifndef SINUCA3_QUEUES_HPP_
+#define SINUCA3_QUEUES_HPP_
 
 //
 // Copyright (C) 2025  HiPES - Universidade Federal do Paraná
@@ -17,34 +18,11 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-/**
- * @file tests.cpp
- * @details Defines the tests the simulator supports.
- */
+#include "../../sinuca3.hpp"
+#include "queue.hpp"
 
-#include "tests.hpp"
+class MemoryQueue : public Queue<sinuca::MemoryPacket> {};
+class PredictorQueue : public Queue<sinuca::PredictorPacket> {};
+class InstructionQueue : public Queue<sinuca::InstructionPacket> {};
 
-#include <cstring>  // IWYU pragma: keep
-
-#include "std_components/fetch/queue.hpp"
-#include "std_components/predictors/ras.hpp"
-#include "utils/logging.hpp"
-
-int TestExample() {
-    SINUCA3_LOG_PRINTF("Hello, World!\n");
-
-    return 0;
-}
-
-/**
- * @brief Runs a test by name.
- */
-int Test(const char* test) {
-    TEST(TestExample);
-    TEST(TestRas);
-    TEST(TestQueue);
-
-    return -1;
-}
-
-#endif
+#endif  // SINUCA3_QUEUES_HPP_
