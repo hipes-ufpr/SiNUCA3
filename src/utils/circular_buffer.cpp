@@ -24,6 +24,8 @@
 
 #include <cstdlib>
 
+const int defaultBufferSize = 8;
+
 void CircularBuffer::Allocate(int bufferSize, int elementSize) {
     if (elementSize == 0) return;
 
@@ -35,8 +37,8 @@ void CircularBuffer::Allocate(int bufferSize, int elementSize) {
     this->maxBufferSize = bufferSize;
 
     if (bufferSize == 0) {
-        this->buffer = (void*)malloc(8 * elementSize);
-        this->bufferSize = 8;
+        this->buffer = (void*)malloc(defaultBufferSize * elementSize);
+        this->bufferSize = defaultBufferSize;
     } else {
         this->buffer = (void*)malloc(bufferSize * elementSize);
     }
