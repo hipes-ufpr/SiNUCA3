@@ -31,7 +31,9 @@ class CircularBuffer {
   private:
     void* buffer;      /**<The Buffer. */
     int occupation;    /**<Buffer's current occupancy */
-    int bufferSize;    /**<The maximum buffer capacity. */
+    int maxBufferSize; /**<The maximum buffer capacity. Zero if it can grow
+                       undefinitely. */
+    int bufferSize;    /**<Actual alloced buffer size. */
     int elementSize;   /**<The element size supported by the buffer. */
     int startOfBuffer; /**<Sentinel to the start of the buffer. */
     int endOfBuffer;   /**<Sentinel for the end of the buffer. */
@@ -40,6 +42,7 @@ class CircularBuffer {
     CircularBuffer()
         : buffer(NULL),
           occupation(0),
+          maxBufferSize(0),
           bufferSize(0),
           elementSize(0),
           startOfBuffer(0),
