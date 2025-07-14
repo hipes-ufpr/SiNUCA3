@@ -28,6 +28,10 @@
 #include "engine_debug_component.hpp"
 #include "fetch/queues.hpp"
 #include "memory/simple_memory.hpp"
+#include "memory/cache/lru_cache.hpp"
+#include "memory/cache/pseudo_lru_cache.hpp"
+#include "memory/cache/random_cache.hpp"
+#include "memory/cache/roundRobin_cache.hpp"
 #include "predictors/interleavedBTB.hpp"
 #include "predictors/ras.hpp"
 
@@ -45,6 +49,8 @@ engine::Linkable* sinuca::CreateDefaultComponentByClass(const char* name) {
     COMPONENT(MemoryQueue);
     COMPONENT(PredictorQueue);
     COMPONENT(InstructionQueue);
+    COMPONENT(LRUCache);
+    COMPONENT(PseudoLRUCache);
 
     return NULL;
 }
