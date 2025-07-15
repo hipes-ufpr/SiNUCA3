@@ -90,12 +90,23 @@ int EngineDebugComponent::SetConfigParameter(
                 this);
             return 1;
         }
-        connectionID = this->other->Connect(4);
+        this->otherConnectionID = this->other->Connect(4);
         return 0;
     }
     if (strcmp(parameter, "flush") == 0) {
         this->flush = value.value.integer;
         return 0;
+    }
+    if (strcmp(parameter, "fetch") == 0) {
+        this->fetch = dynamic_cast<Component<sinuca::InstructionPacket>*>(
+            value.value.componentReference);
+        if (this->fetch == NULL) {
+            SINUCA3_DEBUG_PRINTF(
+                "%p: Failed to cast fetch to Component<InstructionPacket>.\n",
+                this);
+            return 1;
+        }
+        this->fetchConnectionID = this->fetch->Connect(0);
     }
 
     return 0;
@@ -109,6 +120,17 @@ int EngineDebugComponent::FinishSetup() {
 
 void EngineDebugComponent::Clock() {
     SINUCA3_DEBUG_PRINTF("%p: Clock!\n", this);
+
+    if (this->fetch != NULL) {
+        sinuca::InstructionPacket packet;
+        SINUCA3_DEBUG_PRINTF("%p: Fetching instruction!\n", this);
+        this->fetch->SendRequest(this->fetchConnectionID, &packet);
+        if (this->fetch->ReceiveResponse(this->fetchConnectionID, &packet) ==
+            0) {
+            SINUCA3_DEBUG_PRINTF("%p: Received instruction %s\n", this,
+                                 packet.staticInfo->opcodeAssembly);
+        }
+    }
 
     if (this->flush > 0) {
         --this->flush;
@@ -126,10 +148,10 @@ void EngineDebugComponent::Clock() {
                 (const sinuca::StaticInstructionInfo*)0xcafebabe;
             SINUCA3_DEBUG_PRINTF("%p: Sending message (%p) to %p.\n", this,
                                  messageInput.staticInfo, this->other);
-            this->other->SendRequest(this->connectionID, &messageInput);
+            this->other->SendRequest(this->otherConnectionID, &messageInput);
             this->send = true;
         } else {
-            if (this->other->ReceiveResponse(this->connectionID,
+            if (this->other->ReceiveResponse(this->otherConnectionID,
                                              &messageOutput) == 0) {
                 SINUCA3_DEBUG_PRINTF("%p: Received response (%p) from %p.\n",
                                      this, messageOutput.staticInfo,

@@ -27,23 +27,26 @@
 #include "../../sinuca3.hpp"
 
 /**
- * @details SimpleCore executes everything in a single cycle. You can optionally
- * set an instructionMemory and a dataMemory pointers to components that extend
- * Component<MemoryPacket>.
+ * @details SimpleCore fetches an instruction from the parameter `fetching` and
+ * optionally queries two memories (without caring with the result at all) with
+ * the instruction.
  */
 class SimpleCore : public sinuca::Component<sinuca::InstructionPacket> {
   private:
     sinuca::Component<sinuca::MemoryPacket>* instructionMemory;
     sinuca::Component<sinuca::MemoryPacket>* dataMemory;
+    sinuca::Component<sinuca::InstructionPacket>* fetching;
 
+    unsigned long numFetchedInstructions;
     int instructionConnectionID;
     int dataConnectionID;
-    unsigned long numFetchedInstructions;
+    int fetchingConnectionID;
 
   public:
     inline SimpleCore()
         : instructionMemory(NULL),
           dataMemory(NULL),
+          fetching(NULL),
           numFetchedInstructions(0) {}
     virtual int FinishSetup();
     virtual int SetConfigParameter(const char* parameter,

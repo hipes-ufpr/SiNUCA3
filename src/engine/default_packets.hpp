@@ -23,7 +23,6 @@
  * @brief Standard message types.
  */
 
-#include <cstdlib>
 #include <cstring>
 
 namespace sinuca {

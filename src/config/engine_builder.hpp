@@ -38,6 +38,11 @@ namespace sinuca {
 
 namespace builder {
 
+/** @brief Index inside the builder's instances array. */
+typedef int InstanceID;
+/** @brief Index inside the builder's definitions array. */
+typedef int DefinitionID;
+
 /**
  * @brief Intermediate representation of the types of parameters components may
  * receive.
@@ -88,7 +93,7 @@ struct ComponentInstantiation {
     /**
      * @brief Points to the definition of the component.
      */
-    ComponentDefinition* definition;
+    DefinitionID definition;
     /**
      * @brief Points to the alloced component itself.
      * @details Sometime during the processing, the components are alloced with
@@ -109,8 +114,7 @@ struct ComponentInstantiation {
      */
     bool alreadyDefined;
 
-    inline ComponentInstantiation(const char* alias,
-                                  ComponentDefinition* definition,
+    inline ComponentInstantiation(const char* alias, DefinitionID definition,
                                   bool defined) {
         this->alias = alias;
         this->definition = definition;
@@ -142,8 +146,8 @@ struct Parameter {
         double number;
         bool boolean;
         ParameterArray array;
-        ComponentInstantiation* referenceToInstance;
-        ComponentDefinition* referenceToDefinition;
+        builder::InstanceID referenceToInstance;
+        builder::DefinitionID referenceToDefinition;
     } value;            /** @brief The value itself. Tagged union with type. */
     ParameterType type; /** @brief Tag for value. */
 
@@ -248,6 +252,11 @@ namespace config {
 class EngineBuilder {
   private:
     /**
+     * @brief What we're building.
+     */
+    engine::Engine* engine;
+
+    /**
      * @brief Part of the stuff we're going to produce.
      * @details Vector of definitions that we fill throughout the reading of the
      * configuration file.
@@ -256,41 +265,27 @@ class EngineBuilder {
     /**
      * @brief Part of the stuff we're going to produce.
      * @details Vector of instances that we fill throughout the reading of the
-     * configuration file.
+     * configuration file. The first element is guaranteed to be the engine
+     * itself.
      */
     std::vector<builder::ComponentInstantiation> components;
-    /**
-     * @brief List of the definition of the cores. It's size is numberOfCores.
-     * @details Ok, here's a very unreadable and tricky way of doing things.
-     * Both cores and numberOfCores will be zero-initialized so when we reach
-     * the `cores` parameter, we know that it was never reached before. If we
-     * reach it and these are not zeroed, we know that the parameter was defined
-     * multiple times. For pratical reasons, what this means is that these two
-     * variables are "actually initialized" after we reach the `cores`
-     * parameter.
-     */
-    builder::ComponentDefinition** cores;
-    /** @brief Size of cores. */
-    long numberOfCores;
 
-    /** @brief Initializes the cores and numberOfCores passed by reference, and
-     * may return error. */
-    int TreatCoresParameter(const sinuca::yaml::YamlValue* coresConfig);
-    /** @brief Add the cores. Called when encountering the cores special
-     * parameter. */
-    int AddCores(const std::vector<sinuca::yaml::YamlValue*>* coresConfig);
     /** @brief Simply adds an instantiation and a definition. Calls
-     * AddComponentDefinitionFromYamlMapping first, then creates an instance. */
-    builder::ComponentInstantiation* AddComponentInstantiationFromYamlMapping(
+     * AddComponentDefinitionFromYamlMapping first, then creates an instance.
+     * Returns non-zero on error. */
+    int AddComponentInstantiationFromYamlMapping(
         const char* name, const char* alias,
-        const std::vector<yaml::YamlMappingEntry*>* config);
-    /** @brief Simply adds a definition, recursively. */
-    builder::ComponentDefinition* AddComponentDefinitionFromYamlMapping(
-        const char* name, const std::vector<yaml::YamlMappingEntry*>* config);
+        const std::vector<yaml::YamlMappingEntry*>* config,
+        builder::InstanceID* ret);
+    /** @brief Simply adds a definition, recursively. Returns non-zero on error.
+     */
+    builder::DefinitionID AddComponentDefinitionFromYamlMapping(
+        const char* name, const std::vector<yaml::YamlMappingEntry*>* config,
+        builder::DefinitionID* ret);
     /** @brief Adds a definition not yet defined. */
-    builder::ComponentDefinition* AddDummyDefinition(const char* name);
+    builder::DefinitionID AddDummyDefinition(const char* name);
     /** @brief Adds an instance not yet defined. */
-    builder::ComponentInstantiation* AddDummyInstance(const char* alias);
+    builder::InstanceID AddDummyInstance(const char* alias);
     /** @brief Makes an array of parameters from a YAML array. */
     int YamlArray2Parameter(builder::Parameter* dest,
                             const std::vector<yaml::YamlValue*>* array);
@@ -298,25 +293,22 @@ class EngineBuilder {
     /** @brief Fills the parameters and the class of a component. Parameter are
      * translated with Yaml2Parameter. */
     int FillParametersAndClass(
-        builder::ComponentDefinition* definition,
+        builder::DefinitionID id,
         const std::vector<yaml::YamlMappingEntry*>* config);
 
     /** @brief If there's a component definition with the name passed, returns a
      * pointer to it. Otherwise creates a dummy one and returns it's pointer. */
-    builder::ComponentDefinition* GetComponentDefinitionOrMakeDummy(
-        const char* name);
+    builder::DefinitionID GetComponentDefinitionOrMakeDummy(const char* name);
     /** @brief If there's a component instance with the name passed, returns a
      * pointer to it. Otherwise creates a dummy one and returns it's pointer. */
-    builder::ComponentInstantiation* GetComponentInstantiationOrMakeDummy(
-        const char* alias);
+    builder::InstanceID GetComponentInstantiationOrMakeDummy(const char* alias);
 
-    /** @brief Returns a definition with the name passed or NULL if it does not
-     * already exists. */
-    builder::ComponentDefinition* GetComponentDefinition(const char* name);
-    /** @brief Returns an instance with the name passed or NULL if it does not
-     * already exists. */
-    builder::ComponentInstantiation* GetComponentInstantiation(
-        const char* alias);
+    /** @brief Returns a definition with the name passed by reference. If it
+     * does not already exists, returns 1. */
+    int GetComponentDefinition(const char* name, builder::DefinitionID* ret);
+    /** @brief Returns an instance with the name passed by reference. If it does
+     * not already exists, returns 1. */
+    int GetComponentInstantiation(const char* alias, builder::InstanceID* ret);
 
     /** @brief Translates YAML to a parameter. This may recursively call
      * AddComponentDefinitionFromYamlMapping */
@@ -334,8 +326,10 @@ class EngineBuilder {
 
     /**
      * @brief Pass the parameters to a component, with Parameter2ConfigValue.
+     * This method also resolves pointers to definitions, thus allocating more
+     * components.
      */
-    int SetupComponentConfig(const builder::ComponentInstantiation* instance);
+    int SetupComponentConfig(const builder::InstanceID instance);
     /** @brief Translates the intermediate representation of the parameter to
      * the config API representation. Note that this function adds more
      * instances when it encounters references to definitions. */
@@ -348,7 +342,11 @@ class EngineBuilder {
     /** @brief Called by Parameter2ConfigValue to create new instances from
      * references to definitions. */
     engine::Linkable* NewComponentFromDefinitionReference(
-        builder::ComponentDefinition* reference);
+        builder::DefinitionID reference);
+
+    /** @brief Creates an anonymous instance defined by the instantiate
+     * parameter. */
+    int TreatInstantiateParameter(const yaml::YamlValue* value);
 
     /** @brief Helper that frees all memory used by the builder and returns NULL
      * (to be used as `return this->FreeSelf...`). */
@@ -356,15 +354,21 @@ class EngineBuilder {
         const yaml::YamlValue* yamlConfig);
 
     /** @brief After everything is done, constructs the engine. */
-    sinuca::engine::Engine* BuildEngine(
-        const std::vector<builder::ComponentInstantiation>* coresInstances);
+    sinuca::engine::Engine* BuildEngine();
 
   public:
     /** @brief Instantiates an Engine from a configuration file, returning NULL
      * on error. */
     engine::Engine* Instantiate(const char* configFile);
-    EngineBuilder();
-    ~EngineBuilder();
+    inline EngineBuilder() : engine(new engine::Engine) {
+        builder::ComponentInstantiation engineInstantiation =
+            builder::ComponentInstantiation(NULL, 0, true);
+        engineInstantiation.component = this->engine;
+        // Heuristic.
+        this->componentDefinitions.reserve(32);
+        this->components.reserve(32);
+        this->components.push_back(engineInstantiation);
+    }
 };
 
 }  // namespace config

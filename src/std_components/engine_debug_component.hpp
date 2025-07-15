@@ -42,9 +42,11 @@
 class EngineDebugComponent
     : public sinuca::Component<sinuca::InstructionPacket> {
   private:
-    bool send;
-    int connectionID;
     EngineDebugComponent* other;
+    Component<sinuca::InstructionPacket>* fetch;
+    int otherConnectionID;
+    int fetchConnectionID;
+    bool send;
     bool shallFailOnFinish;
     /** @brief If >0, asks the engine for a flush at this cycle. */
     long flush;
@@ -55,9 +57,11 @@ class EngineDebugComponent
 
   public:
     inline EngineDebugComponent()
-        : send(false),
-          connectionID(-1),
-          other(NULL),
+        : other(NULL),
+          fetch(NULL),
+          otherConnectionID(-1),
+          fetchConnectionID(-1),
+          send(false),
           shallFailOnFinish(true),
           flush(-1) {}
 

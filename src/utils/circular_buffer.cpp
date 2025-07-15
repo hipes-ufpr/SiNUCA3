@@ -50,7 +50,7 @@ void CircularBuffer::Allocate(int bufferSize, int elementSize) {
 
 void CircularBuffer::Deallocate() {
     if (this->buffer) {
-        delete[] (char*)this->buffer;
+        free(this->buffer);
         this->buffer = NULL;
     }
 }

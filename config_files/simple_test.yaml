@@ -1,9 +1,7 @@
-core:
+instantiate:
   class: SimpleCore
+  fetching: *ENGINE
   dataMemory:
     class: SimpleMemory
   instructionMemory:
     class: SimpleMemory
-
-cores:
-  - core

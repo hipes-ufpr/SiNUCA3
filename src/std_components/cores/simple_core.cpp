@@ -23,6 +23,7 @@
 
 #include "simple_core.hpp"
 
+#include <cassert>
 #include <cstring>
 
 #include "../../sinuca3.hpp"
@@ -38,6 +39,25 @@ int SimpleCore::SetConfigParameter(const char* parameter,
     } else if (strcmp(parameter, "dataMemory") == 0) {
         ptrToParameter = &this->dataMemory;
         connectionIDPtr = &this->dataConnectionID;
+    } else if (strcmp(parameter, "fetching") == 0) {
+        if (value.type != sinuca::config::ConfigValueTypeComponentReference) {
+            SINUCA3_ERROR_PRINTF(
+                "Component SimpleCore received a parameter that's not a "
+                "component "
+                "reference.\n");
+            return 1;
+        }
+
+        this->fetching = dynamic_cast<Component<sinuca::InstructionPacket>*>(
+            value.value.componentReference);
+        if (this->fetching == NULL) {
+            SINUCA3_ERROR_PRINTF(
+                "Component SimpleCore received a parameter fetching that's not"
+                "a reference to a Component<MemoryPacket>.\n");
+            return 1;
+        }
+        this->fetchingConnectionID = this->fetching->Connect(0);
+        return 0;
     } else {
         SINUCA3_ERROR_PRINTF(
             "Component SimpleCore received unknown parameter %s.\n", parameter);
@@ -55,8 +75,10 @@ int SimpleCore::SetConfigParameter(const char* parameter,
         value.value.componentReference);
     if (*ptrToParameter == NULL) {
         SINUCA3_ERROR_PRINTF(
-            "Component SimpleCore received a parameter that's not a reference "
-            "to a Component<MemoryPacket>.\n");
+            "Component SimpleCore received a parameter %s that's not a "
+            "reference "
+            "to a Component<MemoryPacket>.\n",
+            parameter);
         return 1;
     }
 
@@ -65,30 +87,41 @@ int SimpleCore::SetConfigParameter(const char* parameter,
     return 0;
 }
 
-int SimpleCore::FinishSetup() { return 0; }
+int SimpleCore::FinishSetup() {
+    if (this->fetching == NULL) {
+        SINUCA3_ERROR_PRINTF(
+            "SimpleCore didn't received required parameter fetching.\n");
+        return 1;
+    }
+
+    return 0;
+}
 
 void SimpleCore::Clock() {
-    long numberOfConnections = this->GetNumberOfConnections();
     sinuca::InstructionPacket instruction;
-
-    for (long i = 0; i < numberOfConnections; ++i) {
-        if (this->ReceiveRequestFromConnection(i, &instruction)) {
-            ++this->numFetchedInstructions;
-
+    this->fetching->SendRequest(this->fetchingConnectionID, &instruction);
+    if (this->fetching->ReceiveResponse(this->fetchingConnectionID,
+                                        &instruction) == 0) {
+        ++this->numFetchedInstructions;
+        if (this->instructionMemory != NULL) {
             sinuca::MemoryPacket fetchPacket =
                 instruction.staticInfo->opcodeAddress;
             this->instructionMemory->SendRequest(this->instructionConnectionID,
                                                  &fetchPacket);
-            for (long i = 0; i < instruction.dynamicInfo.numReadings; ++i) {
-                this->dataMemory->SendRequest(
-                    this->dataConnectionID,
-                    (unsigned long*)&(instruction.dynamicInfo.readsAddr[i]));
-            }
+            if (this->dataMemory != NULL) {
+                for (long i = 0; i < instruction.dynamicInfo.numReadings; ++i) {
+                    this->dataMemory->SendRequest(
+                        this->dataConnectionID,
+                        (unsigned long*)&(
+                            instruction.dynamicInfo.readsAddr[i]));
+                }
 
-            for (long i = 0; i < instruction.dynamicInfo.numWritings; ++i) {
-                this->dataMemory->SendRequest(
-                    this->dataConnectionID,
-                    (unsigned long*)&(instruction.dynamicInfo.writesAddr[i]));
+                for (long i = 0; i < instruction.dynamicInfo.numWritings; ++i) {
+                    this->dataMemory->SendRequest(
+                        this->dataConnectionID,
+                        (unsigned long*)&(
+                            instruction.dynamicInfo.writesAddr[i]));
+                }
             }
         }
     }
