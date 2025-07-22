@@ -156,6 +156,7 @@ void EngineDebugComponent::Clock() {
                 SINUCA3_DEBUG_PRINTF("%p: Received response (%p) from %p.\n",
                                      this, messageOutput.staticInfo,
                                      this->other);
+                this->send = false;
             } else {
                 SINUCA3_DEBUG_PRINTF("%p: No response from %p.\n", this,
                                      this->other);
