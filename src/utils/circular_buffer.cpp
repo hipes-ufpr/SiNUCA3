@@ -33,6 +33,7 @@ void CircularBuffer::Allocate(int bufferSize, int elementSize) {
     this->startOfBuffer = 0;
     this->endOfBuffer = 0;
     this->elementSize = elementSize;
+    this->bufferSize = bufferSize;
 
     this->maxBufferSize = bufferSize;
 
