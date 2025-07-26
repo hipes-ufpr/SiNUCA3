@@ -61,7 +61,7 @@ int BTBEntry::Allocate(unsigned int numBanks) {
 
 int BTBEntry::NewEntry(unsigned long tag, unsigned int bank,
                        unsigned long target,
-                       sinuca::StaticInstructionInfo* instruction) {
+                       const sinuca::StaticInstructionInfo* instruction) {
     if (bank >= this->numBanks) return 1;
 
     this->entryTag = tag;
@@ -218,7 +218,7 @@ unsigned long BranchTargetBuffer::CalculateIndex(unsigned long address) {
 }
 
 int BranchTargetBuffer::RegisterNewBranch(
-    sinuca::StaticInstructionInfo* instruction, unsigned long target) {
+    const sinuca::StaticInstructionInfo* instruction, unsigned long target) {
     unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
     unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
     unsigned int bank = this->CalculateBank(instruction->opcodeAddress);
@@ -226,8 +226,8 @@ int BranchTargetBuffer::RegisterNewBranch(
     return this->btb[index]->NewEntry(tag, bank, target, instruction);
 }
 
-int BranchTargetBuffer::UpdateBranch(sinuca::StaticInstructionInfo* instruction,
-                                     bool branchState) {
+int BranchTargetBuffer::UpdateBranch(
+    const sinuca::StaticInstructionInfo* instruction, bool branchState) {
     unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
     unsigned int bank = this->CalculateBank(instruction->opcodeAddress);
 
@@ -235,7 +235,7 @@ int BranchTargetBuffer::UpdateBranch(sinuca::StaticInstructionInfo* instruction,
 }
 
 inline void BranchTargetBuffer::Query(
-    sinuca::StaticInstructionInfo* instruction, int connectionID) {
+    const sinuca::StaticInstructionInfo* instruction, int connectionID) {
     unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
     unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
     BTBPacket response;
@@ -293,12 +293,13 @@ inline void BranchTargetBuffer::Query(
 }
 
 inline int BranchTargetBuffer::AddEntry(
-    sinuca::StaticInstructionInfo* instruction, unsigned long targetAddress) {
+    const sinuca::StaticInstructionInfo* instruction,
+    unsigned long targetAddress) {
     return this->RegisterNewBranch(instruction, targetAddress);
 }
 
 inline int BranchTargetBuffer::Update(
-    sinuca::StaticInstructionInfo* instruction, bool branchState) {
+    const sinuca::StaticInstructionInfo* instruction, bool branchState) {
     return this->UpdateBranch(instruction, branchState);
 }
 

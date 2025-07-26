@@ -82,7 +82,7 @@ int Ras::SetConfigParameter(const char* parameter,
     return 1;
 }
 
-inline void Ras::RequestQuery(sinuca::StaticInstructionInfo* instruction,
+inline void Ras::RequestQuery(const sinuca::StaticInstructionInfo* instruction,
                               int connectionID) {
     unsigned long prediction = this->buffer[this->end];
     --this->end;

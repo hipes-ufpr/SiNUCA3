@@ -151,15 +151,15 @@ enum PredictorPacketType {
  */
 struct PredictorPacket {
     union {
-        StaticInstructionInfo* requestQuery;
+        const StaticInstructionInfo* requestQuery;
 
         struct {
-            StaticInstructionInfo* instruction;
+            const StaticInstructionInfo* instruction;
             unsigned long target;
         } requestUpdate;
 
         struct {
-            StaticInstructionInfo* instruction;
+            const StaticInstructionInfo* instruction;
             unsigned long target;
         } response;
     } data;
