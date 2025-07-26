@@ -42,7 +42,8 @@ class Ras : public sinuca::Component<sinuca::PredictorPacket> {
 
     int forwardToID;
 
-    inline void RequestQuery(int connectionID);
+    inline void RequestQuery(sinuca::StaticInstructionInfo* instruction,
+                             int connectionID);
 
     inline void RequestUpdate(unsigned long targetAddress);
 

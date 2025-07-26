@@ -60,12 +60,14 @@ int BTBEntry::Allocate(unsigned int numBanks) {
 }
 
 int BTBEntry::NewEntry(unsigned long tag, unsigned int bank,
-                       unsigned long targetAddress, BranchType type) {
+                       unsigned long target,
+                       sinuca::StaticInstructionInfo* instruction) {
     if (bank >= this->numBanks) return 1;
 
     this->entryTag = tag;
-    this->targetArray[bank] = targetAddress;
-    this->branchTypes[bank] = type;
+    this->targetArray[bank] = target;
+    this->branchTypes[bank] =
+        BranchTypeFromSinucaBranch(instruction->branchType);
 
     return 0;
 }
@@ -215,26 +217,27 @@ unsigned long BranchTargetBuffer::CalculateIndex(unsigned long address) {
     return index;
 }
 
-int BranchTargetBuffer::RegisterNewBranch(unsigned long address,
-                                          unsigned long targetAddress,
-                                          BranchType type) {
-    unsigned long index = this->CalculateIndex(address);
-    unsigned long tag = this->CalculateTag(address);
-    unsigned int bank = this->CalculateBank(address);
+int BranchTargetBuffer::RegisterNewBranch(
+    sinuca::StaticInstructionInfo* instruction, unsigned long target) {
+    unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
+    unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
+    unsigned int bank = this->CalculateBank(instruction->opcodeAddress);
 
-    return this->btb[index]->NewEntry(tag, bank, targetAddress, type);
+    return this->btb[index]->NewEntry(tag, bank, target, instruction);
 }
 
-int BranchTargetBuffer::UpdateBranch(unsigned long address, bool branchState) {
-    unsigned long index = this->CalculateIndex(address);
-    unsigned int bank = this->CalculateBank(address);
+int BranchTargetBuffer::UpdateBranch(sinuca::StaticInstructionInfo* instruction,
+                                     bool branchState) {
+    unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
+    unsigned int bank = this->CalculateBank(instruction->opcodeAddress);
 
     return this->btb[index]->UpdateEntry(bank, branchState);
 }
 
-inline void BranchTargetBuffer::Query(unsigned long address, int connectionID) {
-    unsigned long index = this->CalculateIndex(address);
-    unsigned long tag = this->CalculateTag(address);
+inline void BranchTargetBuffer::Query(
+    sinuca::StaticInstructionInfo* instruction, int connectionID) {
+    unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
+    unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
     BTBPacket response;
 
     BTBEntry* currentEntry = btb[index];
@@ -246,40 +249,40 @@ inline void BranchTargetBuffer::Query(unsigned long address, int connectionID) {
          * taken branch as valid.
          */
         bool branchTaken = false;
-        response.data.responseQuery.address = address;
-        response.data.responseQuery.targetAddress =
-            address + this->interleavingFactor;
-        response.data.responseQuery.numberOfBits = this->interleavingFactor;
+        response.data.response.instruction = instruction;
+        response.data.response.target =
+            instruction->opcodeAddress + this->interleavingFactor;
+        response.data.response.numberOfBits = this->interleavingFactor;
 
         for (unsigned int i = 0; i < this->interleavingFactor; ++i) {
             if (!(branchTaken)) {
                 if ((currentEntry->GetBranchType(i) ==
-                     BranchTypeUnconditionalBranch) ||
+                     BranchTypeUnconditional) ||
                     (currentEntry->GetPrediction(i) == TAKEN)) {
-                    response.data.responseQuery.targetAddress =
+                    response.data.response.target =
                         currentEntry->GetTargetAddress(i);
                     branchTaken = true;
                 }
-                response.data.responseQuery.validBits[i] = true;
+                response.data.response.validBits[i] = true;
             } else {
-                response.data.responseQuery.validBits[i] = false;
+                response.data.response.validBits[i] = false;
             }
         }
-        response.type = ResponseBTBHit;
+        response.type = BTBPacketTypeResponseBTBHit;
     } else {
         // BTB Miss
         /*
          * In a BTB Miss, it assumes that all instructions are valid and that
          * the next fetch block is sequential.
          */
-        response.data.responseQuery.address = address;
-        response.data.responseQuery.targetAddress =
-            address + this->interleavingFactor;
-        response.data.responseQuery.numberOfBits = this->interleavingFactor;
+        response.data.response.instruction = instruction;
+        response.data.response.target =
+            instruction->opcodeAddress + this->interleavingFactor;
+        response.data.response.numberOfBits = this->interleavingFactor;
         for (unsigned int i = 0; i < this->interleavingFactor; ++i) {
-            response.data.responseQuery.validBits[i] = true;
+            response.data.response.validBits[i] = true;
         }
-        response.type = ResponseBTBMiss;
+        response.type = BTBPacketTypeResponseBTBMiss;
     }
 
     if (this->sendTo == NULL) {
@@ -289,14 +292,14 @@ inline void BranchTargetBuffer::Query(unsigned long address, int connectionID) {
     }
 }
 
-inline int BranchTargetBuffer::AddEntry(unsigned long address,
-                                        unsigned long targetAddress,
-                                        BranchType type) {
-    return this->RegisterNewBranch(address, targetAddress, type);
+inline int BranchTargetBuffer::AddEntry(
+    sinuca::StaticInstructionInfo* instruction, unsigned long targetAddress) {
+    return this->RegisterNewBranch(instruction, targetAddress);
 }
 
-inline int BranchTargetBuffer::Update(unsigned long address, bool branchState) {
-    return this->UpdateBranch(address, branchState);
+inline int BranchTargetBuffer::Update(
+    sinuca::StaticInstructionInfo* instruction, bool branchState) {
+    return this->UpdateBranch(instruction, branchState);
 }
 
 void BranchTargetBuffer::Clock() {
@@ -305,21 +308,20 @@ void BranchTargetBuffer::Clock() {
     for (long i = 0; i < numberOfConnections; ++i) {
         if (this->ReceiveRequestFromConnection(i, &packet) == 0) {
             switch (packet.type) {
-                case RequestQuery:
+                case BTBPacketTypeRequestQuery:
                     ++this->numQueries;
-                    this->Query(packet.data.requestQuery.address, i);
+                    this->Query(packet.data.requestQuery, i);
                     break;
-                case RequestAddEntry:
-                    this->AddEntry(packet.data.requestAddEntry.address,
-                                   packet.data.requestAddEntry.targetAddress,
-                                   packet.data.requestAddEntry.typeOfBranch);
+                case BTBPacketTypeRequestAddEntry:
+                    this->AddEntry(packet.data.requestAddEntry.instruction,
+                                   packet.data.requestAddEntry.target);
                     break;
-                case RequestUpdate:
-                    this->Update(packet.data.updateQuery.address,
-                                 packet.data.updateQuery.branchState);
+                case BTBPacketTypeRequestUpdate:
+                    this->Update(packet.data.requestUpdate.instruction,
+                                 packet.data.requestUpdate.branchState);
                     break;
-                case ResponseBTBHit:
-                case ResponseBTBMiss:
+                case BTBPacketTypeResponseBTBHit:
+                case BTBPacketTypeResponseBTBMiss:
                     SINUCA3_WARNING_PRINTF(
                         "Connection %ld send a response type message to BTB.\n",
                         i);

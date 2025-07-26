@@ -127,12 +127,12 @@ union FetchPacket {
 typedef unsigned long MemoryPacket;
 
 enum PredictorPacketType {
-    RequestQuery,
-    RequestUpdate,
-    ResponseUnknown,
-    ResponseTake,
-    ResponseTakeToAddress,
-    ResponseDontTake,
+    PredictorPacketTypeRequestQuery,
+    PredictorPacketTypeRequestUpdate,
+    PredictorPacketTypeResponseUnknown,
+    PredictorPacketTypeResponseTake,
+    PredictorPacketTypeResponseTakeToAddress,
+    PredictorPacketTypeResponseDontTake,
 };
 
 /**
@@ -151,20 +151,17 @@ enum PredictorPacketType {
  */
 struct PredictorPacket {
     union {
-        struct {
-            unsigned long address;
-            Branch branchType;
-            bool isBranchTypeKnown;
-        } requestQuery;
+        StaticInstructionInfo* requestQuery;
 
         struct {
-            unsigned long address;
-            unsigned long targetAddress;
-            Branch branchType;
-            bool wasTaken;
+            StaticInstructionInfo* instruction;
+            unsigned long target;
         } requestUpdate;
 
-        unsigned long responseAddress;
+        struct {
+            StaticInstructionInfo* instruction;
+            unsigned long target;
+        } response;
     } data;
     PredictorPacketType type;
 };
