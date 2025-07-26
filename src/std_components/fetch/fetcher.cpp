@@ -23,6 +23,8 @@
 
 #include "fetcher.hpp"
 
+#include <cassert>
+
 #include "../../sinuca3.hpp"
 #include "../../utils/logging.hpp"
 
@@ -43,7 +45,12 @@ int Fetcher::FinishSetup() {
     this->instructionMemoryID =
         this->instructionMemory->Connect(this->fetchSize);
 
-    this->fetchBuffer = new sinuca::InstructionPacket[this->fetchSize];
+    this->fetchBuffer = new FetchBufferEntry[this->fetchSize];
+
+    // Maybe connect to a predictor.
+    if (this->predictor != NULL) {
+        this->predictorID = this->predictor->Connect(this->fetchSize);
+    }
 
     return 0;
 }
@@ -103,6 +110,33 @@ int Fetcher::FetchIntervalConfigParameter(sinuca::config::ConfigValue value) {
     return 1;
 }
 
+int Fetcher::PredictorConfigParameter(sinuca::config::ConfigValue value) {
+    if (value.type == sinuca::config::ConfigValueTypeComponentReference) {
+        this->predictor =
+            dynamic_cast<sinuca::Component<sinuca::PredictorPacket>*>(
+                value.value.componentReference);
+        if (this->predictor != NULL) return 0;
+    }
+
+    SINUCA3_ERROR_PRINTF(
+        "Fetcher parameter `predictor` is not a "
+        "Component<PredictorPacket>.\n");
+    return 1;
+}
+
+int Fetcher::MisspredictPenaltyConfigParameter(
+    sinuca::config::ConfigValue value) {
+    if (value.type == sinuca::config::ConfigValueTypeInteger) {
+        if (value.value.integer > 0) {
+            this->misspredictPenalty = value.value.integer;
+            return 0;
+        }
+    }
+    SINUCA3_ERROR_PRINTF(
+        "Fetcher parameter `misspredictPenalty` is not a integer > 0.\n");
+    return 1;
+}
+
 int Fetcher::SetConfigParameter(const char* parameter,
                                 sinuca::config::ConfigValue value) {
     if (strcmp(parameter, "fetch") == 0) {
@@ -113,6 +147,10 @@ int Fetcher::SetConfigParameter(const char* parameter,
         return this->FetchSizeConfigParameter(value);
     } else if (strcmp(parameter, "fetchInterval") == 0) {
         return this->FetchIntervalConfigParameter(value);
+    } else if (strcmp(parameter, "predictor") == 0) {
+        return this->PredictorConfigParameter(value);
+    } else if (strcmp(parameter, "misspredictPenalty") == 0) {
+        return this->MisspredictPenaltyConfigParameter(value);
     }
 
     SINUCA3_ERROR_PRINTF("Fetcher received unknown parameter %s.\n", parameter);
@@ -123,22 +161,70 @@ int Fetcher::SetConfigParameter(const char* parameter,
 void Fetcher::ClockSendBuffered() {
     unsigned long i = 0;
 
+    // Skip instructions we already sent.
+    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToMemory) ++i;
+
     while (i < this->fetchBufferUsage &&
-           (this->instructionMemory->SendRequest(this->instructionMemoryID,
-                                                 &this->fetchBuffer[i]) == 0)) {
+           (this->instructionMemory->SendRequest(
+                this->instructionMemoryID, &this->fetchBuffer[i].instruction) ==
+            0)) {
+        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToMemory;
         ++i;
     }
-    this->fetchBufferUsage -= i;
-    if (this->fetchBufferUsage > 0) {
-        memmove(&this->fetchBuffer[i], this->fetchBuffer,
-                this->fetchBufferUsage * sizeof(*this->fetchBuffer));
+
+    // Same thing for the predictor.
+    i = 0;
+
+    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToPredictor)
+        ++i;
+
+    while (i < this->fetchBufferUsage) {
+        sinuca::PredictorPacket packet;
+        packet.type = sinuca::PredictorPacketTypeRequestQuery;
+        packet.data.requestQuery = this->fetchBuffer[i].instruction.staticInfo;
+        if (this->predictor->SendRequest(this->predictorID, &packet) != 0)
+            break;
+        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToPredictor;
+        ++i;
     }
 }
+
+// TODO: this makes the fetcher send one instruction more after a misspredict...
+// if we could put the target address in the dynamicInfo it would be so nice.
+void Fetcher::ClockCheckPredictor() {
+    sinuca::PredictorPacket response;
+    unsigned long i = 0;
+    // We depend on the predictor sending the responses in order and, of course,
+    // sending only what we actually asked for.
+    while (this->predictor->ReceiveResponse(this->predictorID, &response) ==
+           0) {
+        assert(this->fetchBuffer[i].instruction.staticInfo ==
+               response.data.response.instruction);
+        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsPredicted;
+
+        long last = this->lastPrediction;
+        this->lastPrediction = response.data.response.target;
+
+        // We check wether the last prediction was successful here because it
+        // would be just too complex otherwise. We literally stop the world,
+        // letting the remaining of the buffer to be treated when the penalty
+        // is paid.
+        if (last != 0 &&
+            last !=
+                this->fetchBuffer[i].instruction.staticInfo->opcodeAddress) {
+            this->currentPenalty = this->misspredictPenalty;
+            break;
+        }
+    }
+}
+
+void Fetcher::ClockUnbuffer() {}
 
 void Fetcher::ClockRequestFetch() {
     unsigned long fetchBufferByteUsage = 0;
     for (unsigned long i = 0; i < this->fetchBufferUsage; ++i) {
-        fetchBufferByteUsage += this->fetchBuffer[i].staticInfo->opcodeSize;
+        fetchBufferByteUsage +=
+            this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
     }
 
     sinuca::FetchPacket request;
@@ -161,6 +247,8 @@ void Fetcher::ClockFetch() {
 
 void Fetcher::Clock() {
     this->ClockSendBuffered();
+    this->ClockCheckPredictor();
+    this->ClockUnbuffer();
     this->ClockFetch();
 
     if (this->fetchClock % this->fetchInterval == 0) {

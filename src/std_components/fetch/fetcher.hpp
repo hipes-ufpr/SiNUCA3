@@ -28,15 +28,39 @@
 
 #include "../../sinuca3.hpp"
 
+// We use constants and not enums because C++ complains about using enums as
+// sets (bit-oring them and stuff). It's an int because alignment would make
+// anything occupy more space in the struct anyways so let's use the type that
+// enables us to operate faster on the registers.
+typedef int FetchBufferEntryFlags;
+const FetchBufferEntryFlags FetchBufferEntryFlagsPredicted = (1 << 0);
+const FetchBufferEntryFlags FetchBufferEntryFlagsSentToPredictor = (1 << 1);
+const FetchBufferEntryFlags FetchBufferEntryFlagsSentToMemory = (1 << 2);
+
+struct FetchBufferEntry {
+    sinuca::InstructionPacket instruction;
+    unsigned long prediction;
+    FetchBufferEntryFlags flags;
+
+    inline FetchBufferEntry() : flags((FetchBufferEntryFlags)0) {}
+};
+
 class Fetcher : public sinuca::Component<int> {
   private:
     sinuca::Component<sinuca::FetchPacket>* fetch;
     sinuca::Component<sinuca::InstructionPacket>* instructionMemory;
-    sinuca::InstructionPacket* fetchBuffer;
+    sinuca::Component<sinuca::PredictorPacket>* predictor;
+    int predictorID;
+    FetchBufferEntry* fetchBuffer;
     unsigned long fetchBufferUsage;
     unsigned long fetchSize;
     unsigned long fetchInterval;
     unsigned long fetchClock;
+    unsigned long numberOfPredictors;
+    unsigned long misspredictPenalty;
+    unsigned long misspredictions;
+    unsigned long currentPenalty;
+    long lastPrediction;
     int fetchID;
     int instructionMemoryID;
 
@@ -44,8 +68,12 @@ class Fetcher : public sinuca::Component<int> {
     int InstructionMemoryConfigParameter(sinuca::config::ConfigValue value);
     int FetchSizeConfigParameter(sinuca::config::ConfigValue value);
     int FetchIntervalConfigParameter(sinuca::config::ConfigValue value);
+    int PredictorConfigParameter(sinuca::config::ConfigValue value);
+    int MisspredictPenaltyConfigParameter(sinuca::config::ConfigValue value);
 
     void ClockSendBuffered();
+    void ClockCheckPredictor();
+    void ClockUnbuffer();
     void ClockRequestFetch();
     void ClockFetch();
 
@@ -53,11 +81,17 @@ class Fetcher : public sinuca::Component<int> {
     inline Fetcher()
         : fetch(NULL),
           instructionMemory(NULL),
+          predictor(NULL),
           fetchBuffer(NULL),
           fetchBufferUsage(0),
           fetchSize(1),
           fetchInterval(1),
-          fetchClock(0) {}
+          fetchClock(0),
+          numberOfPredictors(0),
+          misspredictPenalty(0),
+          misspredictions(0),
+          currentPenalty(0),
+          lastPrediction(0) {}
     virtual int FinishSetup();
     virtual int SetConfigParameter(const char* parameter,
                                    sinuca::config::ConfigValue value);
