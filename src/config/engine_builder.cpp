@@ -426,8 +426,9 @@ sinuca::config::EngineBuilder::FreeSelfOnInstantiationFailure(
     delete this->engine;
 
     // Go back deallocating everything. We need to do this because
-    // ComponentInstantiation doesn't delete it's own component pointer.
-    for (unsigned long j = 0;
+    // ComponentInstantiation doesn't delete it's own component pointer. Of
+    // course, we skip the engine.
+    for (unsigned long j = 1;
          j < this->components.size() && this->components[j].component != NULL;
          ++j)
         delete this->components[j].component;
@@ -460,7 +461,13 @@ sinuca::config::EngineBuilder::NewComponentFromDefinitionReference(
     builder::DefinitionID reference) {
     engine::Linkable* component =
         CreateComponent(this->componentDefinitions[reference].clazz);
-    if (component == NULL) return NULL;
+    if (component == NULL) {
+        // It's not a good pratice to print errors this far in the call stack,
+        // but we really have no choice here.
+        SINUCA3_ERROR_PRINTF("No such component class: %s.\n",
+                             this->componentDefinitions[reference].clazz);
+        return NULL;
+    }
 
     builder::ComponentInstantiation instance =
         builder::ComponentInstantiation(NULL, reference, true);
@@ -572,6 +579,11 @@ sinuca::engine::Engine* sinuca::config::EngineBuilder::Instantiate(
     for (unsigned long i = 1; i < this->components.size(); ++i) {
         if (this->SetupComponentConfig(i))
             return this->FreeSelfOnInstantiationFailure(yamlConfig);
+    }
+    for (unsigned long i = 1; i < this->components.size(); ++i) {
+        if (this->components[i].component->FinishSetup()) {
+            return this->FreeSelfOnInstantiationFailure(yamlConfig);
+        }
     }
 
     engine::Engine* engine = this->BuildEngine();

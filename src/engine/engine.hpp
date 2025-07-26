@@ -78,6 +78,7 @@ class Engine : public Component<FetchPacket> {
   public:
     inline Engine()
         : components(NULL),
+          fetchBuffers(NULL),
           numberOfComponents(0),
           numberOfFetchers(0),
           totalCycles(0),

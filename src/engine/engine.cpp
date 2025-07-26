@@ -64,6 +64,7 @@ void sinuca::engine::Engine::Fetch(int id, sinuca::FetchPacket packet) {
     }
 
     long weight = this->fetchBuffers[id].staticInfo->opcodeSize;
+
     while (weight < packet.request) {
         if (this->SendBufferedAndFetch(id)) {
             return;
@@ -117,6 +118,7 @@ int sinuca::engine::Engine::SetupSimulation(
             traceReader::FetchResultOk) {
             return 1;
         }
+        ++this->fetchedInstructions;
     }
 
     return 0;
