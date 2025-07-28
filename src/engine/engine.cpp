@@ -37,13 +37,15 @@ int sinuca::engine::Engine::SetConfigParameter(
 }
 
 int sinuca::engine::Engine::SendBufferedAndFetch(int id) {
-    if (this->SendResponseToConnection(id,
-                                       (FetchPacket*)&this->fetchBuffers[id])) {
-        return 1;
-    }
-
+    sinuca::InstructionPacket toSend = this->fetchBuffers[id];
     const traceReader::FetchResult r =
         this->traceReader->Fetch(&this->fetchBuffers[id], id);
+    toSend.nextInstruction = this->fetchBuffers[id].staticInfo->opcodeAddress;
+
+    // Silently drops the packet if the buffer is full. The component must
+    // ensure the buffers never fills.
+    this->SendResponseToConnection(id, (FetchPacket*)&toSend);
+
     if (r == traceReader::FetchResultEnd) {
         this->end = true;
         return 1;

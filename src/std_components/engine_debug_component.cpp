@@ -138,10 +138,10 @@ void EngineDebugComponent::Clock() {
         if (this->flush == 0) sinuca::ENGINE->Flush();
     }
 
-    sinuca::InstructionPacket messageInput = {NULL,
-                                              sinuca::DynamicInstructionInfo()};
+    sinuca::InstructionPacket messageInput = {
+        NULL, sinuca::DynamicInstructionInfo(), 0};
     sinuca::InstructionPacket messageOutput = {
-        NULL, sinuca::DynamicInstructionInfo()};
+        NULL, sinuca::DynamicInstructionInfo(), 0};
 
     if (this->other) {
         if (!(this->send)) {
