@@ -42,9 +42,14 @@ int sinuca::engine::Engine::SendBufferedAndFetch(int id) {
         this->traceReader->Fetch(&this->fetchBuffers[id], id);
     toSend.nextInstruction = this->fetchBuffers[id].staticInfo->opcodeAddress;
 
-    // Silently drops the packet if the buffer is full. The component must
-    // ensure the buffers never fills.
-    this->SendResponseToConnection(id, (FetchPacket*)&toSend);
+    // This unfortunately drops the packet if the buffer is full. The component
+    // must ensure the buffers never fills.
+    if (this->SendResponseToConnection(id, (FetchPacket*)&toSend) != 0) {
+        SINUCA3_WARNING_PRINTF(
+            "engine: == INSTRUCTION DROP DETECTED == core %d made requests "
+            "with a full buffer, instructions will be dropped.\n",
+            id);
+    }
 
     if (r == traceReader::FetchResultEnd) {
         this->end = true;
