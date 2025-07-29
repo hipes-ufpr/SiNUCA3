@@ -20,10 +20,12 @@
 
 /**
  * @file tests.hpp
- * @details Infrastructure to the tests the simulator supports.
+ * @brief Infrastructure to the tests the simulator supports.
  */
 
+/** @brief An example test. */
 int TestExample();
+/** @brief Runs a test by it's name. */
 int Test(const char* test);
 
 #define TEST(func) \

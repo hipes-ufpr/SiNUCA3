@@ -23,7 +23,6 @@
 
 #include <getopt.h>
 
-// #include <cassert>
 #include <cstdlib>
 #include <cstring>
 
@@ -39,6 +38,7 @@
 #include "tests.hpp"
 #endif
 
+/** @brief Definition of the ENGINE global object declared in sinuca3.hpp. */
 sinuca::engine::Engine* sinuca::ENGINE;
 
 /**

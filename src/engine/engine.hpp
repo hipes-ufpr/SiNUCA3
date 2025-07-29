@@ -36,18 +36,23 @@ namespace engine {
 /**
  * @brief The engine itself.
  * @details A component may fetch an instruction by sending a message to the
- * engine. The contents of the message aren't important. The engine will anwser
- * any message with the next executed instruction.
+ * engine. In the configuration file, it's accessible via the pre-defined alias
+ * *ENGINE. Each connection to the engine represents a core.
  */
 class Engine : public Component<FetchPacket> {
   private:
-    Linkable** components;
-    traceReader::TraceReader* traceReader;
-    sinuca::InstructionPacket* fetchBuffers;
-    long numberOfComponents;
-    long numberOfFetchers;
-    unsigned long totalCycles;
-    unsigned long fetchedInstructions;
+    Linkable**
+        components; /** @brief The components of the simulation INCLUDING
+                       THE ENGINE ITSELF, guaranteed to be the first element. */
+    traceReader::TraceReader* traceReader; /** @brief The trace reader. */
+    sinuca::InstructionPacket*
+        fetchBuffers;        /** @brief Fetch buffers for each connection. */
+    long numberOfComponents; /** @brief The number of components. */
+    long numberOfFetchers; /** @brief The number of components connected to the
+                              engine. I.e., cores. */
+    unsigned long totalCycles; /** @brief Counter of cycles. */
+    unsigned long
+        fetchedInstructions; /** @brief Counter of instructions fetched. */
 
     /**
      * @brief This variable tells wether a flush should occur in the beggining
@@ -87,6 +92,7 @@ class Engine : public Component<FetchPacket> {
           end(false),
           error(false) {}
 
+    /** @brief Instantiates a simulation from the array of components. */
     inline void Instantiate(Linkable** components, long numberOfComponents) {
         this->components = components;
         this->numberOfComponents = numberOfComponents;

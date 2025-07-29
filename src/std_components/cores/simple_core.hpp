@@ -27,20 +27,27 @@
 #include "../../sinuca3.hpp"
 
 /**
- * @details SimpleCore fetches an instruction from the parameter `fetching` and
- * optionally queries two memories (without caring with the result at all) with
- * the instruction.
+ * @details SimpleCore fetches an instruction from the required parameter
+ * `fetching`, a Component<InstructionPacket> and optionally queries two
+ * memories (without caring with the result at all) with the instruction. The
+ * two memories are passed as the Component<MemoryPacket> parameters
+ * `instructionMemory` and `dataMemory`.
  */
 class SimpleCore : public sinuca::Component<sinuca::InstructionPacket> {
   private:
-    sinuca::Component<sinuca::MemoryPacket>* instructionMemory;
-    sinuca::Component<sinuca::MemoryPacket>* dataMemory;
-    sinuca::Component<sinuca::FetchPacket>* fetching;
+    sinuca::Component<sinuca::MemoryPacket>*
+        instructionMemory; /** @brief The instruction memory. */
+    sinuca::Component<sinuca::MemoryPacket>*
+        dataMemory; /** @brief The data memory. */
+    sinuca::Component<sinuca::FetchPacket>*
+        fetching; /** @brief The fetching. */
 
-    unsigned long numFetchedInstructions;
-    int instructionConnectionID;
-    int dataConnectionID;
-    int fetchingConnectionID;
+    unsigned long numFetchedInstructions; /** @brief The number of fetched
+                                             instructions. */
+    int instructionConnectionID;          /** @brief The connection ID of
+                                             instructionMemory. */
+    int dataConnectionID;     /** @brief The connection ID of dataMemory. */
+    int fetchingConnectionID; /** @brief The connection ID of fetching. */
 
   public:
     inline SimpleCore()

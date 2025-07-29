@@ -144,20 +144,20 @@ void EngineDebugComponent::Clock() {
         NULL, sinuca::DynamicInstructionInfo(), 0};
 
     if (this->other) {
-        if (!(this->send)) {
+        if (!(this->sent)) {
             messageInput.staticInfo =
                 (const sinuca::StaticInstructionInfo*)0xcafebabe;
             SINUCA3_DEBUG_PRINTF("%p: Sending message (%p) to %p.\n", this,
                                  messageInput.staticInfo, this->other);
             this->other->SendRequest(this->otherConnectionID, &messageInput);
-            this->send = true;
+            this->sent = true;
         } else {
             if (this->other->ReceiveResponse(this->otherConnectionID,
                                              &messageOutput) == 0) {
                 SINUCA3_DEBUG_PRINTF("%p: Received response (%p) from %p.\n",
                                      this, messageOutput.staticInfo,
                                      this->other);
-                this->send = false;
+                this->sent = false;
             } else {
                 SINUCA3_DEBUG_PRINTF("%p: No response from %p.\n", this,
                                      this->other);

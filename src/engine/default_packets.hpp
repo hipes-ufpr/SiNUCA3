@@ -119,8 +119,9 @@ struct InstructionPacket {
  * @param response A fetched instruction.
  */
 union FetchPacket {
-    long request;
-    InstructionPacket response;
+    long request; /** @brief Amount of bytes to fetch. 0 to fetch a single
+                     instruction regardless of it's size. */
+    InstructionPacket response; /** @brief The fetched instruction. */
 };
 
 /**
@@ -128,6 +129,9 @@ union FetchPacket {
  */
 typedef unsigned long MemoryPacket;
 
+/**
+ * @brief Tag for the PredictorPacket union.
+ */
 enum PredictorPacketType {
     PredictorPacketTypeRequestQuery,
     PredictorPacketTypeRequestUpdate,
@@ -139,7 +143,7 @@ enum PredictorPacketType {
 
 /**
  * @brief Message exchanged between components and branch predictors such as
- * BTBs, RASs, etc.
+ * BTBs, RASs, etc. Tagged union with PredictorPacketType.
  *
  * @details When a component wishes to query the predictor about a newly-arrived
  * instruction, it sends a RequestQuery message with the address of the
@@ -153,19 +157,23 @@ enum PredictorPacketType {
  */
 struct PredictorPacket {
     union {
-        sinuca::InstructionPacket requestQuery;
+        sinuca::InstructionPacket
+            requestQuery; /** @brief A request to predict a instruction. */
 
         struct {
-            sinuca::InstructionPacket instruction;
-            unsigned long target;
-        } requestUpdate;
+            sinuca::InstructionPacket
+                instruction;      /** @brief The instruction. */
+            unsigned long target; /** @brief It's target. */
+        } requestUpdate; /** @brief A request to update the target of an
+                            instruction. */
 
         struct {
-            sinuca::InstructionPacket instruction;
-            unsigned long target;
-        } response;
-    } data;
-    PredictorPacketType type;
+            sinuca::InstructionPacket
+                instruction;      /** @brief The instruction. */
+            unsigned long target; /** @brief It's target. */
+        } response;               /** @brief Data of response types. */
+    } data;                       /** @brief The data. */
+    PredictorPacketType type;     /** @brief The tag. */
 };
 
 }  // namespace sinuca

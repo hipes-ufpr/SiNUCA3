@@ -27,10 +27,14 @@
 
 #include "../../sinuca3.hpp"
 
+/**
+ * @brief The SimpleExecutionUnit simply executes any instruction immediatly.
+ */
 class SimpleExecutionUnit
     : public sinuca::Component<sinuca::InstructionPacket> {
   private:
-    unsigned long numberOfInstructions;
+    unsigned long
+        numberOfInstructions; /** @brief The number of instructions executed. */
 
   public:
     inline SimpleExecutionUnit() : numberOfInstructions(0) {};

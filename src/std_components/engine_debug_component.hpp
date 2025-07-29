@@ -42,15 +42,25 @@
 class EngineDebugComponent
     : public sinuca::Component<sinuca::InstructionPacket> {
   private:
-    EngineDebugComponent* other;
-    Component<sinuca::FetchPacket>* fetch;
-    int otherConnectionID;
-    int fetchConnectionID;
-    bool send;
-    bool shallFailOnFinish;
-    /** @brief If >0, asks the engine for a flush at this cycle. */
-    long flush;
+    EngineDebugComponent*
+        other; /** @brief Another component to test sending messages. */
+    Component<sinuca::FetchPacket>*
+        fetch; /** @brief Another component to test fetching instructions. */
+    int otherConnectionID; /** @brief Connection ID for `other`. */
+    int fetchConnectionID; /** @brief Connection ID for `fetch`. */
+    bool sent; /** @brief Tells wether we already sent a message to other. */
+    bool shallFailOnFinish; /** @brief If true, fails at the FinishSetup method
+                               to test the engine handling of failures. */
+    long flush; /** @brief If >0, asks the engine for a flush at this cycle. */
 
+    /**
+     * @brief Prints a config value along with the parameter name. This is
+     * recursive for arrays.
+     * @param parameter self-explanatory.
+     * @param value self-explanatory.
+     * @param indent The indentation level for printing, increased every
+     * recursion.
+     */
     void PrintConfigValue(const char* parameter,
                           sinuca::config::ConfigValue value,
                           unsigned char indent = 0);
@@ -61,7 +71,7 @@ class EngineDebugComponent
           fetch(NULL),
           otherConnectionID(-1),
           fetchConnectionID(-1),
-          send(false),
+          sent(false),
           shallFailOnFinish(true),
           flush(-1) {}
 

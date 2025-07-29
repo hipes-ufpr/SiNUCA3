@@ -23,8 +23,15 @@
  * @details API of the template Queue, a generic fetching queue that can be used
  * to enqueue results from caches, predictors, etc. You need to create a proper
  * component that instantiates this template class to use it.
- *
- * The size of the queue is actually just the buffer size of the connection one
+ */
+
+#include "../../sinuca3.hpp"
+#include "../../utils/logging.hpp"
+
+/**
+ * @brief Queue is a template class for creating fetching queues.
+ * @details The queue uses the connection ones creates to it as buffer. Thus,
+ * the size of the queue is actually just the buffer size of the connection one
  * makes to it.
  *
  * The queue must receive a parameter `sendTo` that points to a component of the
@@ -36,15 +43,12 @@
  * as they arrive. This way, the queue actually simply adds a cycle of latency
  * to the pipeline.
  */
-
-#include "../../sinuca3.hpp"
-#include "../../utils/logging.hpp"
-
 template <typename Type>
 class Queue : public sinuca::Component<Type> {
-    sinuca::Component<Type>* sendTo;
-    long throughput;
-    int connectionID;
+    sinuca::Component<Type>*
+        sendTo;       /** @brief Component to which send the responses. */
+    long throughput;  /** @brief Size of the connection to `sendTo`. */
+    int connectionID; /** @brief Connection ID with `sendTo`. */
 
   public:
     inline Queue() : sendTo(NULL), throughput(0) {}

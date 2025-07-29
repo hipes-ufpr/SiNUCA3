@@ -28,15 +28,23 @@
 
 #include "../../sinuca3.hpp"
 
-// We use constants and not enums because C++ complains about using enums as
-// sets (bit-oring them and stuff). It's an int because alignment would make
-// anything occupy more space in the struct anyways so let's use the type that
-// enables us to operate faster on the registers.
+/**
+ * @brief Enum for flags for the fetch buffer of the fetcher.
+ * @details We use constants and not enums because C++ complains about
+ * usingenums as sets (bit-oring them and stuff). It's an int because alignment
+ * would make anything occupy more space in the struct anyways so let's use the
+ * type that enables us to operate faster on the registers.
+ */
 typedef int FetchBufferEntryFlags;
+/** @brief Predictor responded about this instruction. */
 const FetchBufferEntryFlags FetchBufferEntryFlagsPredicted = (1 << 0);
+/** @brief We already sent this instruction to the predictor. */
 const FetchBufferEntryFlags FetchBufferEntryFlagsSentToPredictor = (1 << 1);
+/** @brief We already sent this instruction to the memory. */
 const FetchBufferEntryFlags FetchBufferEntryFlagsSentToMemory = (1 << 2);
 
+/** @brief Represents an instruction alongside with useful information in the
+ * fetch buffer. */
 struct FetchBufferEntry {
     sinuca::InstructionPacket instruction;
     FetchBufferEntryFlags flags;
@@ -44,36 +52,77 @@ struct FetchBufferEntry {
     inline FetchBufferEntry() : flags((FetchBufferEntryFlags)0) {}
 };
 
+/**
+ * @brief The Fetcher is a generic fetcher with support to an instruction memory
+ * and a predictor. It handles the pay of misspredicton penalties.
+ *
+ * @details It accepts the following parameters:
+ * - fetch (required): Component<InstructionPacket> from which to fetch
+ *   instructions.
+ * - instructionMemory (required): Component<InstructionPacket> to which send
+ *   the instruction after fetching.
+ * - fetchSize: The size in bytes to fetch per fetch cycle. Defaults to 0.
+ * - fetchInterval: Integer amount of cycles to wait before fetching. I.e.,
+ *   fetch every `fetchInterval` cycles. Defaults to 1.
+ * - predictor: Component<InstructionPacket> to which send prediction requests.
+ * - misspredictPenalty: Integer amount of cycles to idle when a missprediction
+ *   happens.
+ */
 class Fetcher : public sinuca::Component<int> {
   private:
-    sinuca::Component<sinuca::FetchPacket>* fetch;
-    sinuca::Component<sinuca::InstructionPacket>* instructionMemory;
-    sinuca::Component<sinuca::PredictorPacket>* predictor;
-    int predictorID;
-    FetchBufferEntry* fetchBuffer;
-    unsigned long fetchBufferUsage;
-    unsigned long fetchSize;
-    unsigned long fetchInterval;
-    unsigned long fetchClock;
-    unsigned long misspredictPenalty;
-    unsigned long misspredictions;
-    unsigned long currentPenalty;
-    unsigned long fetchedInstructions;
-    int fetchID;
-    int instructionMemoryID;
-    FetchBufferEntryFlags flagsToCheck;
+    sinuca::Component<sinuca::FetchPacket>*
+        fetch; /** @brief Component from which to fetch instructions. */
+    sinuca::Component<sinuca::InstructionPacket>*
+        instructionMemory; /** @brief Component to which send the instructions
+                              after fetching. */
+    sinuca::Component<sinuca::PredictorPacket>*
+        predictor; /** @brief Component to which send prediction requests. */
+    FetchBufferEntry* fetchBuffer; /** @brief Fetched instructions. */
+    unsigned long
+        fetchBufferUsage; /** @brief Number of instructions in fetchBuffer. */
+    unsigned long fetchSize;     /** @brief Amount of bytes to fetch. */
+    unsigned long fetchInterval; /** @brief Cycle interval to fetch. */
+    unsigned long fetchClock;    /** @brief Counter to control when to fetch. */
+    unsigned long misspredictPenalty; /** @brief Amount of cycles to idle when a
+                                         missprediction happens. */
+    unsigned long
+        misspredictions; /** @brief Number of misspredictions that happened. */
+    unsigned long currentPenalty; /** @brief Counter to control the paying of
+                                     penalties. */
+    unsigned long
+        fetchedInstructions; /** @brief Number of fetched instructions. */
+    int predictorID;         /** @brief Connection ID of predictor. */
+    int fetchID;             /** @brief Connection ID of fetch. */
+    int instructionMemoryID; /** @brief Connection ID of instructionMemory. */
+    FetchBufferEntryFlags
+        flagsToCheck; /** @brief Flags to check when removing instructions from
+                         the buffer. If there's a predictor, we need to check
+                         wether the instruction was predicted. If there's no
+                         predictor, we don't. */
 
+    /** @brief Helper to set the fetch config parameter. */
     int FetchConfigParameter(sinuca::config::ConfigValue value);
+    /** @brief Helper to set the instruction memory config parameter. */
     int InstructionMemoryConfigParameter(sinuca::config::ConfigValue value);
+    /** @brief Helper to set the fetch size config parameter. */
     int FetchSizeConfigParameter(sinuca::config::ConfigValue value);
+    /** @brief Helper to set the fetch interval config parameter. */
     int FetchIntervalConfigParameter(sinuca::config::ConfigValue value);
+    /** @brief Helper to set the predictor config parameter. */
     int PredictorConfigParameter(sinuca::config::ConfigValue value);
+    /** @brief Helper to set the missprediction penalty config parameter. */
     int MisspredictPenaltyConfigParameter(sinuca::config::ConfigValue value);
 
+    /** @brief Helper to send the fetched instructions to the memory and the
+     * predictor. */
     void ClockSendBuffered();
+    /** @brief Helper to check predicted instructions. */
     int ClockCheckPredictor();
+    /** @brief Helper to remove instructions from the buffer. */
     void ClockUnbuffer();
+    /** @brief Helper to request instructions to `fetch`. */
     void ClockRequestFetch();
+    /** @brief Helper to get the fetched instructions. */
     void ClockFetch();
 
   public:

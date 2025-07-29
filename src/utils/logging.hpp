@@ -24,32 +24,52 @@
  * stdout or stderr).
  */
 
-#include <cstdio>
+#include <cstdio>  // IWYU pragma: keep
 
+/**
+ * @brief Macro for printing errors, drop-in replacement for printf with
+ * additional information.
+ */
 #define SINUCA3_ERROR_PRINTF(...)     \
     {                                 \
         fprintf(stderr, "[ERROR] ");  \
         fprintf(stderr, __VA_ARGS__); \
     }
 
+/**
+ * @brief Macro for printing warnings, drop-in replacement for printf with
+ * additional information.
+ */
 #define SINUCA3_WARNING_PRINTF(...)    \
     {                                  \
         fprintf(stderr, "[WARNING] "); \
         fprintf(stderr, __VA_ARGS__);  \
     }
 
+/**
+ * @brief Macro for printing general information, drop-in replacement for
+ * printf.
+ */
 #define SINUCA3_LOG_PRINTF(...) \
     {                           \
         printf(__VA_ARGS__);    \
     }
 
 #ifndef NDEBUG
+/**
+ * @brief Macro for printing debug information. In debug builds, it's a drop-in
+ * replacement for printf. In release builds, compiles to nothing.
+ */
 #define SINUCA3_DEBUG_PRINTF(...) \
     {                             \
         printf("[DEBUG] ");       \
         printf(__VA_ARGS__);      \
     }
 #else
+/**
+ * @brief Macro for printing debug information. In debug builds, it's a drop-in
+ * replacement for printf. In release builds, compiles to nothing.
+ */
 #define SINUCA3_DEBUG_PRINTF(...) \
     do {                          \
     } while (0)

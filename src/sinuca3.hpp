@@ -36,7 +36,7 @@
 namespace sinuca {
 
 /**
- * Global engine so everyone can call it's methods.
+ * @brief Global engine object so everyone can call it's methods.
  */
 extern engine::Engine* ENGINE;
 
@@ -51,9 +51,15 @@ extern engine::Engine* ENGINE;
     }                                                                  \
     }
 
-/** @brief Don't call, used by the SimulatorBuilder. */
+/**
+ * @brief Don't call, used by the SimulatorBuilder.
+ * @details Allocates a default component by it's class name.
+ */
 engine::Linkable* CreateDefaultComponentByClass(const char* name);
-/** @brief Don't call, used by the SimulatorBuilder. */
+/**
+ * @brief Don't call, used by the SimulatorBuilder.
+ * @details Allocates a custom component by it's class name.
+ */
 engine::Linkable* CreateCustomComponentByClass(const char* name);
 
 }  // namespace sinuca

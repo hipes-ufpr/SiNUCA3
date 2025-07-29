@@ -19,7 +19,11 @@
 
 /**
  * @file tests.cpp
- * @details Defines the tests the simulator supports.
+ * @details Defines the tests the simulator supports. A test is a function with
+ * the signature `int()` that returns 0 if the test succeeds and a number
+ * greater than zero otherwise. To add a test to the infrastructure, go to the
+ * file `tests.cpp` and declare your test inside the function `Test` with the
+ * `TEST()` macro.
  */
 
 #include "tests.hpp"

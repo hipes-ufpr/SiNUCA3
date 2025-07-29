@@ -26,25 +26,55 @@
 
 #include "../../sinuca3.hpp"
 
+/**
+ * @brief The HardwiredPredictor is a predictor that always predicted correctly
+ * or misspredicts a given set of instructions. It accepts the following boolean
+ * parameters, each one if false makes the predictor always misspredicts the
+ * given instruction set: `syscall`, `call`, `return`, `uncond`, `cond` and
+ * `noBranch`. The default for every set is true. Additionally, it accepts a
+ * `sendTo` Component<PredictorPacket> parameter. If `sendTo` is set, the
+ * predictor sends all responses to that component instead of sending in the
+ * response channel.
+ */
 class HardwiredPredictor : public sinuca::Component<sinuca::PredictorPacket> {
   private:
-    sinuca::Component<sinuca::PredictorPacket>* sendTo;
-    unsigned long numberOfSyscalls;
-    unsigned long numberOfCalls;
-    unsigned long numberOfRets;
-    unsigned long numberOfUnconds;
-    unsigned long numberOfConds;
-    unsigned long numberOfNoBranchs;
-    int sendToID;
-    bool syscall;
-    bool call;
-    bool ret;
-    bool uncond;
-    bool cond;
-    bool noBranch;
+    sinuca::Component<sinuca::PredictorPacket>*
+        sendTo; /** @brief If set, sends responses to this component. */
+    unsigned long numberOfSyscalls; /** @brief Number of syscalls executed. */
+    unsigned long numberOfCalls;    /** @brief Number of calls executed. */
+    unsigned long numberOfRets;     /** @brief Number of returns executed. */
+    unsigned long
+        numberOfUnconds; /** @brief Number of unconditional branchs executed. */
+    unsigned long
+        numberOfConds; /** @brief Number of conditional branchs executed. */
+    unsigned long
+        numberOfNoBranchs; /** @brief Number of normal instructions executed. */
+    int sendToID;          /** @brief ID of `sendTo`. */
+    bool syscall;          /** @brief Wether to predict syscalls correctly.  */
+    bool call;             /** @brief Wether to predict calls correctly.  */
+    bool ret;              /** @brief Wether to predict returns correctly.  */
+    bool uncond; /** @brief Wether to predict unconditional branches correctly.
+                  */
+    bool cond; /** @brief Wether to predict conditional branches correctly.  */
+    bool
+        noBranch; /** @brief Wether to predict normal instructions correctly. */
 
+    /**
+     * @brief Helper to set all those boolean parameters.
+     * @param parameter The name of the parameter to set (for printing the error
+     * message if necessary).
+     * @param ptr The pointer to the boolean parameter (&this->syscall,
+     * &this->call, etc).
+     * @param value The value.
+     */
     int SetBoolParameter(const char* parameter, bool* ptr,
                          sinuca::config::ConfigValue value);
+
+    /**
+     * @brief Helper to respond a request.
+     * @param id The connection id of the client.
+     * @param request The request itself.
+     */
     void Respond(int id, sinuca::PredictorPacket request);
 
   public:

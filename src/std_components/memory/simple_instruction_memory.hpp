@@ -22,14 +22,22 @@
  * @file simple_instruction_memory.hpp
  * @details Public API of the SimpleInstructionMemory: component for SiNUCA3
  * which just responds immediatly for every request (of instructions). I.e., the
- * perfect (instruction) memory: big and works at the light speed! Beware that
- * it connects with `sendTo` with unlimited bandwidth, and thus limits in it may
- * cause a high memory usage due to it's queue. If no `sendTo` parameter is
- * provided, it responds to the requests.
+ * perfect (instruction) memory: big and works at the light speed!
  */
 
 #include "../../sinuca3.hpp"
 
+/**
+ * @brief component for SiNUCA3 which just responds immediatly for every request
+ * (of instructions). I.e., the perfect (instruction) memory: big and works at
+ * the light speed!
+ * @details The SimpleInstructionMemory accepts the `sendTo` parameter as a
+ * Component<InstructionPacket>. If it's set, the memory forwards all responses
+ * to it instead of answering in the response channel. Beware that it connects
+ * to `sendTo` without limits, so if that component has a limited throughput,
+ * the buffer may start to eat all the system's memory and instructions will be
+ * waiting idling.
+ */
 class SimpleInstructionMemory
     : public sinuca::Component<sinuca::InstructionPacket> {
   private:

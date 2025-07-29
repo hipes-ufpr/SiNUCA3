@@ -22,15 +22,21 @@
  * @file ras.hpp
  * @brief API of the Ras. A simple, generic return address stack. It does not
  * care at all about wrong predictions.
- *
- * @details It does not checks wether the branch is a return on queries.
- * Clients should make this check before sending a query request. It always
- * responds with a ResponseTakeToAddress. Queries need not to fill any data, and
- * updates can have only the target address.
  */
 
 #include "../../sinuca3.hpp"
 
+/**
+ * @brief API of the Ras. A simple, generic return address stack. It does not
+ * care at all about wrong predictions.
+ *
+ * @details It does not checks wether the branch is a return on queries.
+ * Clients should make this check before sending a query request. It always
+ * responds with a ResponseTakeToAddress. It accepts the following parameters:
+ * - size (required): integer > 0, sets the ras buffer size.
+ * - sendTo: Component<PredictorPacket>, if exists, the Ras sends responses to
+ *   this component instead of in the response channel.
+ */
 class Ras : public sinuca::Component<sinuca::PredictorPacket> {
   private:
     sinuca::Component<sinuca::PredictorPacket>* sendTo;

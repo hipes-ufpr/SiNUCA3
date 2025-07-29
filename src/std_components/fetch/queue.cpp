@@ -30,6 +30,7 @@
 
 #ifndef NDEBUG
 
+/** @brief Component for testing the Queue template class. */
 class QueueTester : public sinuca::Component<long> {
   public:
     virtual int FinishSetup() { return 0; }
@@ -45,6 +46,8 @@ class QueueTester : public sinuca::Component<long> {
     virtual void PrintStatistics() {}
     virtual ~QueueTester() {}
 
+    /** @brief Get's a message as a `long`, returning 0 if no message is
+     * available. */
     long GetMessage() {
         long msg;
         if (!this->ReceiveRequestFromConnection(0, &msg)) {
@@ -54,6 +57,7 @@ class QueueTester : public sinuca::Component<long> {
     }
 };
 
+/** @brief Test for the Queue template class. */
 int TestQueue() {
     Queue<long> queue;
     QueueTester tester;
