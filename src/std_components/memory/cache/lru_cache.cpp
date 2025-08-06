@@ -28,31 +28,32 @@
 #include "../../../utils/logging.hpp"
 #include "cache.hpp"
 
-LRUCache::LRUCache(){
+LRUCache::LRUCache() {
     this->WayUsageCounters = new unsigned int*[this->numSets];
     int n = this->numSets * this->numWays;
     this->WayUsageCounters[0] = new unsigned int[n];
     memset(this->WayUsageCounters[0], 0, n * sizeof(unsigned int));
-    for(int i=1; i<this->numSets; ++i){
-        this->WayUsageCounters[i] = this->WayUsageCounters[0] + (i * this->numWays * sizeof(unsigned int));
+    for (int i = 1; i < this->numSets; ++i) {
+        this->WayUsageCounters[i] = this->WayUsageCounters[0] +
+                                    (i * this->numWays * sizeof(unsigned int));
     }
 }
 
-LRUCache::~LRUCache(){
+LRUCache::~LRUCache() {
     delete[] this->WayUsageCounters[0];
     delete[] this->WayUsageCounters;
 }
 
-bool LRUCache::Read(unsigned long addr, CacheEntry **result){
+bool LRUCache::Read(unsigned long addr, CacheEntry** result) {
     bool exist = GetEntry(addr, result);
     this->WayUsageCounters[(*result)->i][(*result)->j] += 1;
     return exist;
 }
 
-void LRUCache::Write(unsigned long addr, unsigned long value){
+void LRUCache::Write(unsigned long addr, unsigned long value) {
     CacheEntry* entry;
     CacheEntry* lru_entry = NULL;
-    unsigned long oldest_time = ~0UL; // valor máximo
+    unsigned long oldest_time = ~0UL;  // valor máximo
     unsigned long tag = this->GetTag(addr);
     unsigned long index = this->GetIndex(addr);
     int i;

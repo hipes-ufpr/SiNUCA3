@@ -26,7 +26,7 @@
 #include "../../../sinuca3.hpp"
 #include "cache.hpp"
 
-class RoundRobinCache: public Cache {
+class RoundRobinCache : public Cache {
   public:
     RoundRobinCache();
     virtual ~RoundRobinCache();

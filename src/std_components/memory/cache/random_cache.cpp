@@ -27,18 +27,10 @@
 #include "../../../utils/logging.hpp"
 #include "cache.hpp"
 
-RandomCache::RandomCache(){
+RandomCache::RandomCache() {}
 
-}
+RandomCache::~RandomCache() {}
 
-RandomCache::~RandomCache(){
+bool RandomCache::Read(unsigned long addr, CacheEntry **result) {}
 
-}
-
-bool RandomCache::Read(unsigned long addr, CacheEntry **result){
-
-}
-
-void RandomCache::Write(unsigned long addr, unsigned long value){
-
-}
+void RandomCache::Write(unsigned long addr, unsigned long value) {}

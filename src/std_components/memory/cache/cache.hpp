@@ -24,29 +24,32 @@
  */
 
 #include <cstddef>
+
 #include "../../../sinuca3.hpp"
 
 // @param entry Ouput: A (CacheEntry *) to store result
-// @param index Input: A (unsigned long) containing the index of addr to be acessed
-#define for_each_way(entry, index) \
-    for (int __way = 0; \
-            __way < this->numWays && ((entry) = &this->entries[index][__way], true); \
-            ++__way)
+// @param index Input: A (unsigned long) containing the index of addr to be
+// acessed
+#define for_each_way(entry, index)                                      \
+    for (int __way = 0; __way < this->numWays &&                        \
+                        ((entry) = &this->entries[index][__way], true); \
+         ++__way)
 
 struct CacheEntry {
-  unsigned long tag;
-  unsigned long index;
-  bool isValid;
-  int i, j;
-  unsigned long value; // Value Storaged in this entry
+    unsigned long tag;
+    unsigned long index;
+    bool isValid;
+    int i, j;
+    unsigned long value;  // Value Storaged in this entry
 };
 
 class Cache : public sinuca::Component<sinuca::MemoryPacket> {
   public:
-    inline Cache() : numSets(0), numWays(0), entries(NULL), numberOfRequests(0) {};
+    inline Cache()
+        : numSets(0), numWays(0), entries(NULL), numberOfRequests(0) {};
     virtual ~Cache();
     virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter,
+    virtual int SetConfigParameter(const char *parameter,
                                    sinuca::config::ConfigValue value);
     virtual void Clock();
     virtual void Flush();
@@ -56,7 +59,7 @@ class Cache : public sinuca::Component<sinuca::MemoryPacket> {
     int numSets;
     int numWays;
 
-    CacheEntry **entries; // matrix [sets x ways]
+    CacheEntry **entries;  // matrix [sets x ways]
     unsigned long numberOfRequests;
 
     unsigned long GetIndex(unsigned long addr) const;

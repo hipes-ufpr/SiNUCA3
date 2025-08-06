@@ -27,18 +27,10 @@
 #include "../../../utils/logging.hpp"
 #include "cache.hpp"
 
-RoundRobinCache::RoundRobinCache(){
+RoundRobinCache::RoundRobinCache() {}
 
-}
+RoundRobinCache::~RoundRobinCache() {}
 
-RoundRobinCache::~RoundRobinCache(){
+bool RoundRobinCache::Read(unsigned long addr, CacheEntry **result) {}
 
-}
-
-bool RoundRobinCache::Read(unsigned long addr, CacheEntry **result){
-
-}
-
-void RoundRobinCache::Write(unsigned long addr, unsigned long value){
-
-}
+void RoundRobinCache::Write(unsigned long addr, unsigned long value) {}

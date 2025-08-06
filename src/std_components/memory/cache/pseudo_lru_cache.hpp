@@ -27,9 +27,9 @@
 #include "cache.hpp"
 
 struct plruNode {
-    unsigned char direction; // 0 = left, 1 = right
-    int l; // range left
-    int r; // range right
+    unsigned char direction;  // 0 = left, 1 = right
+    int l;                    // range left
+    int r;                    // range right
 };
 
 class PseudoLRUCache : public Cache {
