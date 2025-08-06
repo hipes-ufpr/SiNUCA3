@@ -24,6 +24,7 @@
  // We need to know how many bits are going to be used as offset... in other
  // words... how large is one page in memory. Idealy, we import this information
  // from elsewhere. But I will leave as global constants for now.
+#include <cstddef>
 unsigned long offsetBitsMask = 12;
 unsigned long indexBitsMask = 6;
 unsigned long tagBitsMask = 46;
@@ -77,8 +78,7 @@ int Cache::FinishSetup() {
     }
 
     this->entries = new CacheEntry *[this->numSets];
-    int n = this->numSets * this->numWays;
-    assert(n > 0 && "Sanity check failed: TLB buffer size must overflowed.\n");
+    size_t n = this->numSets * this->numWays;
     this->entries[0] = new CacheEntry[n];
     memset(this->entries[0], 0, n * sizeof(CacheEntry));
     for (int i = 1; i < this->numSets; ++i) {
