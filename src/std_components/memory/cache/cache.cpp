@@ -24,9 +24,9 @@
  // We need to know how many bits are going to be used as offset... in other
  // words... how large is one page in memory. Idealy, we import this information
  // from elsewhere. But I will leave as global constants for now.
-unsigned long offset_bits_mask = 12;
-unsigned long index_bits_mask = 6;
-unsigned long tag_bits_mask = 46;
+unsigned long offsetBitsMask = 12;
+unsigned long indexBitsMask = 6;
+unsigned long tagBitsMask = 46;
 
 #include "cache.hpp"
 
@@ -35,11 +35,11 @@ unsigned long tag_bits_mask = 46;
 #include "../../../utils/logging.hpp"
 
 unsigned long Cache::GetIndex(unsigned long addr) const {
-    return (addr & index_bits_mask) >> offset_bits_mask;
+    return (addr & indexBitsMask) >> offsetBitsMask;
 }
 
 unsigned long Cache::GetTag(unsigned long addr) const {
-    return (addr & tag_bits_mask) >> (offset_bits_mask + index_bits_mask);
+    return (addr & tagBitsMask) >> (offsetBitsMask + indexBitsMask);
 }
 
 bool Cache::GetEntry(unsigned long addr, CacheEntry **result) const {

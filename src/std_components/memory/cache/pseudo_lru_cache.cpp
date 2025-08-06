@@ -117,8 +117,8 @@ void PseudoLRUCache::Write(unsigned long addr, unsigned long value) {
     }
 
     int way = j - (this->numWays - 1);
-    CacheEntry *plru_entry = &this->entries[set][way];
-    CacheEntry new_entry = {tag,           set,           true,
-                            plru_entry->i, plru_entry->j, value};
-    *plru_entry = new_entry;
+    CacheEntry *plruEntry = &this->entries[set][way];
+    CacheEntry newEntry = {tag,           set,           true,
+                            plruEntry->i, plruEntry->j, value};
+    *plruEntry = newEntry;
 }
