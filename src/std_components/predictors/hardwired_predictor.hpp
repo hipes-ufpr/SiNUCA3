@@ -36,9 +36,9 @@
  * predictor sends all responses to that component instead of sending in the
  * response channel.
  */
-class HardwiredPredictor : public sinuca::Component<sinuca::PredictorPacket> {
+class HardwiredPredictor : public Component<PredictorPacket> {
   private:
-    sinuca::Component<sinuca::PredictorPacket>*
+    Component<PredictorPacket>*
         sendTo; /** @brief If set, sends responses to this component. */
     unsigned long numberOfSyscalls; /** @brief Number of syscalls executed. */
     unsigned long numberOfCalls;    /** @brief Number of calls executed. */
@@ -67,15 +67,14 @@ class HardwiredPredictor : public sinuca::Component<sinuca::PredictorPacket> {
      * &this->call, etc).
      * @param value The value.
      */
-    int SetBoolParameter(const char* parameter, bool* ptr,
-                         sinuca::config::ConfigValue value);
+    int SetBoolParameter(const char* parameter, bool* ptr, ConfigValue value);
 
     /**
      * @brief Helper to respond a request.
      * @param id The connection id of the client.
      * @param request The request itself.
      */
-    void Respond(int id, sinuca::PredictorPacket request);
+    void Respond(int id, PredictorPacket request);
 
   public:
     inline HardwiredPredictor()
@@ -94,8 +93,7 @@ class HardwiredPredictor : public sinuca::Component<sinuca::PredictorPacket> {
           noBranch(true) {}
 
     virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter,
-                                   sinuca::config::ConfigValue value);
+    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual void Clock();
     virtual void Flush();
     virtual void PrintStatistics();

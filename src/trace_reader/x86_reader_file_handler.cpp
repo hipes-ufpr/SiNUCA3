@@ -38,8 +38,7 @@ inline void printFileErrorLog(const char *path) {
     SINUCA3_ERROR_PRINTF("Could not open [%s]: %s\n", path, strerror(errno));
 }
 
-sinuca::traceReader::StaticTraceFile::StaticTraceFile(const char *folderPath,
-                                                      const char *img) {
+StaticTraceFile::StaticTraceFile(const char *folderPath, const char *img) {
     unsigned long bufferLen = GetPathTidOutSize(folderPath, "static", img);
     char *staticPath = (char *)alloca(bufferLen);
     FormatPathTidOut(staticPath, folderPath, "static", img, bufferLen);
@@ -78,8 +77,7 @@ sinuca::traceReader::StaticTraceFile::StaticTraceFile(const char *folderPath,
     this->isValid = true;
 }
 
-void sinuca::traceReader::StaticTraceFile::ReadNextPackage(
-    InstructionInfo *info) {
+void StaticTraceFile::ReadNextPackage(InstructionInfo *info) {
     DataINS *data = (DataINS *)(this->GetData(sizeof(DataINS)));
 
     unsigned long len = strlen(data->name);
@@ -95,22 +93,21 @@ void sinuca::traceReader::StaticTraceFile::ReadNextPackage(
     this->GetRegs(&info->staticInfo, data);
 }
 
-unsigned int sinuca::traceReader::StaticTraceFile::GetNewBBlSize() {
+unsigned int StaticTraceFile::GetNewBBlSize() {
     unsigned int *numIns;
     numIns = (unsigned int *)(this->GetData(SIZE_NUM_BBL_INS));
     return *numIns;
 }
 
-bool sinuca::traceReader::StaticTraceFile::Valid() { return this->isValid; }
+bool StaticTraceFile::Valid() { return this->isValid; }
 
-sinuca::traceReader::StaticTraceFile::~StaticTraceFile() {
+StaticTraceFile::~StaticTraceFile() {
     munmap(this->mmapPtr, this->mmapSize);
     close(this->fd);
 }
 
-sinuca::traceReader::DynamicTraceFile::DynamicTraceFile(const char *folderPath,
-                                                        const char *img,
-                                                        THREADID tid) {
+DynamicTraceFile::DynamicTraceFile(const char *folderPath, const char *img,
+                                   THREADID tid) {
     unsigned long bufferSize = GetPathTidInSize(folderPath, "dynamic", img);
     char *path = (char *)alloca(bufferSize);
     FormatPathTidIn(path, folderPath, "dynamic", img, tid, bufferSize);
@@ -126,7 +123,7 @@ sinuca::traceReader::DynamicTraceFile::DynamicTraceFile(const char *folderPath,
     this->isValid = true;
 }
 
-int sinuca::traceReader::DynamicTraceFile::ReadNextBBl(BBLID *bbl) {
+int DynamicTraceFile::ReadNextBBl(BBLID *bbl) {
     if (this->eofFound && this->tf.offset == this->eofLocation) {
         return 1;
     }
@@ -138,11 +135,10 @@ int sinuca::traceReader::DynamicTraceFile::ReadNextBBl(BBLID *bbl) {
     return 0;
 }
 
-bool sinuca::traceReader::DynamicTraceFile::Valid() { return this->isValid; }
+bool DynamicTraceFile::Valid() { return this->isValid; }
 
-sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(const char *folderPath,
-                                                      const char *img,
-                                                      THREADID tid) {
+MemoryTraceFile::MemoryTraceFile(const char *folderPath, const char *img,
+                                 THREADID tid) {
     unsigned long bufferSize = GetPathTidInSize(folderPath, "memory", img);
     char *path = (char *)alloca(bufferSize);
     FormatPathTidIn(path, folderPath, "memory", img, tid, bufferSize);
@@ -158,12 +154,12 @@ sinuca::traceReader::MemoryTraceFile::MemoryTraceFile(const char *folderPath,
     this->isValid = true;
 }
 
-void sinuca::traceReader::MemoryTraceFile::MemRetrieveBuffer() {
+void MemoryTraceFile::MemRetrieveBuffer() {
     this->RetrieveLenBytes(&this->bufActiveSize, sizeof(unsigned long));
     this->RetrieveBuffer();
 }
 
-unsigned short sinuca::traceReader::MemoryTraceFile::GetNumOps() {
+unsigned short MemoryTraceFile::GetNumOps() {
     unsigned short numOps;
 
     numOps = *(unsigned short *)this->GetData(SIZE_NUM_MEM_R_W);
@@ -173,8 +169,7 @@ unsigned short sinuca::traceReader::MemoryTraceFile::GetNumOps() {
     return numOps;
 }
 
-DataMEM *sinuca::traceReader::MemoryTraceFile::GetDataMemArr(
-    unsigned short len) {
+DataMEM *MemoryTraceFile::GetDataMemArr(unsigned short len) {
     DataMEM *arrPtr;
 
     arrPtr = (DataMEM *)(this->GetData(len * sizeof(DataMEM)));
@@ -184,8 +179,8 @@ DataMEM *sinuca::traceReader::MemoryTraceFile::GetDataMemArr(
     return arrPtr;
 }
 
-int sinuca::traceReader::MemoryTraceFile::ReadNextMemAccess(
-    InstructionInfo *insInfo, DynamicInstructionInfo *dynInfo) {
+int MemoryTraceFile::ReadNextMemAccess(InstructionInfo *insInfo,
+                                       DynamicInstructionInfo *dynInfo) {
     DataMEM *writeOps;
     DataMEM *readOps;
 
@@ -218,16 +213,16 @@ int sinuca::traceReader::MemoryTraceFile::ReadNextMemAccess(
     return 0;
 }
 
-bool sinuca::traceReader::MemoryTraceFile::Valid() { return this->isValid; }
+bool MemoryTraceFile::Valid() { return this->isValid; }
 
-void *sinuca::traceReader::StaticTraceFile::GetData(unsigned long len) {
+void *StaticTraceFile::GetData(unsigned long len) {
     void *ptr = (void *)(this->mmapPtr + this->mmapOffset);
     this->mmapOffset += len;
     return ptr;
 }
 
-void sinuca::traceReader::StaticTraceFile::GetFlagValues(InstructionInfo *info,
-                                                         struct DataINS *data) {
+void StaticTraceFile::GetFlagValues(InstructionInfo *info,
+                                    struct DataINS *data) {
     info->staticInfo.isPredicated = static_cast<bool>(data->isPredicated);
     info->staticInfo.isPrefetch = static_cast<bool>(data->isPrefetch);
     info->staticInfo.isNonStdMemOp =
@@ -238,8 +233,8 @@ void sinuca::traceReader::StaticTraceFile::GetFlagValues(InstructionInfo *info,
     }
 }
 
-void sinuca::traceReader::StaticTraceFile::GetBranchFields(
-    sinuca::StaticInstructionInfo *info, struct DataINS *data) {
+void StaticTraceFile::GetBranchFields(StaticInstructionInfo *info,
+                                      struct DataINS *data) {
     info->isIndirect = static_cast<bool>(data->isIndirectControlFlow);
     info->isControlFlow = static_cast<bool>(data->isControlFlow);
     switch (data->branchType) {
@@ -261,8 +256,8 @@ void sinuca::traceReader::StaticTraceFile::GetBranchFields(
     }
 }
 
-void sinuca::traceReader::StaticTraceFile::GetRegs(
-    sinuca::StaticInstructionInfo *info, struct DataINS *data) {
+void StaticTraceFile::GetRegs(StaticInstructionInfo *info,
+                              struct DataINS *data) {
     info->numReadRegs = data->numReadRegs;
     memcpy(info->readRegs, data->readRegs,
            data->numReadRegs * sizeof(*data->readRegs));

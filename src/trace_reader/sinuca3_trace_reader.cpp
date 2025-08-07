@@ -27,7 +27,7 @@
 #include "trace_reader.hpp"
 #include "x86_reader_file_handler.hpp"
 
-int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
+int sinuca3TraceReader::SinucaTraceReader::OpenTrace(
     const char *executableName, const char *traceFolderPath) {
     StaticTraceFile staticFile(traceFolderPath, executableName);
 
@@ -57,7 +57,7 @@ int sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::OpenTrace(
     return 0;
 }
 
-void sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::CloseTrace() {
+void sinuca3TraceReader::SinucaTraceReader::CloseTrace() {
     for (int i = 0; i < this->numThreads; i++) {
         delete (this->threadsDynFiles[i]);
         delete (this->threadsMemFiles[i]);
@@ -71,18 +71,17 @@ void sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::CloseTrace() {
     delete[] this->binaryDict;
 }
 
-unsigned long
-sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::GetTraceSize() {
+unsigned long sinuca3TraceReader::SinucaTraceReader::GetTraceSize() {
     return this->binaryTotalBBLs;
 }
 
-unsigned long sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
-    GetNumberOfFetchedInstructions() {
+unsigned long
+sinuca3TraceReader::SinucaTraceReader::GetNumberOfFetchedInstructions() {
     return this->fetchInstructions;
 }
 
-void sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
-    GenerateBinaryDict(StaticTraceFile *stFile) {
+void sinuca3TraceReader::SinucaTraceReader::GenerateBinaryDict(
+    StaticTraceFile *stFile) {
     InstructionInfo *package;
     unsigned long poolOffset;
     unsigned int bblSize;
@@ -109,9 +108,8 @@ void sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
     }
 }
 
-sinuca::traceReader::FetchResult
-sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::Fetch(
-    InstructionPacket *ret, unsigned int tid) {
+FetchResult sinuca3TraceReader::SinucaTraceReader::Fetch(InstructionPacket *ret,
+                                                         unsigned int tid) {
     InstructionInfo *packageInfo;
 
     if (!this->thrInfo[tid].isInsideBBL) {
@@ -143,8 +141,7 @@ sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::Fetch(
     return FetchResultOk;  // Maybe this is not suitable for multiple threads
 }
 
-void sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
-    PrintStatistics() {
+void sinuca3TraceReader::SinucaTraceReader::PrintStatistics() {
     SINUCA3_LOG_PRINTF("###########################\n");
     SINUCA3_LOG_PRINTF("Sinuca3 Trace Reader\n");
     SINUCA3_LOG_PRINTF("Fetch Instructions:%lu\n", this->fetchInstructions);
@@ -153,10 +150,10 @@ void sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader::
 
 #ifdef TEST_MAIN
 int main() {
-    sinuca::InstructionPacket package;
-    sinuca::traceReader::FetchResult ret;
-    sinuca::traceReader::TraceReader *tracer =
-        new sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader();
+    InstructionPacket package;
+    traceReader::FetchResult ret;
+    traceReader::TraceReader *tracer =
+        new traceReader::sinuca3TraceReader::SinucaTraceReader();
     tracer->OpenTrace("sinuca_teste", "/home/fbc04/Programas/SiNUCA3/trace");
 
     do {
@@ -168,7 +165,7 @@ int main() {
                              package.staticInfo->numReadRegs);
         SINUCA3_DEBUG_PRINTF("IS BRANCH [%d]\n",
                              package.staticInfo->isControlFlow);
-    } while (ret == sinuca::traceReader::FetchResultOk);
+    } while (ret == traceReader::FetchResultOk);
 
     delete tracer;
 }

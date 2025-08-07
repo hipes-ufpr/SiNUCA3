@@ -31,11 +31,10 @@
 #ifndef NDEBUG
 
 /** @brief Component for testing the Queue template class. */
-class QueueTester : public sinuca::Component<long> {
+class QueueTester : public Component<long> {
   public:
     virtual int FinishSetup() { return 0; }
-    virtual int SetConfigParameter(const char* parameter,
-                                   sinuca::config::ConfigValue value) {
+    virtual int SetConfigParameter(const char* parameter, ConfigValue value) {
         (void)parameter;
         (void)value;
 
@@ -62,9 +61,8 @@ int TestQueue() {
     Queue<long> queue;
     QueueTester tester;
 
-    queue.SetConfigParameter("sendTo", sinuca::config::ConfigValue(&tester));
-    queue.SetConfigParameter("throughput",
-                             sinuca::config::ConfigValue((long)3));
+    queue.SetConfigParameter("sendTo", ConfigValue(&tester));
+    queue.SetConfigParameter("throughput", ConfigValue((long)3));
     int id = queue.Connect(3);
     queue.FinishSetup();
 

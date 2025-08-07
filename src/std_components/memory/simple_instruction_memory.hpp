@@ -38,18 +38,16 @@
  * the buffer may start to eat all the system's memory and instructions will be
  * waiting idling.
  */
-class SimpleInstructionMemory
-    : public sinuca::Component<sinuca::InstructionPacket> {
+class SimpleInstructionMemory : public Component<InstructionPacket> {
   private:
-    sinuca::Component<sinuca::InstructionPacket>* sendTo;
+    Component<InstructionPacket>* sendTo;
     unsigned long numberOfRequests;
     int sendToID;
 
   public:
     inline SimpleInstructionMemory() : numberOfRequests(0) {};
     virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter,
-                                   sinuca::config::ConfigValue value);
+    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual void Clock();
     virtual void Flush();
     virtual void PrintStatistics();

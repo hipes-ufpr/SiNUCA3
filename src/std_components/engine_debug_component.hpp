@@ -39,16 +39,15 @@
  * the component is printed to differentiate between multiple
  * EngineDebugComponent.
  */
-class EngineDebugComponent
-    : public sinuca::Component<sinuca::InstructionPacket> {
+class EngineDebugComponent : public Component<InstructionPacket> {
   private:
     EngineDebugComponent*
         other; /** @brief Another component to test sending messages. */
-    Component<sinuca::FetchPacket>*
+    Component<FetchPacket>*
         fetch; /** @brief Another component to test fetching instructions. */
     int otherConnectionID; /** @brief Connection ID for `other`. */
     int fetchConnectionID; /** @brief Connection ID for `fetch`. */
-    bool sent; /** @brief Tells wether we already sent a message to other. */
+    bool send; /** @brief Tells wether we already sent a message to other. */
     bool shallFailOnFinish; /** @brief If true, fails at the FinishSetup method
                                to test the engine handling of failures. */
     long flush; /** @brief If >0, asks the engine for a flush at this cycle. */
@@ -61,8 +60,7 @@ class EngineDebugComponent
      * @param indent The indentation level for printing, increased every
      * recursion.
      */
-    void PrintConfigValue(const char* parameter,
-                          sinuca::config::ConfigValue value,
+    void PrintConfigValue(const char* parameter, ConfigValue value,
                           unsigned char indent = 0);
 
   public:
@@ -71,13 +69,12 @@ class EngineDebugComponent
           fetch(NULL),
           otherConnectionID(-1),
           fetchConnectionID(-1),
-          sent(false),
-          shallFailOnFinish(true),
+          send(false),
+          shallFailOnFinish(false),
           flush(-1) {}
 
     virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter,
-                                   sinuca::config::ConfigValue value);
+    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual void Clock();
     virtual void Flush();
     virtual void PrintStatistics();

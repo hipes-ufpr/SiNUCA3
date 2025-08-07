@@ -61,7 +61,7 @@ int BTBEntry::Allocate(unsigned int numBanks) {
 
 int BTBEntry::NewEntry(unsigned long tag, unsigned int bank,
                        unsigned long target,
-                       const sinuca::StaticInstructionInfo* instruction) {
+                       const StaticInstructionInfo* instruction) {
     if (bank >= this->numBanks) return 1;
 
     this->entryTag = tag;
@@ -102,9 +102,9 @@ BranchTargetBuffer::BranchTargetBuffer()
       entriesBits(0) {};
 
 int BranchTargetBuffer::SetConfigParameter(const char* parameter,
-                                           sinuca::config::ConfigValue value) {
+                                           ConfigValue value) {
     if (strcmp(parameter, "interleavingFactor") == 0) {
-        if (value.type != sinuca::config::ConfigValueTypeInteger) {
+        if (value.type != ConfigValueTypeInteger) {
             SINUCA3_ERROR_PRINTF(
                 "BTB parameter interleavingFactor is not an integer.\n");
             return 1;
@@ -124,7 +124,7 @@ int BranchTargetBuffer::SetConfigParameter(const char* parameter,
 
         return 0;
     } else if (strcmp(parameter, "numberOfEntries") == 0) {
-        if (value.type != sinuca::config::ConfigValueTypeInteger) {
+        if (value.type != ConfigValueTypeInteger) {
             SINUCA3_ERROR_PRINTF(
                 "BTB parameter numberOfEntries is not an integer.\n");
             return 1;
@@ -139,13 +139,13 @@ int BranchTargetBuffer::SetConfigParameter(const char* parameter,
 
         return 0;
     } else if (strcmp(parameter, "sendTo") == 0) {
-        if (value.type != sinuca::config::ConfigValueTypeComponentReference) {
+        if (value.type != ConfigValueTypeComponentReference) {
             SINUCA3_ERROR_PRINTF(
                 "BTB parameter sendTo is not a Component<BTBPacket>.\n");
             return 1;
         }
-        this->sendTo = dynamic_cast<sinuca::Component<BTBPacket>*>(
-            value.value.componentReference);
+        this->sendTo =
+            dynamic_cast<Component<BTBPacket>*>(value.value.componentReference);
         if (this->sendTo == NULL) {
             SINUCA3_ERROR_PRINTF(
                 "BTB parameter sendTo is not a Component<BTBPacket>.\n");
@@ -218,7 +218,7 @@ unsigned long BranchTargetBuffer::CalculateIndex(unsigned long address) {
 }
 
 int BranchTargetBuffer::RegisterNewBranch(
-    const sinuca::StaticInstructionInfo* instruction, unsigned long target) {
+    const StaticInstructionInfo* instruction, unsigned long target) {
     unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
     unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
     unsigned int bank = this->CalculateBank(instruction->opcodeAddress);
@@ -226,16 +226,16 @@ int BranchTargetBuffer::RegisterNewBranch(
     return this->btb[index]->NewEntry(tag, bank, target, instruction);
 }
 
-int BranchTargetBuffer::UpdateBranch(
-    const sinuca::StaticInstructionInfo* instruction, bool branchState) {
+int BranchTargetBuffer::UpdateBranch(const StaticInstructionInfo* instruction,
+                                     bool branchState) {
     unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
     unsigned int bank = this->CalculateBank(instruction->opcodeAddress);
 
     return this->btb[index]->UpdateEntry(bank, branchState);
 }
 
-inline void BranchTargetBuffer::Query(
-    const sinuca::StaticInstructionInfo* instruction, int connectionID) {
+inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
+                                      int connectionID) {
     unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
     unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
     BTBPacket response;
@@ -293,13 +293,12 @@ inline void BranchTargetBuffer::Query(
 }
 
 inline int BranchTargetBuffer::AddEntry(
-    const sinuca::StaticInstructionInfo* instruction,
-    unsigned long targetAddress) {
+    const StaticInstructionInfo* instruction, unsigned long targetAddress) {
     return this->RegisterNewBranch(instruction, targetAddress);
 }
 
-inline int BranchTargetBuffer::Update(
-    const sinuca::StaticInstructionInfo* instruction, bool branchState) {
+inline int BranchTargetBuffer::Update(const StaticInstructionInfo* instruction,
+                                      bool branchState) {
     return this->UpdateBranch(instruction, branchState);
 }
 

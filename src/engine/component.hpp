@@ -23,10 +23,7 @@
  * @brief Public API of the component template class.
  */
 
-#include "../config/config.hpp"
 #include "linkable.hpp"
-
-namespace sinuca {
 
 /**
  * @details All components shall inherit from this class. The MessageType type
@@ -42,7 +39,7 @@ namespace sinuca {
  * value.
  */
 template <typename MessageType>
-class Component : public engine::Linkable {
+class Component : public Linkable {
   protected:
     /**
      * @brief Sends a response to another component.
@@ -70,7 +67,7 @@ class Component : public engine::Linkable {
      * @param messageSize The size of the message that will be used by the
      * component.
      */
-    inline Component() : engine::Linkable(sizeof(MessageType)) {}
+    inline Component() : Linkable(sizeof(MessageType)) {}
 
     /**
      * @brief Connects to another component.
@@ -104,7 +101,5 @@ class Component : public engine::Linkable {
 
     inline ~Component() {}
 };
-
-}  // namespace sinuca
 
 #endif  // SINUCA3_ENGINE_COMPONENT_HPP_

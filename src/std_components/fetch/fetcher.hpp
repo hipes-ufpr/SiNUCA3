@@ -46,7 +46,7 @@ const FetchBufferEntryFlags FetchBufferEntryFlagsSentToMemory = (1 << 2);
 /** @brief Represents an instruction alongside with useful information in the
  * fetch buffer. */
 struct FetchBufferEntry {
-    sinuca::InstructionPacket instruction;
+    InstructionPacket instruction;
     FetchBufferEntryFlags flags;
 
     inline FetchBufferEntry() : flags((FetchBufferEntryFlags)0) {}
@@ -68,14 +68,14 @@ struct FetchBufferEntry {
  * - misspredictPenalty: Integer amount of cycles to idle when a missprediction
  *   happens.
  */
-class Fetcher : public sinuca::Component<int> {
+class Fetcher : public Component<int> {
   private:
-    sinuca::Component<sinuca::FetchPacket>*
+    Component<FetchPacket>*
         fetch; /** @brief Component from which to fetch instructions. */
-    sinuca::Component<sinuca::InstructionPacket>*
+    Component<InstructionPacket>*
         instructionMemory; /** @brief Component to which send the instructions
                               after fetching. */
-    sinuca::Component<sinuca::PredictorPacket>*
+    Component<PredictorPacket>*
         predictor; /** @brief Component to which send prediction requests. */
     FetchBufferEntry* fetchBuffer; /** @brief Fetched instructions. */
     unsigned long
@@ -101,17 +101,17 @@ class Fetcher : public sinuca::Component<int> {
                          predictor, we don't. */
 
     /** @brief Helper to set the fetch config parameter. */
-    int FetchConfigParameter(sinuca::config::ConfigValue value);
+    int FetchConfigParameter(ConfigValue value);
     /** @brief Helper to set the instruction memory config parameter. */
-    int InstructionMemoryConfigParameter(sinuca::config::ConfigValue value);
+    int InstructionMemoryConfigParameter(ConfigValue value);
     /** @brief Helper to set the fetch size config parameter. */
-    int FetchSizeConfigParameter(sinuca::config::ConfigValue value);
+    int FetchSizeConfigParameter(ConfigValue value);
     /** @brief Helper to set the fetch interval config parameter. */
-    int FetchIntervalConfigParameter(sinuca::config::ConfigValue value);
+    int FetchIntervalConfigParameter(ConfigValue value);
     /** @brief Helper to set the predictor config parameter. */
-    int PredictorConfigParameter(sinuca::config::ConfigValue value);
+    int PredictorConfigParameter(ConfigValue value);
     /** @brief Helper to set the missprediction penalty config parameter. */
-    int MisspredictPenaltyConfigParameter(sinuca::config::ConfigValue value);
+    int MisspredictPenaltyConfigParameter(ConfigValue value);
 
     /** @brief Helper to send the fetched instructions to the memory and the
      * predictor. */
@@ -141,8 +141,7 @@ class Fetcher : public sinuca::Component<int> {
           fetchedInstructions(0),
           flagsToCheck(FetchBufferEntryFlagsSentToMemory) {}
     virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter,
-                                   sinuca::config::ConfigValue value);
+    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual void Clock();
     virtual void Flush();
     virtual void PrintStatistics();

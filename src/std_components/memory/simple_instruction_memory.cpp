@@ -24,13 +24,12 @@
 
 #include "../../utils/logging.hpp"
 
-int SimpleInstructionMemory::SetConfigParameter(
-    const char* parameter, sinuca::config::ConfigValue value) {
+int SimpleInstructionMemory::SetConfigParameter(const char* parameter,
+                                                ConfigValue value) {
     if (strcmp(parameter, "sendTo") == 0) {
-        if (value.type == sinuca::config::ConfigValueTypeComponentReference) {
-            this->sendTo =
-                dynamic_cast<sinuca::Component<sinuca::InstructionPacket>*>(
-                    value.value.componentReference);
+        if (value.type == ConfigValueTypeComponentReference) {
+            this->sendTo = dynamic_cast<Component<InstructionPacket>*>(
+                value.value.componentReference);
             if (this->sendTo != NULL) return 0;
         }
 
@@ -54,7 +53,7 @@ int SimpleInstructionMemory::FinishSetup() {
 
 void SimpleInstructionMemory::Clock() {
     long numberOfConnections = this->GetNumberOfConnections();
-    sinuca::InstructionPacket packet;
+    InstructionPacket packet;
     for (long i = 0; i < numberOfConnections; ++i) {
         while (this->ReceiveRequestFromConnection(i, &packet) == 0) {
             ++this->numberOfRequests;

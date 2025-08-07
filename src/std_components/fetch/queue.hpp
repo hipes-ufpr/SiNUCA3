@@ -44,8 +44,8 @@
  * to the pipeline.
  */
 template <typename Type>
-class Queue : public sinuca::Component<Type> {
-    sinuca::Component<Type>*
+class Queue : public Component<Type> {
+    Component<Type>*
         sendTo;       /** @brief Component to which send the responses. */
     long throughput;  /** @brief Size of the connection to `sendTo`. */
     int connectionID; /** @brief Connection ID with `sendTo`. */
@@ -53,8 +53,7 @@ class Queue : public sinuca::Component<Type> {
   public:
     inline Queue() : sendTo(NULL), throughput(0) {}
     virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter,
-                                   sinuca::config::ConfigValue value);
+    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual void Clock();
     virtual void Flush();
     virtual void PrintStatistics();
@@ -74,13 +73,12 @@ int Queue<Type>::FinishSetup() {
 }
 
 template <typename Type>
-int Queue<Type>::SetConfigParameter(const char* parameter,
-                                    sinuca::config::ConfigValue value) {
+int Queue<Type>::SetConfigParameter(const char* parameter, ConfigValue value) {
     if (strcmp(parameter, "sendTo") == 0) {
-        if (value.type == sinuca::config::ConfigValueTypeComponentReference) {
-            sinuca::engine::Linkable* linkable = value.value.componentReference;
-            sinuca::Component<Type>* component =
-                dynamic_cast<sinuca::Component<Type>*>(linkable);
+        if (value.type == ConfigValueTypeComponentReference) {
+            Linkable* linkable = value.value.componentReference;
+            Component<Type>* component =
+                dynamic_cast<Component<Type>*>(linkable);
             if (component != NULL) {
                 this->sendTo = component;
                 return 0;
@@ -94,7 +92,7 @@ int Queue<Type>::SetConfigParameter(const char* parameter,
             "Queue parameter sendTo is not a component pointer.\n");
         return 1;
     } else if (strcmp(parameter, "throughput") == 0) {
-        if (value.type == sinuca::config::ConfigValueTypeInteger) {
+        if (value.type == ConfigValueTypeInteger) {
             this->throughput = value.value.integer;
         }
 

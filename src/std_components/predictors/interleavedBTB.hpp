@@ -51,8 +51,8 @@ enum BranchType {
     BranchTypeUnconditional
 };
 
-inline BranchType BranchTypeFromSinucaBranch(sinuca::Branch branch) {
-    if (branch == sinuca::BranchCond) return BranchTypeConditional;
+inline BranchType BranchTypeFromSinucaBranch(int branch) {
+    if (branch == BranchCond) return BranchTypeConditional;
     return BranchTypeUnconditional;
 }
 
@@ -66,24 +66,24 @@ enum BTBPacketType {
 
 struct BTBPacket {
     union {
-        const sinuca::StaticInstructionInfo*
+        const StaticInstructionInfo*
             requestQuery; /**<Instruction info to query about.>*/
 
         struct {
-            const sinuca::StaticInstructionInfo*
+            const StaticInstructionInfo*
                 instruction;  /**<Instruction info this response is about.>*/
             bool branchState; /**<The result of the branch, whether it was taken
                                  or not. */
         } requestUpdate;
 
         struct {
-            const sinuca::StaticInstructionInfo*
+            const StaticInstructionInfo*
                 instruction;      /**<Instruction info to add.>*/
             unsigned long target; /**<The branch's jump address. */
         } requestAddEntry;
 
         struct {
-            const sinuca::StaticInstructionInfo*
+            const StaticInstructionInfo*
                 instruction; /**<Instruction info this response is about.>*/
             unsigned int numberOfBits; /**<Size of valid bits array. */
             unsigned long target;      /**<The target address for the next
@@ -124,7 +124,7 @@ struct BTBEntry {
      * @return 0 if successfuly, 1 otherwise.
      */
     int NewEntry(unsigned long tag, unsigned int bank, unsigned long target,
-                 const sinuca::StaticInstructionInfo* instruction);
+                 const StaticInstructionInfo* instruction);
 
     /**
      * @brief Update the BTB entry.
@@ -175,13 +175,12 @@ struct BTBEntry {
     ~BTBEntry();
 };
 
-class BranchTargetBuffer : public sinuca::Component<struct BTBPacket> {
+class BranchTargetBuffer : public Component<struct BTBPacket> {
   private:
     BTBEntry** btb;           /**<The pointer to BTB struct. */
     unsigned long numQueries; /**<Number of queries executed. */
 
-    sinuca::Component<BTBPacket>*
-        sendTo; /**<Component to which forward responses.> */
+    Component<BTBPacket>* sendTo; /**<Component to which forward responses.> */
 
     int sendToID; /**<Connection ID of the forwardTo component.> */
 
@@ -221,7 +220,7 @@ class BranchTargetBuffer : public sinuca::Component<struct BTBPacket> {
      * @param type The type of branch.
      * @return 0 if successfuly, 1 otherwise.
      */
-    int RegisterNewBranch(const sinuca::StaticInstructionInfo* instruction,
+    int RegisterNewBranch(const StaticInstructionInfo* instruction,
                           unsigned long targetAddress);
 
     /**
@@ -231,7 +230,7 @@ class BranchTargetBuffer : public sinuca::Component<struct BTBPacket> {
      * or not.
      * @return 0 if successfuly, 1 otherwise.
      */
-    int UpdateBranch(const sinuca::StaticInstructionInfo* instruction,
+    int UpdateBranch(const StaticInstructionInfo* instruction,
                      bool branchState);
 
     /**
@@ -248,7 +247,7 @@ class BranchTargetBuffer : public sinuca::Component<struct BTBPacket> {
      * limited vector with all bits set to 1, assuming that all instructions in
      * the block are predicted to execute.
      */
-    inline void Query(const sinuca::StaticInstructionInfo* instruction,
+    inline void Query(const StaticInstructionInfo* instruction,
                       int connectionID);
 
     /**
@@ -257,7 +256,7 @@ class BranchTargetBuffer : public sinuca::Component<struct BTBPacket> {
      * @param targetAddress The target address of the branch instruction.
      * @details A wrapper for the method of registering a new entry in the BTB.
      */
-    inline int AddEntry(const sinuca::StaticInstructionInfo* instruction,
+    inline int AddEntry(const StaticInstructionInfo* instruction,
                         unsigned long targetAddress);
 
     /**
@@ -266,14 +265,13 @@ class BranchTargetBuffer : public sinuca::Component<struct BTBPacket> {
      * @param branchState The Information on whether the branch has been taken.
      * @details A wrapper for the method of updating an entry in the BTB.
      */
-    inline int Update(const sinuca::StaticInstructionInfo* instruction,
+    inline int Update(const StaticInstructionInfo* instruction,
                       bool branchState);
 
   public:
     BranchTargetBuffer();
 
-    virtual int SetConfigParameter(const char* parameter,
-                                   sinuca::config::ConfigValue value);
+    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
 
     virtual int FinishSetup();
 

@@ -28,7 +28,6 @@
 #include <cstdlib>
 #include <vector>
 
-namespace sinuca {
 namespace yaml {
 
 /**
@@ -195,6 +194,5 @@ void PrintYaml(YamlValue* value);
 #endif  // NDEBUG
 
 }  // namespace yaml
-}  // namespace sinuca
 
 #endif  // SINUCA3_YAML_PARSER_HPP_

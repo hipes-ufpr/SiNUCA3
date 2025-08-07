@@ -26,8 +26,6 @@
 #include "trace_reader.hpp"
 #include "x86_reader_file_handler.hpp"
 
-namespace sinuca {
-namespace traceReader {
 namespace sinuca3TraceReader {
 
 struct ContextInfo {
@@ -79,7 +77,5 @@ class SinucaTraceReader : public TraceReader {
 };
 
 }  // namespace sinuca3TraceReader
-}  // namespace traceReader
-}  // namespace sinuca
 
 #endif  // SINUCA3_TRACE_READER_TRACE_READER_HPP_

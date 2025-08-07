@@ -29,9 +29,8 @@
 #include "../../sinuca3.hpp"
 #include "../../utils/logging.hpp"
 
-int SimpleCore::SetConfigParameter(const char* parameter,
-                                   sinuca::config::ConfigValue value) {
-    sinuca::Component<sinuca::MemoryPacket>** ptrToParameter;
+int SimpleCore::SetConfigParameter(const char* parameter, ConfigValue value) {
+    Component<MemoryPacket>** ptrToParameter;
     int* connectionIDPtr;
     if (strcmp(parameter, "instructionMemory") == 0) {
         ptrToParameter = &this->instructionMemory;
@@ -40,7 +39,7 @@ int SimpleCore::SetConfigParameter(const char* parameter,
         ptrToParameter = &this->dataMemory;
         connectionIDPtr = &this->dataConnectionID;
     } else if (strcmp(parameter, "fetching") == 0) {
-        if (value.type != sinuca::config::ConfigValueTypeComponentReference) {
+        if (value.type != ConfigValueTypeComponentReference) {
             SINUCA3_ERROR_PRINTF(
                 "Component SimpleCore received a parameter that's not a "
                 "component "
@@ -48,7 +47,7 @@ int SimpleCore::SetConfigParameter(const char* parameter,
             return 1;
         }
 
-        this->fetching = dynamic_cast<Component<sinuca::FetchPacket>*>(
+        this->fetching = dynamic_cast<Component<FetchPacket>*>(
             value.value.componentReference);
         if (this->fetching == NULL) {
             SINUCA3_ERROR_PRINTF(
@@ -64,15 +63,15 @@ int SimpleCore::SetConfigParameter(const char* parameter,
         return 1;
     }
 
-    if (value.type != sinuca::config::ConfigValueTypeComponentReference) {
+    if (value.type != ConfigValueTypeComponentReference) {
         SINUCA3_ERROR_PRINTF(
             "Component SimpleCore received a parameter that's not a component "
             "reference.\n");
         return 1;
     }
 
-    *ptrToParameter = dynamic_cast<sinuca::Component<sinuca::MemoryPacket>*>(
-        value.value.componentReference);
+    *ptrToParameter =
+        dynamic_cast<Component<MemoryPacket>*>(value.value.componentReference);
     if (*ptrToParameter == NULL) {
         SINUCA3_ERROR_PRINTF(
             "Component SimpleCore received a parameter %s that's not a "
@@ -98,15 +97,14 @@ int SimpleCore::FinishSetup() {
 }
 
 void SimpleCore::Clock() {
-    sinuca::FetchPacket fetch;
+    FetchPacket fetch;
     fetch.request = 0;
     this->fetching->SendRequest(this->fetchingConnectionID, &fetch);
     if (this->fetching->ReceiveResponse(this->fetchingConnectionID, &fetch) ==
         0) {
         ++this->numFetchedInstructions;
         if (this->instructionMemory != NULL) {
-            sinuca::MemoryPacket fetchPacket =
-                fetch.response.staticInfo->opcodeAddress;
+            MemoryPacket fetchPacket = fetch.response.staticInfo->opcodeAddress;
             this->instructionMemory->SendRequest(this->instructionConnectionID,
                                                  &fetchPacket);
             if (this->dataMemory != NULL) {

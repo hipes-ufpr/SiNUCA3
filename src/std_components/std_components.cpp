@@ -35,8 +35,7 @@
 #include "predictors/interleavedBTB.hpp"
 #include "predictors/ras.hpp"
 
-sinuca::engine::Linkable* sinuca::CreateDefaultComponentByClass(
-    const char* name) {
+Linkable* CreateDefaultComponentByClass(const char* name) {
 #ifndef NDEBUG
     COMPONENT(EngineDebugComponent);
 #endif

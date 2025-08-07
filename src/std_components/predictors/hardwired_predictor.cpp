@@ -36,8 +36,8 @@ int HardwiredPredictor::FinishSetup() {
 }
 
 int HardwiredPredictor::SetBoolParameter(const char* parameter, bool* ptr,
-                                         sinuca::config::ConfigValue value) {
-    if (value.type != sinuca::config::ConfigValueTypeBoolean) {
+                                         ConfigValue value) {
+    if (value.type != ConfigValueTypeBoolean) {
         SINUCA3_ERROR_PRINTF(
             "HardwiredPredictor parameter %s is not a boolean.\n", parameter);
         return 1;
@@ -49,12 +49,11 @@ int HardwiredPredictor::SetBoolParameter(const char* parameter, bool* ptr,
 }
 
 int HardwiredPredictor::SetConfigParameter(const char* parameter,
-                                           sinuca::config::ConfigValue value) {
+                                           ConfigValue value) {
     if (strcmp("sendTo", parameter) == 0) {
-        if (value.type == sinuca::config::ConfigValueTypeComponentReference) {
-            this->sendTo =
-                dynamic_cast<sinuca::Component<sinuca::PredictorPacket>*>(
-                    value.value.componentReference);
+        if (value.type == ConfigValueTypeComponentReference) {
+            this->sendTo = dynamic_cast<Component<PredictorPacket>*>(
+                value.value.componentReference);
             if (this->sendTo != NULL) return 0;
         }
         SINUCA3_ERROR_PRINTF(
@@ -81,9 +80,9 @@ int HardwiredPredictor::SetConfigParameter(const char* parameter,
     return 1;
 }
 
-void HardwiredPredictor::Respond(int id, sinuca::PredictorPacket request) {
-    if (request.type == sinuca::PredictorPacketTypeRequestUpdate) return;
-    const sinuca::InstructionPacket instruction = request.data.requestQuery;
+void HardwiredPredictor::Respond(int id, PredictorPacket request) {
+    if (request.type == PredictorPacketTypeRequestUpdate) return;
+    const InstructionPacket instruction = request.data.requestQuery;
     bool predict = true;
 
     if (!instruction.staticInfo->isControlFlow) {
@@ -91,31 +90,31 @@ void HardwiredPredictor::Respond(int id, sinuca::PredictorPacket request) {
         predict = this->noBranch;
     } else {
         switch (instruction.staticInfo->branchType) {
-            case sinuca::BranchSyscall:
+            case BranchSyscall:
                 predict = this->syscall;
                 ++this->numberOfSyscalls;
                 break;
-            case sinuca::BranchCall:
+            case BranchCall:
                 predict = this->call;
                 ++this->numberOfCalls;
                 break;
-            case sinuca::BranchReturn:
+            case BranchReturn:
                 predict = this->ret;
                 ++this->numberOfRets;
                 break;
-            case sinuca::BranchUncond:
+            case BranchUncond:
                 predict = this->uncond;
                 ++this->numberOfUnconds;
                 break;
-            case sinuca::BranchCond:
+            case BranchCond:
                 predict = this->cond;
                 ++this->numberOfConds;
                 break;
         }
     }
 
-    sinuca::PredictorPacket response;
-    response.type = sinuca::PredictorPacketTypeResponseTakeToAddress;
+    PredictorPacket response;
+    response.type = PredictorPacketTypeResponseTakeToAddress;
     response.data.response.instruction = instruction;
     if (predict) {
         response.data.response.target = instruction.nextInstruction;
@@ -134,7 +133,7 @@ void HardwiredPredictor::Respond(int id, sinuca::PredictorPacket request) {
 void HardwiredPredictor::Clock() {
     const unsigned long numberOfConnections = this->GetNumberOfConnections();
     for (unsigned long i = 0; i < numberOfConnections; ++i) {
-        sinuca::PredictorPacket packet;
+        PredictorPacket packet;
         while (this->ReceiveRequestFromConnection(i, &packet) == 0) {
             this->Respond(i, packet);
         }

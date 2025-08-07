@@ -40,10 +40,9 @@ int Ras::FinishSetup() {
     return 0;
 }
 
-int Ras::SetConfigParameter(const char* parameter,
-                            sinuca::config::ConfigValue value) {
+int Ras::SetConfigParameter(const char* parameter, ConfigValue value) {
     if (strcmp(parameter, "size") == 0) {
-        if (value.type != sinuca::config::ConfigValueTypeInteger) {
+        if (value.type != ConfigValueTypeInteger) {
             SINUCA3_ERROR_PRINTF("Ras parameter size is not an integer.\n");
             return 1;
         }
@@ -60,16 +59,15 @@ int Ras::SetConfigParameter(const char* parameter,
     }
 
     if (strcmp(parameter, "sendTo") == 0) {
-        if (value.type != sinuca::config::ConfigValueTypeComponentReference) {
+        if (value.type != ConfigValueTypeComponentReference) {
             SINUCA3_ERROR_PRINTF(
                 "Ras parameter sendTo is not a "
                 "Component<PredictorPacket>.\n");
             return 1;
         }
 
-        this->sendTo =
-            dynamic_cast<sinuca::Component<sinuca::PredictorPacket>*>(
-                value.value.componentReference);
+        this->sendTo = dynamic_cast<Component<PredictorPacket>*>(
+            value.value.componentReference);
         if (this->sendTo == NULL) {
             SINUCA3_ERROR_PRINTF(
                 "Ras parameter sendTo is not a "
@@ -82,14 +80,13 @@ int Ras::SetConfigParameter(const char* parameter,
     return 1;
 }
 
-inline void Ras::RequestQuery(sinuca::InstructionPacket instruction,
-                              int connectionID) {
+inline void Ras::RequestQuery(InstructionPacket instruction, int connectionID) {
     unsigned long prediction = this->buffer[this->end];
     --this->end;
     if (this->end < 0) this->end = this->size - 1;
 
-    sinuca::PredictorPacket response;
-    response.type = sinuca::PredictorPacketTypeResponseTakeToAddress;
+    PredictorPacket response;
+    response.type = PredictorPacketTypeResponseTakeToAddress;
     response.data.response.instruction = instruction;
     response.data.response.target = prediction;
 
@@ -109,15 +106,15 @@ inline void Ras::RequestUpdate(unsigned long targetAddress) {
 
 void Ras::Clock() {
     long numberOfConnections = this->GetNumberOfConnections();
-    sinuca::PredictorPacket packet;
+    PredictorPacket packet;
     for (long i = 0; i < numberOfConnections; ++i) {
         if (this->ReceiveRequestFromConnection(i, &packet) == 0) {
             switch (packet.type) {
-                case sinuca::PredictorPacketTypeRequestQuery:
+                case PredictorPacketTypeRequestQuery:
                     ++this->numQueries;
                     this->RequestQuery(packet.data.requestQuery, i);
                     break;
-                case sinuca::PredictorPacketTypeRequestUpdate:
+                case PredictorPacketTypeRequestUpdate:
                     ++this->numUpdates;
                     this->RequestUpdate(packet.data.requestUpdate.target);
                     break;
@@ -146,15 +143,15 @@ Ras::~Ras() {
 int TestRas() {
     Ras ras;
 
-    ras.SetConfigParameter("size", sinuca::config::ConfigValue((long)5));
+    ras.SetConfigParameter("size", ConfigValue((long)5));
     int id = ras.Connect(1);
     ras.FinishSetup();
 
     ras.Clock();
     ras.PosClock();
 
-    sinuca::PredictorPacket msg;
-    msg.type = sinuca::PredictorPacketTypeRequestUpdate;
+    PredictorPacket msg;
+    msg.type = PredictorPacketTypeRequestUpdate;
 
     ras.Clock();
     msg.data.requestUpdate.target = 0xcafebabe;
@@ -173,7 +170,7 @@ int TestRas() {
     ras.PosClock();
 
     ras.Clock();
-    msg.type = sinuca::PredictorPacketTypeRequestQuery;
+    msg.type = PredictorPacketTypeRequestQuery;
     ras.SendRequest(id, &msg);
     ras.PosClock();
 
@@ -197,7 +194,7 @@ int TestRas() {
     ras.PosClock();
 
     ras.Clock();
-    msg.type = sinuca::PredictorPacketTypeRequestUpdate;
+    msg.type = PredictorPacketTypeRequestUpdate;
     msg.data.requestUpdate.target = 0xb16b00b5;
     ras.SendRequest(id, &msg);
     ras.PosClock();
@@ -206,7 +203,7 @@ int TestRas() {
     ras.PosClock();
 
     ras.Clock();
-    msg.type = sinuca::PredictorPacketTypeRequestQuery;
+    msg.type = PredictorPacketTypeRequestQuery;
     ras.SendRequest(id, &msg);
     ras.PosClock();
 
@@ -228,7 +225,7 @@ int TestRas() {
     ras.PosClock();
 
     ras.Clock();
-    msg.type = sinuca::PredictorPacketTypeRequestQuery;
+    msg.type = PredictorPacketTypeRequestQuery;
     ras.SendRequest(id, &msg);
     ras.PosClock();
 

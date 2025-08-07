@@ -25,15 +25,9 @@
 
 #include <vector>
 
-namespace sinuca {
-
 // Pre-declaration for ConfigValue as Linkable should not be included here as it
 // already includes us.
-namespace engine {
 class Linkable;
-}
-
-namespace config {
 
 /**
  * @brief Each configuration parameter type supported for components.
@@ -61,7 +55,7 @@ struct ConfigValue {
         double number;
         bool boolean;
         std::vector<ConfigValue>* array;
-        engine::Linkable* componentReference;
+        Linkable* componentReference;
     } value;
     ConfigValueType type;
 
@@ -80,13 +74,10 @@ struct ConfigValue {
         : type(ConfigValueTypeArray) {
         this->value.array = array;
     }
-    inline ConfigValue(engine::Linkable* componentReference)
+    inline ConfigValue(Linkable* componentReference)
         : type(ConfigValueTypeComponentReference) {
         this->value.componentReference = componentReference;
     }
 };
-
-}  // namespace config
-}  // namespace sinuca
 
 #endif  // SINUCA3_CONFIG_HPP

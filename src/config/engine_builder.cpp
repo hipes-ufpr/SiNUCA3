@@ -54,24 +54,22 @@
  *   SetConfigParameter;
  */
 
-sinuca::builder::DefinitionID sinuca::config::EngineBuilder::AddDummyDefinition(
-    const char* name) {
+builder::DefinitionID EngineBuilder::AddDummyDefinition(const char* name) {
     builder::ComponentDefinition definition =
         builder::ComponentDefinition(name, false);
     this->componentDefinitions.push_back(definition);
     return this->componentDefinitions.size() - 1;
 }
 
-sinuca::builder::InstanceID sinuca::config::EngineBuilder::AddDummyInstance(
-    const char* alias) {
+builder::InstanceID EngineBuilder::AddDummyInstance(const char* alias) {
     builder::ComponentInstantiation instance =
         builder::ComponentInstantiation(alias, 0, false);
     this->components.push_back(instance);
     return this->components.size() - 1;
 }
 
-int sinuca::config::EngineBuilder::GetComponentDefinition(
-    const char* name, builder::DefinitionID* ret) {
+int EngineBuilder::GetComponentDefinition(const char* name,
+                                          builder::DefinitionID* ret) {
     if (name == NULL) return 1;
 
     for (unsigned int i = 0; i < this->componentDefinitions.size(); ++i) {
@@ -85,8 +83,8 @@ int sinuca::config::EngineBuilder::GetComponentDefinition(
     return 1;
 }
 
-int sinuca::config::EngineBuilder::GetComponentInstantiation(
-    const char* alias, builder::InstanceID* ret) {
+int EngineBuilder::GetComponentInstantiation(const char* alias,
+                                             builder::InstanceID* ret) {
     if (alias == NULL) return 1;
 
     for (unsigned int i = 0; i < this->components.size(); ++i) {
@@ -100,8 +98,7 @@ int sinuca::config::EngineBuilder::GetComponentInstantiation(
     return 1;
 }
 
-sinuca::builder::DefinitionID
-sinuca::config::EngineBuilder::GetComponentDefinitionOrMakeDummy(
+builder::DefinitionID EngineBuilder::GetComponentDefinitionOrMakeDummy(
     const char* name) {
     builder::DefinitionID definitionID;
     if (this->GetComponentDefinition(name, &definitionID)) {
@@ -110,8 +107,7 @@ sinuca::config::EngineBuilder::GetComponentDefinitionOrMakeDummy(
     return definitionID;
 }
 
-sinuca::builder::InstanceID
-sinuca::config::EngineBuilder::GetComponentInstantiationOrMakeDummy(
+builder::InstanceID EngineBuilder::GetComponentInstantiationOrMakeDummy(
     const char* alias) {
     builder::InstanceID instanceID;
     if (this->GetComponentInstantiation(alias, &instanceID)) {
@@ -120,19 +116,19 @@ sinuca::config::EngineBuilder::GetComponentInstantiationOrMakeDummy(
     return instanceID;
 }
 
-static inline void YamlNumber2Parameter(sinuca::builder::Parameter* dest,
+static inline void YamlNumber2Parameter(builder::Parameter* dest,
                                         double number) {
     long integer = trunc(number);
     if (((double)integer) == number) {
         dest->value.integer = integer;
-        dest->type = sinuca::builder::ParameterTypeInteger;
+        dest->type = builder::ParameterTypeInteger;
     } else {
         dest->value.number = number;
-        dest->type = sinuca::builder::ParameterTypeNumber;
+        dest->type = builder::ParameterTypeNumber;
     }
 }
 
-int sinuca::config::EngineBuilder::YamlArray2Parameter(
+int EngineBuilder::YamlArray2Parameter(
     builder::Parameter* dest, const std::vector<yaml::YamlValue*>* array) {
     dest->value.array.parameters = new builder::Parameter[array->size()];
 
@@ -145,9 +141,8 @@ int sinuca::config::EngineBuilder::YamlArray2Parameter(
     return 0;
 }
 
-int sinuca::config::EngineBuilder::Yaml2Parameter(const char* name,
-                                                  builder::Parameter* dest,
-                                                  const yaml::YamlValue* src) {
+int EngineBuilder::Yaml2Parameter(const char* name, builder::Parameter* dest,
+                                  const yaml::YamlValue* src) {
     int err;
 
     switch (src->type) {
@@ -187,8 +182,8 @@ int sinuca::config::EngineBuilder::Yaml2Parameter(const char* name,
     return 0;
 }
 
-static inline int AddClass(sinuca::builder::ComponentDefinition* definition,
-                           const sinuca::yaml::YamlValue* value) {
+static inline int AddClass(builder::ComponentDefinition* definition,
+                           const yaml::YamlValue* value) {
     if (definition->clazz != NULL) {
         SINUCA3_ERROR_PRINTF(
             "While trying to define component %s: parameter `class` "
@@ -197,7 +192,7 @@ static inline int AddClass(sinuca::builder::ComponentDefinition* definition,
         return 1;
     }
 
-    if (value->type != sinuca::yaml::YamlValueTypeString) {
+    if (value->type != yaml::YamlValueTypeString) {
         SINUCA3_ERROR_PRINTF(
             "While trying to define component %s: parameter `class` is "
             "not a string.\n",
@@ -210,7 +205,7 @@ static inline int AddClass(sinuca::builder::ComponentDefinition* definition,
     return 0;
 }
 
-int sinuca::config::EngineBuilder::FillParametersAndClass(
+int EngineBuilder::FillParametersAndClass(
     builder::DefinitionID id,
     const std::vector<yaml::YamlMappingEntry*>* config) {
     SINUCA3_DEBUG_PRINTF("    Filling parameters and class for definition.\n");
@@ -265,7 +260,7 @@ int sinuca::config::EngineBuilder::FillParametersAndClass(
     return 0;
 }
 
-int sinuca::config::EngineBuilder::AddComponentDefinitionFromYamlMapping(
+int EngineBuilder::AddComponentDefinitionFromYamlMapping(
     const char* name, const std::vector<yaml::YamlMappingEntry*>* config,
     builder::DefinitionID* ret) {
     builder::DefinitionID definitionID;
@@ -292,7 +287,7 @@ int sinuca::config::EngineBuilder::AddComponentDefinitionFromYamlMapping(
     return 0;
 }
 
-int sinuca::config::EngineBuilder::AddComponentInstantiationFromYamlMapping(
+int EngineBuilder::AddComponentInstantiationFromYamlMapping(
     const char* name, const char* alias,
     const std::vector<yaml::YamlMappingEntry*>* config,
     builder::InstanceID* ret) {
@@ -325,8 +320,7 @@ int sinuca::config::EngineBuilder::AddComponentInstantiationFromYamlMapping(
     return 0;
 }
 
-int sinuca::config::EngineBuilder::TreatInstantiateParameter(
-    const yaml::YamlValue* value) {
+int EngineBuilder::TreatInstantiateParameter(const yaml::YamlValue* value) {
     builder::InstanceID dummy;
     switch (value->type) {
         case yaml::YamlValueTypeString:
@@ -352,8 +346,8 @@ int sinuca::config::EngineBuilder::TreatInstantiateParameter(
     return 0;
 }
 
-int sinuca::config::EngineBuilder::TreatParameter(
-    const char* name, const yaml::YamlValue* value) {
+int EngineBuilder::TreatParameter(const char* name,
+                                  const yaml::YamlValue* value) {
     SINUCA3_DEBUG_PRINTF("Treating parameter %s.\n", name);
 
     if (strcmp(name, "instantiate") == 0) {
@@ -390,7 +384,7 @@ int sinuca::config::EngineBuilder::TreatParameter(
     return 0;
 }
 
-int sinuca::config::EngineBuilder::EnsureAllComponentsAreDefined() {
+int EngineBuilder::EnsureAllComponentsAreDefined() {
     for (unsigned long i = 0; i < this->components.size(); ++i) {
         if (!components[i].alreadyDefined) {
             SINUCA3_ERROR_PRINTF("Component with alias %s was never defined.",
@@ -410,18 +404,16 @@ int sinuca::config::EngineBuilder::EnsureAllComponentsAreDefined() {
     return 0;
 }
 
-static inline sinuca::engine::Linkable* CreateComponent(const char* clazz) {
-    sinuca::engine::Linkable* component =
-        sinuca::CreateDefaultComponentByClass(clazz);
+static inline Linkable* CreateComponent(const char* clazz) {
+    Linkable* component = CreateDefaultComponentByClass(clazz);
     if (component != NULL) return component;
 
-    component = sinuca::CreateCustomComponentByClass(clazz);
+    component = CreateCustomComponentByClass(clazz);
     return component;
 }
 
-sinuca::engine::Engine*
-sinuca::config::EngineBuilder::FreeSelfOnInstantiationFailure(
-    const sinuca::yaml::YamlValue* yamlConfig) {
+Engine* EngineBuilder::FreeSelfOnInstantiationFailure(
+    const yaml::YamlValue* yamlConfig) {
     delete yamlConfig;
     delete this->engine;
 
@@ -437,7 +429,7 @@ sinuca::config::EngineBuilder::FreeSelfOnInstantiationFailure(
     return NULL;
 }
 
-int sinuca::config::EngineBuilder::ArrayParameter2ConfigValue(
+int EngineBuilder::ArrayParameter2ConfigValue(
     const builder::ParameterArray* parameter, ConfigValue* value) {
     std::vector<ConfigValue>* array = new std::vector<ConfigValue>;
     array->reserve(parameter->size);
@@ -456,10 +448,9 @@ int sinuca::config::EngineBuilder::ArrayParameter2ConfigValue(
     return 0;
 }
 
-sinuca::engine::Linkable*
-sinuca::config::EngineBuilder::NewComponentFromDefinitionReference(
+Linkable* EngineBuilder::NewComponentFromDefinitionReference(
     builder::DefinitionID reference) {
-    engine::Linkable* component =
+    Linkable* component =
         CreateComponent(this->componentDefinitions[reference].clazz);
     if (component == NULL) {
         // It's not a good pratice to print errors this far in the call stack,
@@ -478,8 +469,8 @@ sinuca::config::EngineBuilder::NewComponentFromDefinitionReference(
     return component;
 }
 
-int sinuca::config::EngineBuilder::Parameter2ConfigValue(
-    const builder::Parameter* parameter, ConfigValue* value) {
+int EngineBuilder::Parameter2ConfigValue(const builder::Parameter* parameter,
+                                         ConfigValue* value) {
     switch (parameter->type) {
         case builder::ParameterTypeInteger:
             *value = ConfigValue(parameter->value.integer);
@@ -511,9 +502,8 @@ int sinuca::config::EngineBuilder::Parameter2ConfigValue(
     return 0;
 }
 
-int sinuca::config::EngineBuilder::SetupComponentConfig(
-    builder::InstanceID instance) {
-    sinuca::engine::Linkable* component = this->components[instance].component;
+int EngineBuilder::SetupComponentConfig(builder::InstanceID instance) {
+    Linkable* component = this->components[instance].component;
     builder::DefinitionID definition = this->components[instance].definition;
 
     // We need to perform the access to map each iteration as
@@ -533,15 +523,13 @@ int sinuca::config::EngineBuilder::SetupComponentConfig(
     return 0;
 }
 
-sinuca::engine::Engine* sinuca::config::EngineBuilder::Instantiate(
-    const char* configFile) {
-    const sinuca::yaml::YamlValue* yamlConfig =
-        sinuca::yaml::ParseFile(configFile);
+Engine* EngineBuilder::Instantiate(const char* configFile) {
+    const yaml::YamlValue* yamlConfig = yaml::ParseFile(configFile);
     if (yamlConfig == NULL) return NULL;
-    assert(yamlConfig->type == sinuca::yaml::YamlValueTypeMapping);
+    assert(yamlConfig->type == yaml::YamlValueTypeMapping);
 
     // We only need this to instantiate everything.
-    const std::vector<sinuca::yaml::YamlMappingEntry*>* config =
+    const std::vector<yaml::YamlMappingEntry*>* config =
         yamlConfig->value.mapping;
 
     for (unsigned int i = 0; i < config->size(); ++i) {
@@ -586,14 +574,14 @@ sinuca::engine::Engine* sinuca::config::EngineBuilder::Instantiate(
         }
     }
 
-    engine::Engine* engine = this->BuildEngine();
+    Engine* engine = this->BuildEngine();
     delete yamlConfig;
     return engine;
 }
 
-sinuca::engine::Engine* sinuca::config::EngineBuilder::BuildEngine() {
+Engine* EngineBuilder::BuildEngine() {
     long numberOfComponents = this->components.size();
-    engine::Linkable** components = new engine::Linkable*[numberOfComponents];
+    Linkable** components = new Linkable*[numberOfComponents];
 
     assert(components != NULL);
 

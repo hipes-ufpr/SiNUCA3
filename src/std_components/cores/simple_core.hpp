@@ -33,14 +33,12 @@
  * two memories are passed as the Component<MemoryPacket> parameters
  * `instructionMemory` and `dataMemory`.
  */
-class SimpleCore : public sinuca::Component<sinuca::InstructionPacket> {
+class SimpleCore : public Component<InstructionPacket> {
   private:
-    sinuca::Component<sinuca::MemoryPacket>*
-        instructionMemory; /** @brief The instruction memory. */
-    sinuca::Component<sinuca::MemoryPacket>*
-        dataMemory; /** @brief The data memory. */
-    sinuca::Component<sinuca::FetchPacket>*
-        fetching; /** @brief The fetching. */
+    Component<MemoryPacket>*
+        instructionMemory;               /** @brief The instruction memory. */
+    Component<MemoryPacket>* dataMemory; /** @brief The data memory. */
+    Component<FetchPacket>* fetching;    /** @brief The fetching. */
 
     unsigned long numFetchedInstructions; /** @brief The number of fetched
                                              instructions. */
@@ -56,8 +54,7 @@ class SimpleCore : public sinuca::Component<sinuca::InstructionPacket> {
           fetching(NULL),
           numFetchedInstructions(0) {}
     virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter,
-                                   sinuca::config::ConfigValue value);
+    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual void Clock();
     virtual void Flush();
     virtual void PrintStatistics();

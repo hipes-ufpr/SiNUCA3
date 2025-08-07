@@ -37,9 +37,9 @@
  * - sendTo: Component<PredictorPacket>, if exists, the Ras sends responses to
  *   this component instead of in the response channel.
  */
-class Ras : public sinuca::Component<sinuca::PredictorPacket> {
+class Ras : public Component<PredictorPacket> {
   private:
-    sinuca::Component<sinuca::PredictorPacket>* sendTo;
+    Component<PredictorPacket>* sendTo;
     unsigned long* buffer;
     long size;
     long end;
@@ -48,16 +48,14 @@ class Ras : public sinuca::Component<sinuca::PredictorPacket> {
 
     int forwardToID;
 
-    inline void RequestQuery(sinuca::InstructionPacket instruction,
-                             int connectionID);
+    inline void RequestQuery(InstructionPacket instruction, int connectionID);
 
     inline void RequestUpdate(unsigned long targetAddress);
 
   public:
     inline Ras() : sendTo(NULL), buffer(NULL), size(0), end(0) {}
     virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter,
-                                   sinuca::config::ConfigValue value);
+    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual void Clock();
     virtual void Flush();
     virtual void PrintStatistics();

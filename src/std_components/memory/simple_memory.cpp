@@ -24,8 +24,7 @@
 
 #include "../../utils/logging.hpp"
 
-int SimpleMemory::SetConfigParameter(const char* parameter,
-                                     sinuca::config::ConfigValue value) {
+int SimpleMemory::SetConfigParameter(const char* parameter, ConfigValue value) {
     (void)parameter;
     (void)value;
 
@@ -36,7 +35,7 @@ int SimpleMemory::FinishSetup() { return 0; }
 
 void SimpleMemory::Clock() {
     long numberOfConnections = this->GetNumberOfConnections();
-    sinuca::MemoryPacket packet;
+    MemoryPacket packet;
     for (long i = 0; i < numberOfConnections; ++i) {
         if (this->ReceiveRequestFromConnection(i, &packet) == 0) {
             ++this->numberOfRequests;

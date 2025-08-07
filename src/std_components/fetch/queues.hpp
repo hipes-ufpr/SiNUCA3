@@ -22,10 +22,10 @@
 #include "queue.hpp"
 
 /** @brief Queue of MemoryPacket. */
-class MemoryQueue : public Queue<sinuca::MemoryPacket> {};
+class MemoryQueue : public Queue<MemoryPacket> {};
 /** @brief Queue of PredictorPacket. */
-class PredictorQueue : public Queue<sinuca::PredictorPacket> {};
+class PredictorQueue : public Queue<PredictorPacket> {};
 /** @brief Queue of InstructionPacket. */
-class InstructionQueue : public Queue<sinuca::InstructionPacket> {};
+class InstructionQueue : public Queue<InstructionPacket> {};
 
 #endif  // SINUCA3_QUEUES_HPP_

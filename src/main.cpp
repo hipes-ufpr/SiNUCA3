@@ -39,7 +39,7 @@
 #endif
 
 /** @brief Definition of the ENGINE global object declared in sinuca3.hpp. */
-sinuca::engine::Engine* sinuca::ENGINE;
+Engine* ENGINE;
 
 /**
  * @brief Prints licensing information.
@@ -89,9 +89,9 @@ void usage() {
 /**
  * @brief Returns a TraceReader from it's name. TODO: add default trace reader.
  */
-sinuca::traceReader::TraceReader* AllocTraceReader(const char* traceReader) {
+TraceReader* AllocTraceReader(const char* traceReader) {
     if (strcmp(traceReader, "sinuca3") == 0)
-        return new sinuca::traceReader::sinuca3TraceReader::SinucaTraceReader;
+        return new sinuca3TraceReader::SinucaTraceReader;
     else
         return NULL;
 }
@@ -166,12 +166,11 @@ int main(int argc, char* const argv[]) {
         return 1;
     }
 
-    sinuca::config::EngineBuilder builder;
-    sinuca::ENGINE = builder.Instantiate(rootConfigFile);
-    if (sinuca::ENGINE == NULL) return 1;
+    EngineBuilder builder;
+    ENGINE = builder.Instantiate(rootConfigFile);
+    if (ENGINE == NULL) return 1;
 
-    sinuca::traceReader::TraceReader* traceReader =
-        AllocTraceReader(traceReaderName);
+    TraceReader* traceReader = AllocTraceReader(traceReaderName);
     if (traceReader == NULL) {
         SINUCA3_ERROR_PRINTF("The trace reader %s does not exist.",
                              traceReaderName);
@@ -179,8 +178,8 @@ int main(int argc, char* const argv[]) {
     }
     if (traceReader->OpenTrace(traceFileName, traceDir)) return 1;
 
-    sinuca::ENGINE->Simulate(traceReader);
-    delete sinuca::ENGINE;
+    ENGINE->Simulate(traceReader);
+    delete ENGINE;
     delete traceReader;
 
     return 0;

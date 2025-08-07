@@ -25,7 +25,7 @@
 #include "../../utils/logging.hpp"
 
 int SimpleExecutionUnit::SetConfigParameter(const char* parameter,
-                                            sinuca::config::ConfigValue value) {
+                                            ConfigValue value) {
     (void)parameter;
     (void)value;
 
@@ -39,7 +39,7 @@ void SimpleExecutionUnit::Flush() {}
 void SimpleExecutionUnit::Clock() {
     unsigned long numberOfConnections = this->GetNumberOfConnections();
     for (unsigned long i = 0; i < numberOfConnections; ++i) {
-        sinuca::InstructionPacket packet;
+        InstructionPacket packet;
         while (this->ReceiveRequestFromConnection(i, &packet) == 0) {
             SINUCA3_DEBUG_PRINTF("[SimpleExecutionUnit] %p: executing %s.\n",
                                  this, packet.staticInfo->opcodeAssembly);

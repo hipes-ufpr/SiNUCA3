@@ -28,11 +28,8 @@
 
 using namespace trace;
 
-namespace sinuca {
-namespace traceReader {
-
 struct InstructionInfo {
-    sinuca::StaticInstructionInfo staticInfo;
+    StaticInstructionInfo staticInfo;
 
     /** @brief Fields reserved for reader internal use */
     unsigned short staticNumReadings;
@@ -55,8 +52,8 @@ class StaticTraceFile {
 
     void *GetData(unsigned long);
     void GetFlagValues(InstructionInfo *, DataINS *);
-    void GetBranchFields(sinuca::StaticInstructionInfo *, DataINS *);
-    void GetRegs(sinuca::StaticInstructionInfo *, DataINS *);
+    void GetBranchFields(StaticInstructionInfo *, DataINS *);
+    void GetRegs(StaticInstructionInfo *, DataINS *);
 
   public:
     StaticTraceFile(const char *folderPath, const char *img);
@@ -91,8 +88,5 @@ class MemoryTraceFile : public TraceFileReader {
     int ReadNextMemAccess(InstructionInfo *, DynamicInstructionInfo *);
     bool Valid();
 };
-
-}  // namespace traceReader
-}  // namespace sinuca
 
 #endif

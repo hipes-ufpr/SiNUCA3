@@ -22,8 +22,7 @@
 
 #include "linkable.hpp"
 
-void sinuca::engine::Connection::CreateBuffers(int bufferSize,
-                                               int messageSize) {
+void Connection::CreateBuffers(int bufferSize, int messageSize) {
     this->bufferSize = bufferSize;
     this->messageSize = messageSize;
 
@@ -40,22 +39,18 @@ void sinuca::engine::Connection::CreateBuffers(int bufferSize,
     this->responseBuffers[1]->Allocate(bufferSize, messageSize);
 }
 
-void sinuca::engine::Connection::DeleteBuffers() {
+void Connection::DeleteBuffers() {
     delete this->requestBuffers[0];
     delete this->requestBuffers[1];
     delete this->responseBuffers[0];
     delete this->responseBuffers[1];
 }
 
-inline int sinuca::engine::Connection::GetBufferSize() const {
-    return this->bufferSize;
-}
+inline int Connection::GetBufferSize() const { return this->bufferSize; }
 
-inline int sinuca::engine::Connection::GetMessageSize() const {
-    return this->messageSize;
-}
+inline int Connection::GetMessageSize() const { return this->messageSize; }
 
-void sinuca::engine::Connection::SwapBuffers() {
+void Connection::SwapBuffers() {
     CircularBuffer* aux;
 
     aux = this->requestBuffers[0];
@@ -67,43 +62,38 @@ void sinuca::engine::Connection::SwapBuffers() {
     this->responseBuffers[1] = aux;
 }
 
-void sinuca::engine::Connection::FlushConnection() {
+void Connection::FlushConnection() {
     this->requestBuffers[0]->Flush();
     this->requestBuffers[1]->Flush();
     this->responseBuffers[0]->Flush();
     this->responseBuffers[1]->Flush();
 }
 
-bool sinuca::engine::Connection::InsertIntoRequestBuffer(int id,
-                                                         void* messageInput) {
+bool Connection::InsertIntoRequestBuffer(int id, void* messageInput) {
     return this->requestBuffers[id]->Enqueue(messageInput);
 }
 
-bool sinuca::engine::Connection::InsertIntoResponseBuffer(int id,
-                                                          void* messageInput) {
+bool Connection::InsertIntoResponseBuffer(int id, void* messageInput) {
     return this->responseBuffers[id]->Enqueue(messageInput);
 }
 
-bool sinuca::engine::Connection::RemoveFromARequestBuffer(int id,
-                                                          void* messageOutput) {
+bool Connection::RemoveFromARequestBuffer(int id, void* messageOutput) {
     return this->requestBuffers[id]->Dequeue(messageOutput);
 }
 
-bool sinuca::engine::Connection::RemoveFromAResponseBuffer(
-    int id, void* messageOutput) {
+bool Connection::RemoveFromAResponseBuffer(int id, void* messageOutput) {
     return this->responseBuffers[id]->Dequeue(messageOutput);
 }
 
-sinuca::engine::Linkable::Linkable(int messageSize)
+Linkable::Linkable(int messageSize)
     : messageSize(messageSize), numberOfConnections(0) {}
 
-void sinuca::engine::Linkable::AllocateConnectionsBuffer(
-    long numberOfConnections) {
+void Linkable::AllocateConnectionsBuffer(long numberOfConnections) {
     this->numberOfConnections = numberOfConnections;
     this->connections.reserve(numberOfConnections);
 }
 
-void sinuca::engine::Linkable::DeallocateConnectionsBuffer() {
+void Linkable::DeallocateConnectionsBuffer() {
     for (unsigned int i = 0; i < this->connections.size(); ++i) {
         this->connections[i]->DeleteBuffers();
         delete connections[i];
@@ -112,26 +102,24 @@ void sinuca::engine::Linkable::DeallocateConnectionsBuffer() {
     this->numberOfConnections = 0;
 }
 
-void sinuca::engine::Linkable::AddConnection(Connection* newConnection) {
+void Linkable::AddConnection(Connection* newConnection) {
     this->connections.push_back(newConnection);
     this->numberOfConnections += 1;
 }
 
-long sinuca::engine::Linkable::GetNumberOfConnections() {
-    return this->numberOfConnections;
-}
+long Linkable::GetNumberOfConnections() { return this->numberOfConnections; }
 
-void sinuca::engine::Linkable::LinkableFlush() {
+void Linkable::LinkableFlush() {
     for (unsigned int i = 0; i < this->connections.size(); ++i)
         this->connections[i]->FlushConnection();
 }
 
-void sinuca::engine::Linkable::PosClock() {
+void Linkable::PosClock() {
     for (unsigned int i = 0; i < this->connections.size(); ++i)
         this->connections[i]->SwapBuffers();
 }
 
-int sinuca::engine::Linkable::ConnectUnsafe(int bufferSize) {
+int Linkable::ConnectUnsafe(int bufferSize) {
     int index = this->connections.size();
 
     Connection* newConnection = new Connection();
@@ -141,28 +129,24 @@ int sinuca::engine::Linkable::ConnectUnsafe(int bufferSize) {
     return index;
 }
 
-int sinuca::engine::Linkable::SendRequestUnsafe(int connectionID,
-                                                void* messageInput) {
+int Linkable::SendRequestUnsafe(int connectionID, void* messageInput) {
     return this->connections[connectionID]->InsertIntoRequestBuffer(
         SOURCE_ID, messageInput);
 }
 
-int sinuca::engine::Linkable::GetRequestUnsafe(int connectionID,
-                                               void* messageOutput) {
+int Linkable::GetRequestUnsafe(int connectionID, void* messageOutput) {
     return this->connections[connectionID]->RemoveFromARequestBuffer(
         DEST_ID, messageOutput);
 }
 
-int sinuca::engine::Linkable::SendResponseUnsafe(int connectionID,
-                                                 void* messageInput) {
+int Linkable::SendResponseUnsafe(int connectionID, void* messageInput) {
     return this->connections[connectionID]->InsertIntoResponseBuffer(
         DEST_ID, messageInput);
 }
 
-int sinuca::engine::Linkable::GetResponseUnsafe(int connectionID,
-                                                void* messageOutput) {
+int Linkable::GetResponseUnsafe(int connectionID, void* messageOutput) {
     return this->connections[connectionID]->RemoveFromAResponseBuffer(
         SOURCE_ID, messageOutput);
 }
 
-sinuca::engine::Linkable::~Linkable() { DeallocateConnectionsBuffer(); }
+Linkable::~Linkable() { DeallocateConnectionsBuffer(); }

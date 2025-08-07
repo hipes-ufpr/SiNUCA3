@@ -56,9 +56,9 @@ int Fetcher::FinishSetup() {
     return 0;
 }
 
-int Fetcher::FetchConfigParameter(sinuca::config::ConfigValue value) {
-    if (value.type == sinuca::config::ConfigValueTypeComponentReference) {
-        this->fetch = dynamic_cast<sinuca::Component<sinuca::FetchPacket>*>(
+int Fetcher::FetchConfigParameter(ConfigValue value) {
+    if (value.type == ConfigValueTypeComponentReference) {
+        this->fetch = dynamic_cast<Component<FetchPacket>*>(
             value.value.componentReference);
         if (this->fetch != NULL) {
             return 0;
@@ -69,12 +69,10 @@ int Fetcher::FetchConfigParameter(sinuca::config::ConfigValue value) {
     return 1;
 }
 
-int Fetcher::InstructionMemoryConfigParameter(
-    sinuca::config::ConfigValue value) {
-    if (value.type == sinuca::config::ConfigValueTypeComponentReference) {
-        this->instructionMemory =
-            dynamic_cast<sinuca::Component<sinuca::InstructionPacket>*>(
-                value.value.componentReference);
+int Fetcher::InstructionMemoryConfigParameter(ConfigValue value) {
+    if (value.type == ConfigValueTypeComponentReference) {
+        this->instructionMemory = dynamic_cast<Component<InstructionPacket>*>(
+            value.value.componentReference);
         if (this->instructionMemory != NULL) {
             return 0;
         }
@@ -86,8 +84,8 @@ int Fetcher::InstructionMemoryConfigParameter(
     return 1;
 }
 
-int Fetcher::FetchSizeConfigParameter(sinuca::config::ConfigValue value) {
-    if (value.type == sinuca::config::ConfigValueTypeInteger) {
+int Fetcher::FetchSizeConfigParameter(ConfigValue value) {
+    if (value.type == ConfigValueTypeInteger) {
         if (value.value.integer > 0) {
             this->fetchSize = value.value.integer;
             return 0;
@@ -99,8 +97,8 @@ int Fetcher::FetchSizeConfigParameter(sinuca::config::ConfigValue value) {
     return 1;
 }
 
-int Fetcher::FetchIntervalConfigParameter(sinuca::config::ConfigValue value) {
-    if (value.type == sinuca::config::ConfigValueTypeInteger) {
+int Fetcher::FetchIntervalConfigParameter(ConfigValue value) {
+    if (value.type == ConfigValueTypeInteger) {
         if (value.value.integer > 0) {
             this->fetchInterval = value.value.integer;
             return 0;
@@ -111,11 +109,10 @@ int Fetcher::FetchIntervalConfigParameter(sinuca::config::ConfigValue value) {
     return 1;
 }
 
-int Fetcher::PredictorConfigParameter(sinuca::config::ConfigValue value) {
-    if (value.type == sinuca::config::ConfigValueTypeComponentReference) {
-        this->predictor =
-            dynamic_cast<sinuca::Component<sinuca::PredictorPacket>*>(
-                value.value.componentReference);
+int Fetcher::PredictorConfigParameter(ConfigValue value) {
+    if (value.type == ConfigValueTypeComponentReference) {
+        this->predictor = dynamic_cast<Component<PredictorPacket>*>(
+            value.value.componentReference);
         if (this->predictor != NULL) return 0;
     }
 
@@ -125,9 +122,8 @@ int Fetcher::PredictorConfigParameter(sinuca::config::ConfigValue value) {
     return 1;
 }
 
-int Fetcher::MisspredictPenaltyConfigParameter(
-    sinuca::config::ConfigValue value) {
-    if (value.type == sinuca::config::ConfigValueTypeInteger) {
+int Fetcher::MisspredictPenaltyConfigParameter(ConfigValue value) {
+    if (value.type == ConfigValueTypeInteger) {
         if (value.value.integer > 0) {
             this->misspredictPenalty = value.value.integer;
             return 0;
@@ -138,8 +134,7 @@ int Fetcher::MisspredictPenaltyConfigParameter(
     return 1;
 }
 
-int Fetcher::SetConfigParameter(const char* parameter,
-                                sinuca::config::ConfigValue value) {
+int Fetcher::SetConfigParameter(const char* parameter, ConfigValue value) {
     if (strcmp(parameter, "fetch") == 0) {
         return this->FetchConfigParameter(value);
     } else if (strcmp(parameter, "instructionMemory") == 0) {
@@ -183,8 +178,8 @@ void Fetcher::ClockSendBuffered() {
         ++i;
 
     while (i < this->fetchBufferUsage) {
-        sinuca::PredictorPacket packet;
-        packet.type = sinuca::PredictorPacketTypeRequestQuery;
+        PredictorPacket packet;
+        packet.type = PredictorPacketTypeRequestQuery;
         packet.data.requestQuery = this->fetchBuffer[i].instruction;
         if (this->predictor->SendRequest(this->predictorID, &packet) != 0)
             break;
@@ -196,7 +191,7 @@ void Fetcher::ClockSendBuffered() {
 int Fetcher::ClockCheckPredictor() {
     if (this->predictor == NULL) return 0;
 
-    sinuca::PredictorPacket response;
+    PredictorPacket response;
     unsigned long i = 0;
     // We depend on the predictor sending the responses in order and, of course,
     // sending only what we actually asked for.
@@ -210,7 +205,7 @@ int Fetcher::ClockCheckPredictor() {
             this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
         // "Redirect" the fetch only if the predictor has an address, otherwise
         // expect the instruction to be at the next logical PC.
-        if (response.type == sinuca::PredictorPacketTypeResponseTakeToAddress) {
+        if (response.type == PredictorPacketTypeResponseTakeToAddress) {
             target = response.data.response.target;
         }
         // If a missprediction happened.
@@ -244,7 +239,7 @@ void Fetcher::ClockRequestFetch() {
             this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
     }
 
-    sinuca::FetchPacket request;
+    FetchPacket request;
     request.request = fetchSize - fetchBufferByteUsage;
     this->fetch->SendRequest(this->fetchID, &request);
 }
@@ -253,11 +248,9 @@ void Fetcher::ClockFetch() {
     // We're guaranteed to have space because we asked only enough bytes to fill
     // the buffer. The engine is guaranteed to send only up until that amount,
     // the cycle right after we asked.
-    while (
-        this->fetch->ReceiveResponse(
-            this->fetchID,
-            (sinuca::FetchPacket*)&this->fetchBuffer[this->fetchBufferUsage]) ==
-        0) {
+    while (this->fetch->ReceiveResponse(
+               this->fetchID,
+               (FetchPacket*)&this->fetchBuffer[this->fetchBufferUsage]) == 0) {
         this->fetchBuffer[this->fetchBufferUsage].flags = 0;
         ++this->fetchBufferUsage;
         ++this->fetchedInstructions;

@@ -27,19 +27,17 @@
 
 #include "../utils/logging.hpp"
 
-int sinuca::engine::Engine::FinishSetup() { return 0; }
+int Engine::FinishSetup() { return 0; }
 
-int sinuca::engine::Engine::SetConfigParameter(
-    const char* parameter, sinuca::config::ConfigValue value) {
+int Engine::SetConfigParameter(const char* parameter, ConfigValue value) {
     (void)parameter;
     (void)value;
     return 0;
 }
 
-int sinuca::engine::Engine::SendBufferedAndFetch(int id) {
-    sinuca::InstructionPacket toSend = this->fetchBuffers[id];
-    const traceReader::FetchResult r =
-        this->traceReader->Fetch(&this->fetchBuffers[id], id);
+int Engine::SendBufferedAndFetch(int id) {
+    InstructionPacket toSend = this->fetchBuffers[id];
+    const FetchResult r = this->traceReader->Fetch(&this->fetchBuffers[id], id);
     toSend.nextInstruction = this->fetchBuffers[id].staticInfo->opcodeAddress;
 
     // This unfortunately drops the packet if the buffer is full. The component
@@ -51,10 +49,10 @@ int sinuca::engine::Engine::SendBufferedAndFetch(int id) {
             id);
     }
 
-    if (r == traceReader::FetchResultEnd) {
+    if (r == FetchResultEnd) {
         this->end = true;
         return 1;
-    } else if (r == traceReader::FetchResultError) {
+    } else if (r == FetchResultError) {
         this->error = true;
         return 1;
     }
@@ -64,7 +62,7 @@ int sinuca::engine::Engine::SendBufferedAndFetch(int id) {
     return 0;
 }
 
-void sinuca::engine::Engine::Fetch(int id, sinuca::FetchPacket packet) {
+void Engine::Fetch(int id, FetchPacket packet) {
     if (packet.request == 0) {
         this->SendBufferedAndFetch(id);
         return;
@@ -80,8 +78,8 @@ void sinuca::engine::Engine::Fetch(int id, sinuca::FetchPacket packet) {
     }
 }
 
-void sinuca::engine::Engine::Clock() {
-    sinuca::FetchPacket packet;
+void Engine::Clock() {
+    FetchPacket packet;
     const int numberOfConnections = this->GetNumberOfConnections();
 
     for (int i = 0; i < numberOfConnections; ++i) {
@@ -91,15 +89,15 @@ void sinuca::engine::Engine::Clock() {
     }
 }
 
-void sinuca::engine::Engine::Flush() { this->flush = true; }
+void Engine::Flush() { this->flush = true; }
 
-void sinuca::engine::Engine::PrintStatistics() {
+void Engine::PrintStatistics() {
     SINUCA3_LOG_PRINTF("engine: Cycled %lu times.\n", this->totalCycles);
     SINUCA3_LOG_PRINTF("engine: Fetched %lu instructions.\n",
                        this->fetchedInstructions);
 }
 
-void sinuca::engine::Engine::PrintTime(time_t start, unsigned long cycle) {
+void Engine::PrintTime(time_t start, unsigned long cycle) {
     const unsigned long traceSize = this->traceReader->GetTraceSize();
     const unsigned long remaining =
         traceSize - this->traceReader->GetNumberOfFetchedInstructions();
@@ -113,16 +111,15 @@ void sinuca::engine::Engine::PrintTime(time_t start, unsigned long cycle) {
                        ctime(&estimatedEnd));
 }
 
-int sinuca::engine::Engine::SetupSimulation(
-    sinuca::traceReader::TraceReader* traceReader) {
+int Engine::SetupSimulation(TraceReader* traceReader) {
     this->traceReader = traceReader;
     this->numberOfFetchers = this->GetNumberOfConnections();
-    this->fetchBuffers = new sinuca::InstructionPacket[this->numberOfFetchers];
+    this->fetchBuffers = new InstructionPacket[this->numberOfFetchers];
 
     // Bufferize the first instruction of each core.
     for (long i = 0; i < this->numberOfFetchers; ++i) {
         if (this->traceReader->Fetch(&this->fetchBuffers[i], i) !=
-            traceReader::FetchResultOk) {
+            FetchResultOk) {
             return 1;
         }
         ++this->fetchedInstructions;
@@ -131,8 +128,7 @@ int sinuca::engine::Engine::SetupSimulation(
     return 0;
 }
 
-int sinuca::engine::Engine::Simulate(
-    sinuca::traceReader::TraceReader* traceReader) {
+int Engine::Simulate(TraceReader* traceReader) {
     if (this->SetupSimulation(traceReader)) {
         return 1;
     }
@@ -180,7 +176,7 @@ int sinuca::engine::Engine::Simulate(
     return this->error;
 }
 
-sinuca::engine::Engine::~Engine() {
+Engine::~Engine() {
     if (this->components != NULL) {
         // The first component is a pointer to the engine itself, thus we start
         // from the second.

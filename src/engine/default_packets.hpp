@@ -25,8 +25,6 @@
 
 #include <cstring>
 
-namespace sinuca {
-
 const unsigned int MAX_REGISTERS = 32;
 const unsigned int MAX_MEM_OPERATIONS = 16;
 const unsigned int TRACE_LINE_SIZE = 256;
@@ -157,25 +155,21 @@ enum PredictorPacketType {
  */
 struct PredictorPacket {
     union {
-        sinuca::InstructionPacket
+        InstructionPacket
             requestQuery; /** @brief A request to predict a instruction. */
 
         struct {
-            sinuca::InstructionPacket
-                instruction;      /** @brief The instruction. */
-            unsigned long target; /** @brief It's target. */
+            InstructionPacket instruction; /** @brief The instruction. */
+            unsigned long target;          /** @brief It's target. */
         } requestUpdate; /** @brief A request to update the target of an
                             instruction. */
 
         struct {
-            sinuca::InstructionPacket
-                instruction;      /** @brief The instruction. */
-            unsigned long target; /** @brief It's target. */
-        } response;               /** @brief Data of response types. */
-    } data;                       /** @brief The data. */
-    PredictorPacketType type;     /** @brief The tag. */
+            InstructionPacket instruction; /** @brief The instruction. */
+            unsigned long target;          /** @brief It's target. */
+        } response;                        /** @brief Data of response types. */
+    } data;                                /** @brief The data. */
+    PredictorPacketType type;              /** @brief The tag. */
 };
-
-}  // namespace sinuca
 
 #endif  // SINUCA3_DEFAULT_PACKETS_HPP_
