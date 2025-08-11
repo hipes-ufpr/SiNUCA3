@@ -27,10 +27,54 @@
 #include "../../../utils/logging.hpp"
 #include "cache.hpp"
 
-RandomCache::RandomCache() {}
+RandomCache::RandomCache() : numberOfRequests(0) {}
 
 RandomCache::~RandomCache() {}
 
 bool RandomCache::Read(unsigned long addr, CacheEntry **result) {}
 
 void RandomCache::Write(unsigned long addr, unsigned long value) {}
+
+void RandomCache::Clock() {
+    SINUCA3_DEBUG_PRINTF("%p: CacheNWay Clock!\n", this);
+    long numberOfConnections = this->GetNumberOfConnections();
+    sinuca::MemoryPacket packet;
+    for (long i = 0; i < numberOfConnections; ++i) {
+        if (this->ReceiveRequestFromConnection(i, &packet) == 0) {
+            ++this->numberOfRequests;
+
+            CacheEntry *result;
+
+            // We dont have (and dont need) data to send back, so a
+            // MemoryPacket is send back to to signal
+            // that the cache's operation has been completed.
+
+            // Read() returns true if it was hit.
+            if (this->Read(packet, &result)) {
+                this->SendResponseToConnection(i, &packet);
+            } else {
+                // TODO
+                // Call the page-table walker.
+                // This is a memory access, if the memory is perfect,
+                // there is no penalty, so we still need to decide what happens
+                // in this case.
+                //
+                // Then, call Write() to insert a new addr in cache
+                // according to the replacement policy.
+            }
+        }
+    }
+}
+
+void RandomCache::Flush(){}
+
+void RandomCache::PrintStatistics(){}
+
+int RandomCache::FinishSetup(){
+    return this->c.FinishSetup();
+}
+
+int RandomCache::SetConfigParameter(const char *parameter,
+                               sinuca::config::ConfigValue value){
+                                   return this->c.SetConfigParameter(parameter, value);
+                               }

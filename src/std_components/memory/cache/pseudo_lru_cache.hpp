@@ -32,18 +32,25 @@ struct plruNode {
     int r;                    // range right
 };
 
-class PseudoLRUCache : public Cache {
+class PseudoLRUCache : public sinuca::Component<sinuca::MemoryPacket> {
   public:
     PseudoLRUCache();
     virtual ~PseudoLRUCache();
 
-    virtual int FinishSetup();
-
     virtual bool Read(unsigned long addr, CacheEntry **result);
     virtual void Write(unsigned long addr, unsigned long value);
 
+    virtual void Clock();
+    virtual void Flush();
+    virtual void PrintStatistics();
+    virtual int FinishSetup();
+    virtual int SetConfigParameter(const char *parameter,
+                                   sinuca::config::ConfigValue value);
+
   private:
+    Cache c;
     struct plruNode **plruTree;
+    unsigned long numberOfRequests;
 };
 
 #endif

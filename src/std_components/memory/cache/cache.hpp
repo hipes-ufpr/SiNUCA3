@@ -35,31 +35,27 @@ struct CacheEntry {
     unsigned long value;  // Value Storaged in this entry
 };
 
-class Cache : public sinuca::Component<sinuca::MemoryPacket> {
+class Cache {
   public:
     inline Cache()
-        : numSets(0), numWays(0), entries(NULL), numberOfRequests(0) {};
+        : numSets(0), numWays(0), entries(NULL) {};
     virtual ~Cache();
-    virtual int FinishSetup();
-    virtual int SetConfigParameter(const char *parameter,
+    int FinishSetup();
+    int SetConfigParameter(const char *parameter,
                                    sinuca::config::ConfigValue value);
-    virtual void Clock();
-    virtual void Flush();
-    virtual void PrintStatistics();
+    void Clock();
 
-  protected:
     int numSets;
     int numWays;
 
     CacheEntry **entries;  // matrix [sets x ways]
-    unsigned long numberOfRequests;
 
     unsigned long GetIndex(unsigned long addr) const;
     unsigned long GetTag(unsigned long addr) const;
     bool GetEntry(unsigned long addr, CacheEntry **result) const;
 
-    virtual bool Read(unsigned long addr, CacheEntry **result) = 0;
-    virtual void Write(unsigned long addr, unsigned long value) = 0;
+    // virtual bool Read(unsigned long addr, CacheEntry **result) = 0;
+    // virtual void Write(unsigned long addr, unsigned long value) = 0;
 };
 
 #endif

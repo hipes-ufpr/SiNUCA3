@@ -28,14 +28,14 @@
 #include "../../../utils/logging.hpp"
 #include "cache.hpp"
 
-LRUCache::LRUCache() {
-    this->WayUsageCounters = new unsigned int*[this->numSets];
-    int n = this->numSets * this->numWays;
+LRUCache::LRUCache() : numberOfRequests(0) {
+    this->WayUsageCounters = new unsigned int*[this->c.numSets];
+    int n = this->c.numSets * this->c.numWays;
     this->WayUsageCounters[0] = new unsigned int[n];
     memset(this->WayUsageCounters[0], 0, n * sizeof(unsigned int));
-    for (int i = 1; i < this->numSets; ++i) {
+    for (int i = 1; i < this->c.numSets; ++i) {
         this->WayUsageCounters[i] = this->WayUsageCounters[0] +
-                                    (i * this->numWays * sizeof(unsigned int));
+                                    (i * this->c.numWays * sizeof(unsigned int));
     }
 }
 
@@ -45,7 +45,7 @@ LRUCache::~LRUCache() {
 }
 
 bool LRUCache::Read(unsigned long addr, CacheEntry** result) {
-    bool exist = GetEntry(addr, result);
+    bool exist = this->c.GetEntry(addr, result);
     this->WayUsageCounters[(*result)->i][(*result)->j] += 1;
     return exist;
 }
@@ -53,13 +53,13 @@ bool LRUCache::Read(unsigned long addr, CacheEntry** result) {
 void LRUCache::Write(unsigned long addr, unsigned long value) {
     CacheEntry* lruEntry = NULL;
     unsigned long oldestTime = ~0UL;  // Max value
-    unsigned long tag = this->GetTag(addr);
-    unsigned long index = this->GetIndex(addr);
+    unsigned long tag = this->c.GetTag(addr);
+    unsigned long index = this->c.GetIndex(addr);
     int i;
     int j;
 
-    for (int way = 0; way < this->numWays; ++way) {
-        CacheEntry* entry = &this->entries[index][way];
+    for (int way = 0; way < this->c.numWays; ++way) {
+        CacheEntry* entry = &this->c.entries[index][way];
 
         if (!entry->isValid) {
             lruEntry = entry;
@@ -76,3 +76,47 @@ void LRUCache::Write(unsigned long addr, unsigned long value) {
     CacheEntry newEntry = {tag, index, true, i, j, value};
     *lruEntry = newEntry;
 }
+
+void LRUCache::Clock() {
+    SINUCA3_DEBUG_PRINTF("%p: LRUCache Clock!\n", this);
+    long numberOfConnections = this->GetNumberOfConnections();
+    sinuca::MemoryPacket packet;
+    for (long i = 0; i < numberOfConnections; ++i) {
+        if (this->ReceiveRequestFromConnection(i, &packet) == 0) {
+            ++this->numberOfRequests;
+
+            CacheEntry *result;
+
+            // We dont have (and dont need) data to send back, so a
+            // MemoryPacket is send back to to signal
+            // that the cache's operation has been completed.
+
+            // Read() returns true if it was hit.
+            if (this->Read(packet, &result)) {
+                this->SendResponseToConnection(i, &packet);
+            } else {
+                // TODO
+                // Call the page-table walker.
+                // This is a memory access, if the memory is perfect,
+                // there is no penalty, so we still need to decide what happens
+                // in this case.
+                //
+                // Then, call Write() to insert a new addr in cache
+                // according to the replacement policy.
+            }
+        }
+    }
+}
+
+void LRUCache::Flush(){}
+
+void LRUCache::PrintStatistics(){}
+
+int LRUCache::FinishSetup(){
+    return this->c.FinishSetup();
+}
+
+int LRUCache::SetConfigParameter(const char *parameter,
+                               sinuca::config::ConfigValue value){
+                                   return this->c.SetConfigParameter(parameter, value);
+                               }

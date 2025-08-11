@@ -26,7 +26,7 @@
 #include "../../../sinuca3.hpp"
 #include "cache.hpp"
 
-class RandomCache : public Cache {
+class RandomCache : public sinuca::Component<sinuca::MemoryPacket> {
   public:
     RandomCache();
     virtual ~RandomCache();
@@ -34,8 +34,17 @@ class RandomCache : public Cache {
     virtual bool Read(unsigned long addr, CacheEntry **result);
     virtual void Write(unsigned long addr, unsigned long value);
 
+    virtual void Clock();
+    virtual void Flush();
+    virtual void PrintStatistics();
+    virtual int FinishSetup();
+    virtual int SetConfigParameter(const char *parameter,
+                                   sinuca::config::ConfigValue value);
+
   private:
-    unsigned int *WayUsageCounters;
+    Cache c;
+    unsigned long numberOfRequests;
+
 };
 
 #endif

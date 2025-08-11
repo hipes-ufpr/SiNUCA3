@@ -27,10 +27,54 @@
 #include "../../../utils/logging.hpp"
 #include "cache.hpp"
 
-RoundRobinCache::RoundRobinCache() {}
+RoundRobinCache::RoundRobinCache() : numberOfRequests(0) {}
 
 RoundRobinCache::~RoundRobinCache() {}
 
 bool RoundRobinCache::Read(unsigned long addr, CacheEntry **result) {}
 
 void RoundRobinCache::Write(unsigned long addr, unsigned long value) {}
+
+void RoundRobinCache::Clock() {
+    SINUCA3_DEBUG_PRINTF("%p: CacheNWay Clock!\n", this);
+    long numberOfConnections = this->GetNumberOfConnections();
+    sinuca::MemoryPacket packet;
+    for (long i = 0; i < numberOfConnections; ++i) {
+        if (this->ReceiveRequestFromConnection(i, &packet) == 0) {
+            ++this->numberOfRequests;
+
+            CacheEntry *result;
+
+            // We dont have (and dont need) data to send back, so a
+            // MemoryPacket is send back to to signal
+            // that the cache's operation has been completed.
+
+            // Read() returns true if it was hit.
+            if (this->Read(packet, &result)) {
+                this->SendResponseToConnection(i, &packet);
+            } else {
+                // TODO
+                // Call the page-table walker.
+                // This is a memory access, if the memory is perfect,
+                // there is no penalty, so we still need to decide what happens
+                // in this case.
+                //
+                // Then, call Write() to insert a new addr in cache
+                // according to the replacement policy.
+            }
+        }
+    }
+}
+
+void RoundRobinCache::Flush(){}
+
+void RoundRobinCache::PrintStatistics(){}
+
+int RoundRobinCache::FinishSetup(){
+    return this->c.FinishSetup();
+}
+
+int RoundRobinCache::SetConfigParameter(const char *parameter,
+                               sinuca::config::ConfigValue value){
+                                   return this->c.SetConfigParameter(parameter, value);
+                               }

@@ -28,23 +28,23 @@
 #include "../../../utils/logging.hpp"
 #include "cache.hpp"
 
-PseudoLRUCache::PseudoLRUCache() {
-    this->plruTree = new struct plruNode *[this->numSets];
-    int n = this->numSets * (this->numWays - 1);
+PseudoLRUCache::PseudoLRUCache() : numberOfRequests(0) {
+    this->plruTree = new struct plruNode *[this->c.numSets];
+    int n = this->c.numSets * (this->c.numWays - 1);
     this->plruTree[0] = new struct plruNode[n];
     memset(this->plruTree[0], 0, n * sizeof(struct plruNode));
-    for (int i = 1; i < this->numSets; ++i) {
+    for (int i = 1; i < this->c.numSets; ++i) {
         this->plruTree[i] =
-            this->plruTree[0] + (i * this->numWays * sizeof(struct plruNode));
+            this->plruTree[0] + (i * this->c.numWays * sizeof(struct plruNode));
     }
 
     // Inicialize tree node's range
-    int nodeCount = this->numWays - 1;
-    int leafNodeCount = this->numWays / 2;
+    int nodeCount = this->c.numWays - 1;
+    int leafNodeCount = this->c.numWays / 2;
     int internalNodeCount = leafNodeCount - 1;
-    for (int i = 0; i < this->numSets; ++i) {
+    for (int i = 0; i < this->c.numSets; ++i) {
         this->plruTree[i][0].l = 0;
-        this->plruTree[i][0].r = this->numWays - 1;
+        this->plruTree[i][0].r = this->c.numWays - 1;
 
         struct plruNode *nodes = this->plruTree[i];
         for (int j = 0; j < internalNodeCount; ++j) {
@@ -69,19 +69,9 @@ PseudoLRUCache::~PseudoLRUCache() {
     delete[] this->plruTree;
 }
 
-int PseudoLRUCache::FinishSetup() {
-    if (!(this->numWays % 2)) {
-        SINUCA3_ERROR_PRINTF(
-            "Pseudo LRU Cache with an odd quantity of ways is not implemented "
-            "yet.\n");
-        return 1;
-    }
-    return Cache::FinishSetup();
-}
-
 bool PseudoLRUCache::Read(unsigned long addr, CacheEntry **result) {
     // Get entry early to find set and way.
-    int exist = GetEntry(addr, result);
+    int exist = this->c.GetEntry(addr, result);
     int set = (*result)->i;
     int way = (*result)->j;
 
@@ -105,10 +95,10 @@ bool PseudoLRUCache::Read(unsigned long addr, CacheEntry **result) {
 }
 
 void PseudoLRUCache::Write(unsigned long addr, unsigned long value) {
-    unsigned long tag = this->GetTag(addr);
-    unsigned long set = this->GetIndex(addr);
+    unsigned long tag = this->c.GetTag(addr);
+    unsigned long set = this->c.GetIndex(addr);
     int j = 0;
-    while (j < this->numWays - 1) {
+    while (j < this->c.numWays - 1) {
         unsigned char old_direction =
             this->plruTree[set][j].direction;  // 0 is left, 1 is right
         this->plruTree[set][j].direction =
@@ -117,8 +107,59 @@ void PseudoLRUCache::Write(unsigned long addr, unsigned long value) {
         j = 2 * j + 1 + old_direction;
     }
 
-    int way = j - (this->numWays - 1);
-    CacheEntry *plruEntry = &this->entries[set][way];
+    int way = j - (this->c.numWays - 1);
+    CacheEntry *plruEntry = &this->c.entries[set][way];
     CacheEntry newEntry = {tag, set, true, plruEntry->i, plruEntry->j, value};
     *plruEntry = newEntry;
 }
+
+void PseudoLRUCache::Clock() {
+    SINUCA3_DEBUG_PRINTF("%p: CacheNWay Clock!\n", this);
+    long numberOfConnections = this->GetNumberOfConnections();
+    sinuca::MemoryPacket packet;
+    for (long i = 0; i < numberOfConnections; ++i) {
+        if (this->ReceiveRequestFromConnection(i, &packet) == 0) {
+            ++this->numberOfRequests;
+
+            CacheEntry *result;
+
+            // We dont have (and dont need) data to send back, so a
+            // MemoryPacket is send back to to signal
+            // that the cache's operation has been completed.
+
+            // Read() returns true if it was hit.
+            if (this->Read(packet, &result)) {
+                this->SendResponseToConnection(i, &packet);
+            } else {
+                // TODO
+                // Call the page-table walker.
+                // This is a memory access, if the memory is perfect,
+                // there is no penalty, so we still need to decide what happens
+                // in this case.
+                //
+                // Then, call Write() to insert a new addr in cache
+                // according to the replacement policy.
+            }
+        }
+    }
+}
+
+void PseudoLRUCache::Flush(){}
+
+void PseudoLRUCache::PrintStatistics(){}
+
+int PseudoLRUCache::FinishSetup() {
+    if (!(this->c.numWays % 2)) {
+        SINUCA3_ERROR_PRINTF(
+            "Pseudo LRU Cache with an odd quantity of ways is not implemented "
+            "yet.\n");
+        return 1;
+    }
+    return this->c.FinishSetup();
+}
+
+
+int PseudoLRUCache::SetConfigParameter(const char *parameter,
+                               sinuca::config::ConfigValue value){
+                                   return this->c.SetConfigParameter(parameter, value);
+                               }
