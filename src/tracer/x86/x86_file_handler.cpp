@@ -16,12 +16,12 @@
 //
 
 /**
- * @file file_handler.cpp
+ * @file x86_file_handler.cpp
  * @details Implementation of the file handler, a helper class for handling
  * trace files.
  */
 
-#include "file_handler.hpp"
+#include "x86_file_handler.hpp"
 
 #include <cassert>
 #include <cstdio>
@@ -31,14 +31,12 @@ extern "C" {
 #include <errno.h>
 }
 
-#include <sinuca3.hpp>
-
 inline void printFileErrorLog(const char *path, const char *mode) {
     SINUCA3_ERROR_PRINTF("Could not open [%s] in [%s] mode: %s\n", path, mode,
                          strerror(errno));
 }
 
-FILE *trace::TraceFileReader::UseFile(const char *path) {
+FILE *tracer::TraceFileReader::UseFile(const char *path) {
     char mode[] = "rb";
     this->tf.file = fopen(path, mode);
     if (this->tf.file == NULL) {
@@ -50,13 +48,13 @@ FILE *trace::TraceFileReader::UseFile(const char *path) {
     return this->tf.file;
 }
 
-unsigned long trace::TraceFileReader::RetrieveLenBytes(void *ptr,
+unsigned long tracer::TraceFileReader::RetrieveLenBytes(void *ptr,
                                                        unsigned long len) {
     unsigned long read = fread(ptr, 1, len, this->tf.file);
     return read;
 }
 
-int trace::TraceFileReader::SetBufActiveSize(unsigned long size) {
+int tracer::TraceFileReader::SetBufActiveSize(unsigned long size) {
     if (size > BUFFER_SIZE) {
         return 1;
     }
@@ -64,23 +62,23 @@ int trace::TraceFileReader::SetBufActiveSize(unsigned long size) {
     return 0;
 }
 
-void trace::TraceFileReader::RetrieveBuffer() {
+void tracer::TraceFileReader::RetrieveBuffer() {
     unsigned long read =
         this->RetrieveLenBytes(this->tf.buf, this->bufActiveSize);
     if (read < this->bufActiveSize) {
         this->eofLocation = read;
         this->eofFound = true;
     }
-    this->tf.offset = 0;
+    this->tf.offsetInBytes = 0;
 }
 
-void *trace::TraceFileReader::GetData(unsigned long len) {
-    void *ptr = (void *)(this->tf.buf + this->tf.offset);
-    this->tf.offset += len;
+void *tracer::TraceFileReader::GetData(unsigned long len) {
+    void *ptr = (void *)(this->tf.buf + this->tf.offsetInBytes);
+    this->tf.offsetInBytes += len;
     return ptr;
 }
 
-FILE *trace::TraceFileWriter::UseFile(const char *path) {
+FILE *tracer::TraceFileWriter::UseFile(const char *path) {
     char mode[] = "wb";
     this->tf.file = fopen(path, mode);
     if (this->tf.file == NULL) {
@@ -94,16 +92,16 @@ FILE *trace::TraceFileWriter::UseFile(const char *path) {
  * flush is not done here because derived class might flush buffer size to file
  * in addition to buffer
  */
-int trace::TraceFileWriter::AppendToBuffer(void *ptr, unsigned long len) {
-    if (BUFFER_SIZE - this->tf.offset < len) {
+int tracer::TraceFileWriter::AppendToBuffer(void *ptr, unsigned long len) {
+    if (BUFFER_SIZE - this->tf.offsetInBytes < len) {
         return 1;
     }
-    memcpy(this->tf.buf + this->tf.offset, ptr, len);
-    this->tf.offset += len;
+    memcpy(this->tf.buf + this->tf.offsetInBytes, ptr, len);
+    this->tf.offsetInBytes += len;
     return 0;
 }
 
-void trace::TraceFileWriter::FlushLenBytes(void *ptr, unsigned long len) {
+void tracer::TraceFileWriter::FlushLenBytes(void *ptr, unsigned long len) {
     SINUCA3_DEBUG_PRINTF("len size [FlushLenBytes] [%lu]\n", len);
     unsigned long written = fwrite(ptr, 1, len, this->tf.file);
     SINUCA3_DEBUG_PRINTF("written size [FlushLenBytes] [%lu]\n", written);
@@ -114,29 +112,31 @@ void trace::TraceFileWriter::FlushLenBytes(void *ptr, unsigned long len) {
     }
 }
 
-void trace::TraceFileWriter::FlushBuffer() {
-    this->FlushLenBytes(this->tf.buf, this->tf.offset);
-    this->tf.offset = 0;
+void tracer::TraceFileWriter::FlushBuffer() {
+    this->FlushLenBytes(this->tf.buf, this->tf.offsetInBytes);
+    this->tf.offsetInBytes = 0;
 }
 
-unsigned long trace::GetPathTidInSize(const char *sourceDir, const char *prefix,
+unsigned long tracer::GetPathTidInSize(const char *sourceDir, const char *prefix,
                                       const char *imageName) {
     unsigned long sourceDirLen = strlen(sourceDir);
     unsigned long prefixLen = strlen(prefix);
     unsigned long imageNameLen = strlen(imageName);
-    // 7 == number of digits on MAX_INT.
-    // 13 == number of characters on the format string.
+    /*
+     * 7 is the number of digits on MAX_INT
+     * 13 is the number of characters on the format string
+     */
     return 13 + 7 + sourceDirLen + prefixLen + imageNameLen;
 }
 
-void trace::FormatPathTidIn(char *dest, const char *sourceDir,
+void tracer::FormatPathTidIn(char *dest, const char *sourceDir,
                             const char *prefix, const char *imageName,
                             THREADID tid, unsigned long bufferSize) {
     snprintf(dest, bufferSize, "%s/%s_%s_tid%u.trace", sourceDir, prefix,
              imageName, tid);
 }
 
-unsigned long trace::GetPathTidOutSize(const char *sourceDir,
+unsigned long tracer::GetPathTidOutSize(const char *sourceDir,
                                        const char *prefix,
                                        const char *imageName) {
     unsigned long sourceDirLen = strlen(sourceDir);
@@ -146,7 +146,7 @@ unsigned long trace::GetPathTidOutSize(const char *sourceDir,
     return 9 + sourceDirLen + prefixLen + imageNameLen;
 }
 
-void trace::FormatPathTidOut(char *dest, const char *sourceDir,
+void tracer::FormatPathTidOut(char *dest, const char *sourceDir,
                              const char *prefix, const char *imageName,
                              unsigned long bufferSize) {
     snprintf(dest, bufferSize, "%s/%s_%s.trace", sourceDir, prefix, imageName);

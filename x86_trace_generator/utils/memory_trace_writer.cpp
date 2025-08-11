@@ -30,17 +30,17 @@ extern "C" {
 #include <alloca.h>
 }
 
-trace::traceGenerator::MemoryTraceFile::MemoryTraceFile(const char* source,
+tracer::traceGenerator::MemoryTraceFile::MemoryTraceFile(const char* source,
                                                         const char* img,
                                                         THREADID tid) {
-    unsigned long bufferSize = trace::GetPathTidInSize(source, "memory", img);
+    unsigned long bufferSize = tracer::GetPathTidInSize(source, "memory", img);
     char* path = (char*)alloca(bufferSize);
     FormatPathTidIn(path, source, "memory", img, tid, bufferSize);
 
-    this->::trace::TraceFileWriter::UseFile(path);
+    this->::tracer::TraceFileWriter::UseFile(path);
 }
 
-trace::traceGenerator::MemoryTraceFile::~MemoryTraceFile() {
+tracer::traceGenerator::MemoryTraceFile::~MemoryTraceFile() {
     SINUCA3_DEBUG_PRINTF("Last MemoryTraceFile flush\n");
     if (this->tf.offset > 0) {
         this->FlushLenBytes(&this->tf.offset, sizeof(this->tf.offset));
@@ -48,7 +48,7 @@ trace::traceGenerator::MemoryTraceFile::~MemoryTraceFile() {
     }
 }
 
-void trace::traceGenerator::MemoryTraceFile::PrepareDataNonStdAccess(
+void tracer::traceGenerator::MemoryTraceFile::PrepareDataNonStdAccess(
     PIN_MULTI_MEM_ACCESS_INFO* pinNonStdInfo) {
     this->numReadOps = 0;
     this->numWriteOps = 0;
@@ -72,7 +72,7 @@ void trace::traceGenerator::MemoryTraceFile::PrepareDataNonStdAccess(
     this->wasLastOperationStd = false;
 }
 
-void trace::traceGenerator::MemoryTraceFile::PrepareDataStdMemAccess(
+void tracer::traceGenerator::MemoryTraceFile::PrepareDataStdMemAccess(
     unsigned long addr, unsigned int opSize) {
     this->stdAccessOp.addr = addr;
     this->stdAccessOp.size = opSize;
@@ -80,7 +80,7 @@ void trace::traceGenerator::MemoryTraceFile::PrepareDataStdMemAccess(
     this->wasLastOperationStd = true;
 }
 
-void trace::traceGenerator::MemoryTraceFile::AppendToBufferLastMemoryAccess() {
+void tracer::traceGenerator::MemoryTraceFile::AppendToBufferLastMemoryAccess() {
     if (this->wasLastOperationStd) {
         this->MemoryAppendToBuffer(&this->stdAccessOp,
                                    sizeof(this->stdAccessOp));
@@ -98,7 +98,7 @@ void trace::traceGenerator::MemoryTraceFile::AppendToBufferLastMemoryAccess() {
     }
 }
 
-void trace::traceGenerator::MemoryTraceFile::MemoryAppendToBuffer(void* ptr,
+void tracer::traceGenerator::MemoryTraceFile::MemoryAppendToBuffer(void* ptr,
                                                                   size_t len) {
     if (this->AppendToBuffer(ptr, len)) {
         this->FlushLenBytes(&this->tf.offset, sizeof(unsigned long));

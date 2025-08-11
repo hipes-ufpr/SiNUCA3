@@ -25,7 +25,7 @@
 
 #include <ctime>
 #include <engine/component.hpp>
-#include <trace_reader/trace_reader.hpp>
+#include <tracer/trace_reader.hpp>
 
 /**
  * @brief The engine itself.

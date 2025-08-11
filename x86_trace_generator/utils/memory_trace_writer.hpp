@@ -28,10 +28,10 @@
  * deals with buffering/flushing the data.
  */
 
-#include "../../src/utils/file_handler.hpp"
+#include "../../src/tracer/x86/x86_file_handler.hpp"
 #include "pin.H"
 
-namespace trace {
+namespace tracer {
 namespace traceGenerator {
 
 // Set to be equal to same constant declared in default_packets.hpp
@@ -57,6 +57,6 @@ class MemoryTraceFile : public TraceFileWriter {
 };
 
 }  // namespace traceGenerator
-}  // namespace trace
+}  // namespace tracer
 
 #endif

@@ -30,13 +30,13 @@ extern "C" {
 #include <alloca.h>
 }
 
-trace::traceGenerator::StaticTraceFile::StaticTraceFile(const char* source,
+tracer::traceGenerator::StaticTraceFile::StaticTraceFile(const char* source,
                                                         const char* img) {
-    unsigned long bufferSize = trace::GetPathTidOutSize(source, "static", img);
+    unsigned long bufferSize = tracer::GetPathTidOutSize(source, "static", img);
     char* path = (char*)alloca(bufferSize);
     FormatPathTidOut(path, source, "static", img, bufferSize);
 
-    this->::trace::TraceFileWriter::UseFile(path);
+    this->::tracer::TraceFileWriter::UseFile(path);
 
     this->threadCount = 0;
     this->bblCount = 0;
@@ -49,7 +49,7 @@ trace::traceGenerator::StaticTraceFile::StaticTraceFile(const char* source,
     fseek(this->tf.file, 3 * sizeof(unsigned int), SEEK_SET);
 }
 
-trace::traceGenerator::StaticTraceFile::~StaticTraceFile() {
+tracer::traceGenerator::StaticTraceFile::~StaticTraceFile() {
     this->FlushBuffer();
     rewind(this->tf.file);
     fwrite(&this->threadCount, sizeof(this->threadCount), 1, this->tf.file);
@@ -57,7 +57,7 @@ trace::traceGenerator::StaticTraceFile::~StaticTraceFile() {
     fwrite(&this->instCount, sizeof(this->instCount), 1, this->tf.file);
 }
 
-void trace::traceGenerator::StaticTraceFile::PrepareDataINS(const INS* ins) {
+void tracer::traceGenerator::StaticTraceFile::PrepareDataINS(const INS* ins) {
     std::string insName = INS_Mnemonic(*ins);
     unsigned long nameSize = insName.size();
     if (nameSize >= MAX_INSTRUCTION_NAME_LENGTH) {
@@ -77,16 +77,16 @@ void trace::traceGenerator::StaticTraceFile::PrepareDataINS(const INS* ins) {
     this->FillRegs(ins);
 }
 
-void trace::traceGenerator::StaticTraceFile::AppendToBufferDataINS() {
+void tracer::traceGenerator::StaticTraceFile::AppendToBufferDataINS() {
     this->StaticAppendToBuffer(&this->data, sizeof(this->data));
 }
 
-void trace::traceGenerator::StaticTraceFile::AppendToBufferNumIns(
+void tracer::traceGenerator::StaticTraceFile::AppendToBufferNumIns(
     unsigned int numIns) {
     this->StaticAppendToBuffer(&numIns, SIZE_NUM_BBL_INS);
 }
 
-void trace::traceGenerator::StaticTraceFile::StaticAppendToBuffer(
+void tracer::traceGenerator::StaticTraceFile::StaticAppendToBuffer(
     void* ptr, unsigned long len) {
     if (this->AppendToBuffer(ptr, len)) {
         this->FlushBuffer();
@@ -94,7 +94,7 @@ void trace::traceGenerator::StaticTraceFile::StaticAppendToBuffer(
     }
 }
 
-void trace::traceGenerator::StaticTraceFile::ResetFlags() {
+void tracer::traceGenerator::StaticTraceFile::ResetFlags() {
     this->data.isControlFlow = 0;
     this->data.isPredicated = 0;
     this->data.isPrefetch = 0;
@@ -105,7 +105,7 @@ void trace::traceGenerator::StaticTraceFile::ResetFlags() {
     this->data.isWrite = 0;
 }
 
-void trace::traceGenerator::StaticTraceFile::SetFlags(const INS* ins) {
+void tracer::traceGenerator::StaticTraceFile::SetFlags(const INS* ins) {
     if (INS_IsPredicated(*ins)) {
         this->data.isPredicated = 1;
     }
@@ -132,7 +132,7 @@ void trace::traceGenerator::StaticTraceFile::SetFlags(const INS* ins) {
     }
 }
 
-void trace::traceGenerator::StaticTraceFile::SetBranchFields(const INS* ins) {
+void tracer::traceGenerator::StaticTraceFile::SetBranchFields(const INS* ins) {
     bool isSyscall = INS_IsSyscall(*ins);
     bool isControlFlow = INS_IsControlFlow(*ins) || isSyscall;
 
@@ -155,7 +155,7 @@ void trace::traceGenerator::StaticTraceFile::SetBranchFields(const INS* ins) {
     }
 }
 
-void trace::traceGenerator::StaticTraceFile::FillRegs(const INS* ins) {
+void tracer::traceGenerator::StaticTraceFile::FillRegs(const INS* ins) {
     unsigned int operandCount = INS_OperandCount(*ins);
     this->data.numReadRegs = this->data.numWriteRegs = 0;
     for (unsigned int i = 0; i < operandCount; ++i) {

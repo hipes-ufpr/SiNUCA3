@@ -28,10 +28,10 @@
  * deals with buffering/flushing the data.
  */
 
-#include "../../src/utils/file_handler.hpp"
+#include "../../src/tracer/x86/x86_file_handler.hpp"
 #include "pin.H"
 
-namespace trace {
+namespace tracer {
 namespace traceGenerator {
 
 class DynamicTraceFile : public TraceFileWriter {
@@ -48,6 +48,6 @@ class DynamicTraceFile : public TraceFileWriter {
 };
 
 }  // namespace traceGenerator
-}  // namespace trace
+}  // namespace tracer
 
 #endif

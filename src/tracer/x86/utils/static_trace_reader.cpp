@@ -20,25 +20,18 @@
  * @brief Implementation of the x86_64 trace reader.
  */
 
-#include "x86_reader_file_handler.hpp"
+#include "static_trace_reader.hpp"
 
 #include <cstring>
 
 extern "C" {
 #include <alloca.h>
-#include <errno.h>
 #include <fcntl.h>     // open
 #include <sys/mman.h>  // mmap
 #include <unistd.h>    // lseek
 }
 
-#include <sinuca3.hpp>
-
-inline void printFileErrorLog(const char *path) {
-    SINUCA3_ERROR_PRINTF("Could not open [%s]: %s\n", path, strerror(errno));
-}
-
-StaticTraceFile::StaticTraceFile(const char *folderPath, const char *img) {
+tracer::StaticTraceFile::StaticTraceFile(const char *folderPath, const char *img) {
     unsigned long bufferLen = GetPathTidOutSize(folderPath, "static", img);
     char *staticPath = (char *)alloca(bufferLen);
     FormatPathTidOut(staticPath, folderPath, "static", img, bufferLen);
@@ -77,7 +70,7 @@ StaticTraceFile::StaticTraceFile(const char *folderPath, const char *img) {
     this->isValid = true;
 }
 
-void StaticTraceFile::ReadNextPackage(InstructionInfo *info) {
+void tracer::StaticTraceFile::ReadNextPackage(InstructionInfo *info) {
     DataINS *data = (DataINS *)(this->GetData(sizeof(DataINS)));
 
     unsigned long len = strlen(data->name);
@@ -93,135 +86,19 @@ void StaticTraceFile::ReadNextPackage(InstructionInfo *info) {
     this->GetRegs(&info->staticInfo, data);
 }
 
-unsigned int StaticTraceFile::GetNewBBlSize() {
+unsigned int tracer::StaticTraceFile::GetNewBBlSize() {
     unsigned int *numIns;
     numIns = (unsigned int *)(this->GetData(SIZE_NUM_BBL_INS));
     return *numIns;
 }
 
-bool StaticTraceFile::Valid() { return this->isValid; }
-
-StaticTraceFile::~StaticTraceFile() {
-    munmap(this->mmapPtr, this->mmapSize);
-    close(this->fd);
-}
-
-DynamicTraceFile::DynamicTraceFile(const char *folderPath, const char *img,
-                                   THREADID tid) {
-    unsigned long bufferSize = GetPathTidInSize(folderPath, "dynamic", img);
-    char *path = (char *)alloca(bufferSize);
-    FormatPathTidIn(path, folderPath, "dynamic", img, tid, bufferSize);
-
-    if (this->::TraceFileReader::UseFile(path) == NULL) {
-        this->isValid = false;
-        return;
-    }
-
-    this->bufActiveSize =
-        (unsigned int)(BUFFER_SIZE / sizeof(BBLID)) * sizeof(BBLID);
-    this->RetrieveBuffer();  // First buffer read
-    this->isValid = true;
-}
-
-int DynamicTraceFile::ReadNextBBl(BBLID *bbl) {
-    if (this->eofFound && this->tf.offset == this->eofLocation) {
-        return 1;
-    }
-    if (this->tf.offset >= this->bufActiveSize) {
-        this->RetrieveBuffer();
-    }
-    *bbl = *(BBLID *)(this->GetData(sizeof(BBLID)));
-
-    return 0;
-}
-
-bool DynamicTraceFile::Valid() { return this->isValid; }
-
-MemoryTraceFile::MemoryTraceFile(const char *folderPath, const char *img,
-                                 THREADID tid) {
-    unsigned long bufferSize = GetPathTidInSize(folderPath, "memory", img);
-    char *path = (char *)alloca(bufferSize);
-    FormatPathTidIn(path, folderPath, "memory", img, tid, bufferSize);
-
-    if (this->::TraceFileReader::UseFile(path) == NULL) {
-        this->isValid = false;
-        return;
-    }
-
-    this->RetrieveLenBytes((void *)&this->bufActiveSize,
-                           sizeof(this->tf.offset));
-    this->RetrieveBuffer();
-    this->isValid = true;
-}
-
-void MemoryTraceFile::MemRetrieveBuffer() {
-    this->RetrieveLenBytes(&this->bufActiveSize, sizeof(unsigned long));
-    this->RetrieveBuffer();
-}
-
-unsigned short MemoryTraceFile::GetNumOps() {
-    unsigned short numOps;
-
-    numOps = *(unsigned short *)this->GetData(SIZE_NUM_MEM_R_W);
-    if (this->tf.offset >= this->bufActiveSize) {
-        this->MemRetrieveBuffer();
-    }
-    return numOps;
-}
-
-DataMEM *MemoryTraceFile::GetDataMemArr(unsigned short len) {
-    DataMEM *arrPtr;
-
-    arrPtr = (DataMEM *)(this->GetData(len * sizeof(DataMEM)));
-    if (this->tf.offset >= this->bufActiveSize) {
-        this->MemRetrieveBuffer();
-    }
-    return arrPtr;
-}
-
-int MemoryTraceFile::ReadNextMemAccess(InstructionInfo *insInfo,
-                                       DynamicInstructionInfo *dynInfo) {
-    DataMEM *writeOps;
-    DataMEM *readOps;
-
-    /*
-     * In case the instruction performs non standard memory operations
-     * with variable number of operands, the number of readings/writings
-     * is written directly to the memory trace file
-     *
-     * Otherwise, it was written in the static trace file.
-     */
-    if (insInfo->staticInfo.isNonStdMemOp) {
-        dynInfo->numReadings = this->GetNumOps();
-        dynInfo->numWritings = this->GetNumOps();
-    } else {
-        dynInfo->numReadings = insInfo->staticNumReadings;
-        dynInfo->numWritings = insInfo->staticNumWritings;
-    }
-
-    readOps = this->GetDataMemArr(dynInfo->numReadings);
-    writeOps = this->GetDataMemArr(dynInfo->numWritings);
-    for (unsigned short it = 0; it < dynInfo->numReadings; it++) {
-        dynInfo->readsAddr[it] = readOps[it].addr;
-        dynInfo->readsSize[it] = readOps[it].size;
-    }
-    for (unsigned short it = 0; it < dynInfo->numWritings; it++) {
-        dynInfo->writesAddr[it] = writeOps[it].addr;
-        dynInfo->writesSize[it] = writeOps[it].size;
-    }
-
-    return 0;
-}
-
-bool MemoryTraceFile::Valid() { return this->isValid; }
-
-void *StaticTraceFile::GetData(unsigned long len) {
+void *tracer::StaticTraceFile::GetData(unsigned long len) {
     void *ptr = (void *)(this->mmapPtr + this->mmapOffset);
     this->mmapOffset += len;
     return ptr;
 }
 
-void StaticTraceFile::GetFlagValues(InstructionInfo *info,
+void tracer::StaticTraceFile::GetFlagValues(InstructionInfo *info,
                                     struct DataINS *data) {
     info->staticInfo.isPredicated = static_cast<bool>(data->isPredicated);
     info->staticInfo.isPrefetch = static_cast<bool>(data->isPrefetch);
@@ -233,7 +110,7 @@ void StaticTraceFile::GetFlagValues(InstructionInfo *info,
     }
 }
 
-void StaticTraceFile::GetBranchFields(StaticInstructionInfo *info,
+void tracer::StaticTraceFile::GetBranchFields(StaticInstructionInfo *info,
                                       struct DataINS *data) {
     info->isIndirect = static_cast<bool>(data->isIndirectControlFlow);
     info->isControlFlow = static_cast<bool>(data->isControlFlow);
@@ -256,7 +133,7 @@ void StaticTraceFile::GetBranchFields(StaticInstructionInfo *info,
     }
 }
 
-void StaticTraceFile::GetRegs(StaticInstructionInfo *info,
+void tracer::StaticTraceFile::GetRegs(StaticInstructionInfo *info,
                               struct DataINS *data) {
     info->numReadRegs = data->numReadRegs;
     memcpy(info->readRegs, data->readRegs,
@@ -265,4 +142,9 @@ void StaticTraceFile::GetRegs(StaticInstructionInfo *info,
     info->numWriteRegs = data->numWriteRegs;
     memcpy(info->writeRegs, data->writeRegs,
            data->numWriteRegs * sizeof(*data->writeRegs));
+}
+
+tracer::StaticTraceFile::~StaticTraceFile() {
+    munmap(this->mmapPtr, this->mmapSize);
+    close(this->fd);
 }
