@@ -145,8 +145,9 @@ class TraceFileWriter {
     void FlushBuffer();
 };
 
-inline void printFileErrorLog(const char *path) {
-    SINUCA3_ERROR_PRINTF("Could not open [%s]: %s\n", path, strerror(errno));
+inline void printFileErrorLog(const char *path, const char *mode) {
+    SINUCA3_ERROR_PRINTF("Could not open [%s] in [%s] mode: %s\n", path, mode,
+                         strerror(errno));
 }
 
 unsigned long GetPathTidInSize(const char *sourceDir, const char *prefix,

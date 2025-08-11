@@ -31,11 +31,6 @@ extern "C" {
 #include <errno.h>
 }
 
-inline void printFileErrorLog(const char *path, const char *mode) {
-    SINUCA3_ERROR_PRINTF("Could not open [%s] in [%s] mode: %s\n", path, mode,
-                         strerror(errno));
-}
-
 FILE *tracer::TraceFileReader::UseFile(const char *path) {
     char mode[] = "rb";
     this->tf.file = fopen(path, mode);

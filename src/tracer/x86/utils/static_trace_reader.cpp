@@ -38,7 +38,7 @@ tracer::StaticTraceFile::StaticTraceFile(const char *folderPath, const char *img
 
     this->fd = open(staticPath, O_RDONLY);
     if (fd == -1) {
-        printFileErrorLog(staticPath);
+        printFileErrorLog(staticPath, "O_RDONLY");
         this->isValid = false;
         return;
     }
@@ -47,7 +47,7 @@ tracer::StaticTraceFile::StaticTraceFile(const char *folderPath, const char *img
     this->mmapPtr =
         (char *)mmap(0, this->mmapSize, PROT_READ, MAP_PRIVATE, fd, 0);
     if (this->mmapPtr == MAP_FAILED) {
-        printFileErrorLog(staticPath);
+        printFileErrorLog(staticPath, "PROT_READ MAP_PRIVATE");
         this->isValid = false;
         return;
     }

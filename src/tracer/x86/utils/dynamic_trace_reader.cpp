@@ -29,10 +29,6 @@ extern "C" {
 #include <errno.h>
 }
 
-inline void printFileErrorLog(const char *path) {
-    SINUCA3_ERROR_PRINTF("Could not open [%s]: %s\n", path, strerror(errno));
-}
-
 tracer::DynamicTraceFile::DynamicTraceFile(const char *folderPath, const char *img,
                                    THREADID tid) {
     unsigned long bufferSize = GetPathTidInSize(folderPath, "dynamic", img);
