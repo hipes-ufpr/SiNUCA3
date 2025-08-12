@@ -23,30 +23,25 @@
 
 #include <cassert>
 #include "sinuca3.hpp"
+#include "tracer/x86/utils/memory_trace_reader.hpp"
+#include "utils/logging.hpp"
 
 int tracer::SinucaTraceReader::OpenTrace(
-    const char *executableName, const char *traceFolderPath) {
-    StaticTraceFile staticFile(traceFolderPath, executableName);
+    const char *imageName, const char *sourceDir) {
 
+    StaticTraceFile staticFile(sourceDir, imageName);
     if (!staticFile.Valid()) return 1;
 
     this->binaryTotalBBLs = staticFile.GetTotalBBLs();
     this->numThreads = staticFile.GetNumThreads();
 
-    this->thrInfo = new struct ContextInfo[this->numThreads];
-    this->threadsDynFiles = new DynamicTraceFile *[this->numThreads];
-    this->threadsMemFiles = new MemoryTraceFile *[this->numThreads];
+    this->thrsInfo = new ThrInfo[this->numThreads];
 
     for (int i = 0; i < this->numThreads; i++) {
-        this->thrInfo[i].isInsideBBL = false;
-
-        this->threadsDynFiles[i] =
-            new DynamicTraceFile(traceFolderPath, executableName, i);
-        if (!this->threadsDynFiles[i]->Valid()) return 1;
-
-        this->threadsMemFiles[i] =
-            new MemoryTraceFile(traceFolderPath, executableName, i);
-        if (!this->threadsMemFiles[i]->Valid()) return 1;
+        this->thrsInfo[i].isInsideBBL = false;
+        if (this->thrsInfo[i].Allocate(sourceDir, imageName, i)) {
+            return 1;
+        }
     }
 
     this->GenerateBinaryDict(&staticFile);
@@ -55,14 +50,7 @@ int tracer::SinucaTraceReader::OpenTrace(
 }
 
 void tracer::SinucaTraceReader::CloseTrace() {
-    for (int i = 0; i < this->numThreads; i++) {
-        delete (this->threadsDynFiles[i]);
-        delete (this->threadsMemFiles[i]);
-    }
-
-    delete[] this->threadsDynFiles;
-    delete[] this->threadsMemFiles;
-    delete[] this->thrInfo;
+    delete[] this->thrsInfo;
     delete[] this->binaryBBLsSize;
     delete[] this->pool;
     delete[] this->binaryDict;
@@ -108,26 +96,26 @@ FetchResult tracer::SinucaTraceReader::Fetch(InstructionPacket *ret,
                                                          unsigned int tid) {
     InstructionInfo *packageInfo;
 
-    if (!this->thrInfo[tid].isInsideBBL) {
-        if (this->threadsDynFiles[tid]->ReadNextBBl(
-                &this->thrInfo[tid].currentBBL)) {
+    if (!this->thrsInfo[tid].isInsideBBL) {
+        if (this->thrsInfo[tid].dynFile->ReadNextBBl(
+                &this->thrsInfo[tid].currentBBL)) {
             return FetchResultEnd;
         }
-        this->thrInfo[tid].isInsideBBL = true;
-        this->thrInfo[tid].currentOpcode = 0;
+        this->thrsInfo[tid].isInsideBBL = true;
+        this->thrsInfo[tid].currentOpcode = 0;
     }
 
-    unsigned int currentBbl = this->thrInfo[tid].currentBBL;
-    unsigned int currentIns = this->thrInfo[tid].currentOpcode;
+    unsigned int currentBbl = this->thrsInfo[tid].currentBBL;
+    unsigned int currentIns = this->thrsInfo[tid].currentOpcode;
     packageInfo = &this->binaryDict[currentBbl][currentIns];
     ret->staticInfo = &(packageInfo->staticInfo);
-    this->threadsMemFiles[tid]->ReadNextMemAccess(packageInfo,
+    this->thrsInfo[tid].memFile->ReadNextMemAccess(packageInfo,
                                                   &ret->dynamicInfo);
 
-    this->thrInfo[tid].currentOpcode++;
-    if (this->thrInfo[tid].currentOpcode >=
-        this->binaryBBLsSize[this->thrInfo[tid].currentBBL]) {
-        this->thrInfo[tid].isInsideBBL = false;
+    this->thrsInfo[tid].currentOpcode++;
+    if (this->thrsInfo[tid].currentOpcode >=
+        this->binaryBBLsSize[this->thrsInfo[tid].currentBBL]) {
+        this->thrsInfo[tid].isInsideBBL = false;
     }
 
     this->fetchInstructions++;
@@ -144,6 +132,19 @@ void tracer::SinucaTraceReader::PrintStatistics() {
     SINUCA3_LOG_PRINTF("###########################\n");
 }
 
+int tracer::ThrInfo::Allocate(const char *sourceDir, const char *imageName, int tid) {
+    this->dynFile = new DynamicTraceFile(sourceDir, imageName, tid);
+    if (!this->dynFile->Valid()) return 1;
+    this->memFile = new MemoryTraceFile(sourceDir, imageName, tid);
+    if (!this->memFile->Valid()) return 1;
+    return 0;
+}
+
+tracer::ThrInfo::~ThrInfo() {
+    delete this->memFile;
+    delete this->dynFile;
+}
+
 #ifdef TEST_MAIN
 int main() {
     InstructionPacket package;
@@ -154,13 +155,7 @@ int main() {
 
     do {
         ret = tracer->Fetch(&package, 0);
-        SINUCA3_DEBUG_PRINTF("INS NAME [%s]\n",
-                             package.staticInfo->opcodeAssembly);
-        SINUCA3_DEBUG_PRINTF("INS SIZE [%d]\n", package.staticInfo->opcodeSize);
-        SINUCA3_DEBUG_PRINTF("NUM READ REGS [%d]\n",
-                             package.staticInfo->numReadRegs);
-        SINUCA3_DEBUG_PRINTF("IS BRANCH [%d]\n",
-                             package.staticInfo->isControlFlow);
+        SINUCA3_DEBUG_PRINTF("");
     } while (ret == traceReader::FetchResultOk);
 
     delete tracer;

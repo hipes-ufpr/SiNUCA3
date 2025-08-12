@@ -153,7 +153,7 @@ class TraceFileReader {
     unsigned long bufActiveSize; /**<Closest value to BUFFER_SIZE that is a
                                     multiple of the struct size (e.g. struct
                                     DataINS). The memory trace stores this value
-                                    after every buffer write, an exception. */
+                                    after every buffer write, an exception.*/
 
     /**
      * @brief Opens trace file and initializes attributes.
