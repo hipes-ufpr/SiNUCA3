@@ -19,33 +19,68 @@
 //
 
 #include <sinuca3.hpp>
+
 #include "engine/default_packets.hpp"
-#include "std_components/fetch/fetcher.hpp"
 #include "std_components/predictors/interleavedBTB.hpp"
 #include "std_components/predictors/ras.hpp"
 
+typedef int FetchBufferEntryFlags;
+
+struct FetchBufferEntry {
+    InstructionPacket instruction; /**< Fetched instruction >*/
+    FetchBufferEntryFlags flags;   /**< Flags for the entry >*/
+};
+
+/**
+ * @brief Boom Fetch is the implementation of the fetch stage of Boom,
+ * containing its directly connected components.
+ *
+ * @details It accepts the following parameters:
+ * - fetch (required): Component<InstructionPacket> from which to fetch
+ *   instructions.
+ * - instructionMemory (required): Component<InstructionPacket> to which send
+ *   the instruction after fetching.
+ * - fetchSize: The size in bytes to fetch per fetch cycle. Defaults to 0.
+ * - fetchInterval: Integer amount of cycles to wait before fetching. I.e.,
+ *   fetch every `fetchInterval` cycles. Defaults to 1.
+ * - predictor: Component<InstructionPacket> to which send prediction requests.
+ * - misspredictPenalty: Integer amount of cycles to idle when a missprediction
+ *   happens.
+ */
 class BoomFetch : public Component<FetchPacket> {
-    private:
-        Component<FetchPacket>* fetch; /**< Component from which to fetch instructions >*/
-        Component<InstructionPacket>* instructionMemory; /**< Component for instruction memory >*/
-        FetchBufferEntry* fetchBuffer; /**< Fetch Buffer for storing fetched instructions >*/
-        BranchTargetBuffer* btb; /**< Branch Target Buffer for storing branch targets >*/
-        Ras* ras; /**< Return Address Stack for storing return addresses >*/
+  private:
+    Component<FetchPacket>*
+        fetch; /**< Component from which to fetch instructions >*/
+    Component<InstructionPacket>*
+        instructionMemory; /**< Component for instruction memory >*/
+    FetchBufferEntry*
+        fetchBuffer; /**< Fetch Buffer for storing fetched instructions >*/
+    BranchTargetBuffer*
+        btb;  /**< Branch Target Buffer for storing branch targets >*/
+    Ras* ras; /**< Return Address Stack for storing return addresses >*/
 
-        unsigned long fetchBufferUsage; /**< Number of instructions in fetchBuffer >*/
-        unsigned long fetchSize; /**< Amount of bytes to fetch >*/
-        unsigned long fetchInterval; /**< Cycle interval to fetch >*/
-        unsigned long fetchClock; /**< Counter to control when to fetch >*/
-        unsigned long misspredictPenalty; /**< Amount of cycles to idle when a missprediction happens >*/
+    unsigned long
+        fetchBufferUsage;        /**< Number of instructions in fetchBuffer >*/
+    unsigned long fetchSize;     /**< Amount of bytes to fetch >*/
+    unsigned long fetchInterval; /**< Cycle interval to fetch >*/
+    unsigned long fetchClock;    /**< Counter to control when to fetch >*/
+    unsigned long misspredictPenalty; /**< Amount of cycles to idle when a
+                                         missprediction happens >*/
 
-        unsigned long misspredictions; /**< Number of misspredictions that happened >*/
-        unsigned long currentPenalty; /**< Counter to control the paying of penalties >*/
+    unsigned long
+        misspredictions; /**< Number of misspredictions that happened >*/
+    unsigned long
+        currentPenalty; /**< Counter to control the paying of penalties >*/
 
-        unsigned long fetchedInstructions; /**< Number of fetched instructions >*/
+    unsigned long fetchedInstructions; /**< Number of fetched instructions >*/
 
-        int fetchID; /**< ID of the fetch component >*/
-        int instructionMemoryID; /**< ID of the instruction memory component >*/
-        FetchBufferEntryFlags flagsToCheck; /**<Flags to check when removing entries from the buffer. If there's a predictor, we need to check wether the instruction was predicted. If there's no predictor, we don't >*/
+    int fetchID;             /**< ID of the fetch component >*/
+    int instructionMemoryID; /**< ID of the instruction memory component >*/
+    FetchBufferEntryFlags
+        flagsToCheck; /**<Flags to check when removing entries from the buffer.
+                         If there's a predictor, we need to check wether the
+                         instruction was predicted. If there's no predictor, we
+                         don't >*/
 };
 
 #endif  // SINUCA3_BOOM_FETCH_HPP_
