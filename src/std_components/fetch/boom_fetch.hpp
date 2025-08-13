@@ -20,15 +20,31 @@
 
 #include <sinuca3.hpp>
 
-#include "engine/default_packets.hpp"
+#include "config/config.hpp"
 #include "std_components/predictors/interleavedBTB.hpp"
 #include "std_components/predictors/ras.hpp"
 
+/**
+ * @brief Enum for flags for the fetch buffer of the fetcher.
+ * @details We use constants and not enums because C++ complains about
+ * usingenums as sets (bit-oring them and stuff). It's an int because alignment
+ * would make anything occupy more space in the struct anyways so let's use the
+ * type that enables us to operate faster on the registers.
+ */
 typedef int FetchBufferEntryFlags;
+
+/** @brief Predictor responded about this instruction. */
+const FetchBufferEntryFlags FetchBufferEntryFlagsPredicted = (1 << 0);
+/** @brief We already sent this instruction to the predictor. */
+const FetchBufferEntryFlags FetchBufferEntryFlagsSentToPredictor = (1 << 1);
+/** @brief We already sent this instruction to the memory. */
+const FetchBufferEntryFlags FetchBufferEntryFlagsSentToMemory = (1 << 2);
 
 struct FetchBufferEntry {
     InstructionPacket instruction; /**< Fetched instruction >*/
     FetchBufferEntryFlags flags;   /**< Flags for the entry >*/
+
+    inline FetchBufferEntry() : flags((FetchBufferEntryFlags)0) {}
 };
 
 /**
@@ -43,7 +59,6 @@ struct FetchBufferEntry {
  * - fetchSize: The size in bytes to fetch per fetch cycle. Defaults to 0.
  * - fetchInterval: Integer amount of cycles to wait before fetching. I.e.,
  *   fetch every `fetchInterval` cycles. Defaults to 1.
- * - predictor: Component<InstructionPacket> to which send prediction requests.
  * - misspredictPenalty: Integer amount of cycles to idle when a missprediction
  *   happens.
  */
@@ -80,7 +95,46 @@ class BoomFetch : public Component<FetchPacket> {
         flagsToCheck; /**<Flags to check when removing entries from the buffer.
                          If there's a predictor, we need to check wether the
                          instruction was predicted. If there's no predictor, we
-                         don't >*/
+                         don't need to check anything >*/
+
+    /** @brief Helper to set the fetch config parameter. */
+    int FetchConfigParameter(ConfigValue value);
+    /** @brief Helper to set the instruction memory config parameter. */
+    int InstructionMemoryConfigParameter(ConfigValue value);
+    /** @brief Helper to set the fetch size config parameter. */
+    int FetchSizeConfigParameter(ConfigValue value);
+    /** @brief Helper to set the fetch interval config parameter. */
+    int FetchIntervalConfigParameter(ConfigValue value);
+    /** @brief Helper to set the predictor config parameter. */
+    int PredictorConfigParameter(ConfigValue value);
+    /** @brief Helper to set the missprediction penalty config parameter. */
+    int MisspredictPenaltyConfigParameter(ConfigValue value);
+
+  public:
+    inline BoomFetch()
+        : fetch(NULL),
+          instructionMemory(NULL),
+          fetchBuffer(NULL),
+          btb(NULL),
+          ras(NULL),
+          fetchBufferUsage(0),
+          fetchSize(1),
+          fetchInterval(1),
+          fetchClock(0),
+          misspredictPenalty(0),
+          misspredictions(0),
+          currentPenalty(0),
+          fetchedInstructions(0),
+          fetchID(-1),
+          instructionMemoryID(-1),
+          flagsToCheck(FetchBufferEntryFlagsSentToMemory) {}
+
+    virtual int FinishSetup();
+    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+    virtual void Clock();
+    virtual void Flush();
+    virtual void PrintStatistics();
+    virtual ~BoomFetch();
 };
 
 #endif  // SINUCA3_BOOM_FETCH_HPP_
