@@ -31,18 +31,41 @@ enum FetchResult {
     FetchResultError,
 };
 
-/**
- * @brief TraceReader is a pure virtual class that all trace readers must
- * implement.
- */
 class TraceReader {
   public:
-    /** @brief Return non-zero on failure. */
+    /**
+     * @brief Class attributes initializer.
+     * @param imageName Name of the executable used to generate the traces.
+     * @param sourceDir Complete path to the directory that stores the traces.
+     * @return Non-zero on failure.
+     */
     virtual int OpenTrace(const char *traceFileName, const char *tracePath) = 0;
-    virtual unsigned long GetTraceSize() = 0;
-    virtual unsigned long GetNumberOfFetchedInstructions() = 0;
+    /**
+     * @brief Number of currently fetch instructions.
+     */
+    virtual unsigned long GetNumberOfFetchedInst(int tid) = 0;
+    /**
+     * @brief Number of instructions to be fetched.
+     */
+    virtual unsigned long GetTotalInstToBeFetched(int tid) = 0;
+    /**
+     * @brief Number of basic blocks in static trace.
+     */
+    virtual unsigned long GetTotalBBLs() = 0;
+    /**
+     * @brief Any statistic of interest.
+     */
     virtual void PrintStatistics() = 0;
-    virtual FetchResult Fetch(InstructionPacket *ret, unsigned int tid) = 0;
+    /**
+     * @brief Get next executed instruction.
+     * @param ret Pointer to struct that will be filled.
+     * @param tid Thread identifier.
+     */
+    virtual FetchResult Fetch(InstructionPacket *ret, int tid) = 0;
+    /**
+     * @brief Free allocated memory in OpenTrace.
+     */
+    virtual void CloseTrace() = 0;
     virtual ~TraceReader() {}
 };
 

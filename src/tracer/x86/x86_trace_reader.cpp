@@ -38,7 +38,6 @@ int tracer::SinucaTraceReader::OpenTrace(const char *imageName,
     this->thrsInfo = new ThrInfo[this->numThreads];
 
     for (int i = 0; i < this->numThreads; i++) {
-        this->thrsInfo[i].isInsideBBL = false;
         if (this->thrsInfo[i].Allocate(sourceDir, imageName, i)) {
             return 1;
         }
@@ -54,14 +53,6 @@ void tracer::SinucaTraceReader::CloseTrace() {
     delete[] this->binaryBBLsSize;
     delete[] this->pool;
     delete[] this->binaryDict;
-}
-
-unsigned long tracer::SinucaTraceReader::GetTraceSize() {
-    return this->binaryTotalBBLs;
-}
-
-unsigned long tracer::SinucaTraceReader::GetNumberOfFetchedInstructions() {
-    return this->fetchInstructions;
 }
 
 void tracer::SinucaTraceReader::GenerateBinaryDict(StaticTraceFile *stFile) {
@@ -91,8 +82,7 @@ void tracer::SinucaTraceReader::GenerateBinaryDict(StaticTraceFile *stFile) {
     }
 }
 
-FetchResult tracer::SinucaTraceReader::Fetch(InstructionPacket *ret,
-                                             unsigned int tid) {
+FetchResult tracer::SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
     InstructionInfo *packageInfo;
 
     if (!this->thrsInfo[tid].isInsideBBL) {
@@ -117,7 +107,7 @@ FetchResult tracer::SinucaTraceReader::Fetch(InstructionPacket *ret,
         this->thrsInfo[tid].isInsideBBL = false;
     }
 
-    this->fetchInstructions++;
+    this->thrsInfo[tid].fetchedInst++;
 
     SINUCA3_DEBUG_PRINTF("Fetched: %s\n", (*ret).staticInfo->opcodeAssembly);
 
@@ -127,8 +117,26 @@ FetchResult tracer::SinucaTraceReader::Fetch(InstructionPacket *ret,
 void tracer::SinucaTraceReader::PrintStatistics() {
     SINUCA3_LOG_PRINTF("###########################\n");
     SINUCA3_LOG_PRINTF("Sinuca3 Trace Reader\n");
-    SINUCA3_LOG_PRINTF("Fetch Instructions:%lu\n", this->fetchInstructions);
+    // SINUCA3_LOG_PRINTF("Fetch Instructions:%lu\n", this->fetchInstructions);
     SINUCA3_LOG_PRINTF("###########################\n");
+}
+
+unsigned long tracer::SinucaTraceReader::GetTotalBBLs() {
+    return this->binaryTotalBBLs;
+}
+
+unsigned long tracer::SinucaTraceReader::GetNumberOfFetchedInst(int tid) {
+    return this->thrsInfo[tid].fetchedInst;
+}
+
+unsigned long tracer::SinucaTraceReader::GetTotalInstToBeFetched(int tid) {
+
+}
+
+tracer::ThrInfo::ThrInfo() {
+    this->isInsideBBL = false;
+    this->fetchedInst = 0;
+    this->totalInst = 0;
 }
 
 int tracer::ThrInfo::Allocate(const char *sourceDir, const char *imageName,

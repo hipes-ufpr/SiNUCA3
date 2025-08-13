@@ -28,8 +28,8 @@ extern "C" {
 #include <alloca.h>
 }
 
-tracer::MemoryTraceFile::MemoryTraceFile(const char *folderPath, const char *img,
-                                 THREADID tid) {
+tracer::MemoryTraceFile::MemoryTraceFile(const char *folderPath,
+                                         const char *img, THREADID tid) {
     unsigned long bufferSize = GetPathTidInSize(folderPath, "memory", img);
     char *path = (char *)alloca(bufferSize);
     FormatPathTidIn(path, folderPath, "memory", img, tid, bufferSize);
@@ -69,8 +69,8 @@ tracer::DataMEM *tracer::MemoryTraceFile::GetDataMemArr(unsigned short len) {
     return arrPtr;
 }
 
-int tracer::MemoryTraceFile::ReadNextMemAccess(InstructionInfo *insInfo,
-                                       DynamicInstructionInfo *dynInfo) {
+void tracer::MemoryTraceFile::ReadNextMemAccess(
+    InstructionInfo *insInfo, DynamicInstructionInfo *dynInfo) {
     DataMEM *writeOps;
     DataMEM *readOps;
 
@@ -99,6 +99,4 @@ int tracer::MemoryTraceFile::ReadNextMemAccess(InstructionInfo *insInfo,
         dynInfo->writesAddr[it] = writeOps[it].addr;
         dynInfo->writesSize[it] = writeOps[it].size;
     }
-
-    return 0;
 }

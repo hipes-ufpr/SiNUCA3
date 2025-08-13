@@ -111,8 +111,8 @@ struct DataINS {
  * possible while storing memory access data.
  */
 struct DataMEM {
-    unsigned long addr;
-    unsigned int size;
+    unsigned long addr; /**<Virtual address accessed. */
+    unsigned int size;  /**<Size in bytes of memory read or written. */
 } __attribute__((packed));
 
 /**

@@ -20,7 +20,7 @@
 
 /**
  * @file x86_trace_reader.hpp
- * @brief Implementation of SinucaTraceReader for x86 based traces
+ * @brief Implementation of SinucaTraceReader for x86 based traces.
  */
 
 #include "../trace_reader.hpp"
@@ -35,9 +35,12 @@ struct ThrInfo {
     MemoryTraceFile *memFile;
     unsigned int currentBBL;    /**<Index of basic block. */
     unsigned int currentOpcode; /**<Index of instruction inside basic block. */
+    unsigned long fetchedInst;  /**<Number of instructions fetched */
+    unsigned long totalInst;    /**<Total of instructions to be fetched */
     bool isInsideBBL;
 
   public:
+    ThrInfo();
     int Allocate(const char *sourceDir, const char *imageName, int tid);
     ~ThrInfo();
 };
@@ -53,8 +56,6 @@ class SinucaTraceReader : public TraceReader {
     InstructionInfo **binaryDict; /**<Array containing all instructions. */
     InstructionInfo *pool;        /**<Pool used for more efficient allocation.*/
 
-    unsigned long fetchInstructions; /**<Number of fetched instructions */
-
     /**
      * @brief Fill instructions dictionary
      * @details Info per instruction:
@@ -67,35 +68,13 @@ class SinucaTraceReader : public TraceReader {
     void GenerateBinaryDict(StaticTraceFile *);
 
   public:
-    /**
-     * @brief Class attributes initializer.
-     * @param imageName Name of the executable used to generate the traces.
-     * @param sourceDir Complete path to the directory that stores the traces.
-     */
     virtual int OpenTrace(const char *imageName, const char *sourceDir);
-    /**
-     * @brief Prints the number of fetched instructions for now.
-     */
     virtual void PrintStatistics();
-    /**
-     * @brief Trace size is the equivalent to the number of basic blocks from
-     * static trace.
-     */
-    virtual unsigned long GetTraceSize();
-    /**
-     * @return Value stored in fetchInstructions.
-     */
-    virtual unsigned long GetNumberOfFetchedInstructions();
-    /**
-     * @brief Get next executed instruction.
-     * @param ret Pointer to struct that will be filled.
-     * @param tid Thread identifier.
-     */
-    virtual FetchResult Fetch(InstructionPacket *ret, unsigned int tid);
-    /**
-     * @brief Free allocated memory in OpenTrace and GenerateBinaryDict.
-     */
-    void CloseTrace();
+    virtual unsigned long GetTotalBBLs();
+    virtual unsigned long GetTotalInstToBeFetched(int tid);
+    virtual unsigned long GetNumberOfFetchedInst(int tid);
+    virtual FetchResult Fetch(InstructionPacket *ret, int tid);
+    virtual void CloseTrace();
     inline ~SinucaTraceReader() { this->CloseTrace(); }
 };
 
