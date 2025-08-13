@@ -21,6 +21,8 @@
 #include <sinuca3.hpp>
 
 #include "config/config.hpp"
+#include "engine/component.hpp"
+#include "engine/default_packets.hpp"
 #include "std_components/predictors/interleavedBTB.hpp"
 #include "std_components/predictors/ras.hpp"
 
@@ -56,6 +58,8 @@ struct FetchBufferEntry {
  *   instructions.
  * - instructionMemory (required): Component<InstructionPacket> to which send
  *   the instruction after fetching.
+ * - btb (required): Interleaved BTB reference.
+ * - ras (required) : Return Address Stack reference.
  * - fetchSize: The size in bytes to fetch per fetch cycle. Defaults to 0.
  * - fetchInterval: Integer amount of cycles to wait before fetching. I.e.,
  *   fetch every `fetchInterval` cycles. Defaults to 1.
@@ -68,11 +72,12 @@ class BoomFetch : public Component<FetchPacket> {
         fetch; /**< Component from which to fetch instructions >*/
     Component<InstructionPacket>*
         instructionMemory; /**< Component for instruction memory >*/
+    Component<BTBPacket>*
+        btb; /**< Branch Target Buffer for storing branch targets >*/
+    Component<PredictorPacket>*
+        ras; /**< Return Address Stack for storing return addresses >*/
     FetchBufferEntry*
         fetchBuffer; /**< Fetch Buffer for storing fetched instructions >*/
-    BranchTargetBuffer*
-        btb;  /**< Branch Target Buffer for storing branch targets >*/
-    Ras* ras; /**< Return Address Stack for storing return addresses >*/
 
     unsigned long
         fetchBufferUsage;        /**< Number of instructions in fetchBuffer >*/
@@ -101,12 +106,14 @@ class BoomFetch : public Component<FetchPacket> {
     int FetchConfigParameter(ConfigValue value);
     /** @brief Helper to set the instruction memory config parameter. */
     int InstructionMemoryConfigParameter(ConfigValue value);
+    /** @brief Helper to set the BTB config parameter. */
+    int BTBConfigParameter(ConfigValue value);
+    /** @brief Helper to set the RAS config parameter. */
+    int RASConfigParameter(ConfigValue value);
     /** @brief Helper to set the fetch size config parameter. */
     int FetchSizeConfigParameter(ConfigValue value);
     /** @brief Helper to set the fetch interval config parameter. */
     int FetchIntervalConfigParameter(ConfigValue value);
-    /** @brief Helper to set the predictor config parameter. */
-    int PredictorConfigParameter(ConfigValue value);
     /** @brief Helper to set the missprediction penalty config parameter. */
     int MisspredictPenaltyConfigParameter(ConfigValue value);
 
