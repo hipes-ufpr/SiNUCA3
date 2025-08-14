@@ -39,7 +39,7 @@ class TraceReader {
      * @param sourceDir Complete path to the directory that stores the traces.
      * @return Non-zero on failure.
      */
-    virtual int OpenTrace(const char *traceFileName, const char *tracePath) = 0;
+    virtual int OpenTrace(const char *imageName, const char *sourceDir) = 0;
     /**
      * @return Number of threads.
      */

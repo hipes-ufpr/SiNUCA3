@@ -36,23 +36,24 @@ tracer::DynamicTraceFile::DynamicTraceFile(const char *folderPath,
     unsigned long bufferSize =
         GetPathTidInSize(folderPath, "dynamic", imageName);
     char *path = (char *)alloca(bufferSize);
-    FormatPathTidIn(path, folderPath, "dynamic", imageName, tid, bufferSize);
 
+    FormatPathTidIn(path, folderPath, "dynamic", imageName, tid, bufferSize);
     if (this->UseFile(path) == NULL) {
         this->isValid = false;
         return;
     }
 
-    this->bufActiveSize =
-        (unsigned int)(BUFFER_SIZE / sizeof(BBLID)) * sizeof(BBLID);
-    this->RetrieveBuffer(); /* First buffer read */
-    this->isValid = true;
     /*
      * The number of executed instructions is placed at the top of the dynamic
      * file.
      */
     fread(&this->totalExecInst, sizeof(this->totalExecInst), 1, this->tf.file);
-    printf("totalExecInst [%lu]\n", this->totalExecInst);
+    SINUCA3_DEBUG_PRINTF("totalExecInst [%lu]\n", this->totalExecInst);
+
+    this->bufActiveSize =
+        (unsigned int)(BUFFER_SIZE / sizeof(BBLID)) * sizeof(BBLID);
+    this->RetrieveBuffer(); /* First buffer read */
+    this->isValid = true;
 }
 
 int tracer::DynamicTraceFile::ReadNextBBl(BBLID *bbl) {

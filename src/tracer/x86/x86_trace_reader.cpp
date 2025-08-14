@@ -24,6 +24,7 @@
 #include <cassert>
 
 #include "sinuca3.hpp"
+#include "tracer/trace_reader.hpp"
 
 int tracer::SinucaTraceReader::OpenTrace(const char *imageName,
                                          const char *sourceDir) {
@@ -160,16 +161,14 @@ tracer::ThrInfo::~ThrInfo() {
 
 #ifdef TEST_MAIN
 int main() {
-    InstructionPacket package;
-    traceReader::FetchResult ret;
-    traceReader::TraceReader *tracer =
-        new traceReader::tracer::SinucaTraceReader();
-    tracer->OpenTrace("sinuca_teste", "");
+    InstructionPacket instInfo;
+    FetchResult ret;
+    TraceReader *tracer = new tracer::SinucaTraceReader();
+    tracer->OpenTrace("factorials", "");
 
     do {
-        ret = tracer->Fetch(&package, 0);
-        SINUCA3_DEBUG_PRINTF("");
-    } while (ret == traceReader::FetchResultOk);
+        ret = tracer->Fetch(&instInfo, 0);
+    } while (ret == FetchResultOk);
 
     delete tracer;
 }

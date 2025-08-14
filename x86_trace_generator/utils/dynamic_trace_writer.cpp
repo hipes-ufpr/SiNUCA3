@@ -34,7 +34,7 @@ tracer::traceGenerator::DynamicTraceFile::DynamicTraceFile(const char* source,
                                                           THREADID tid) {
     unsigned long bufferSize = tracer::GetPathTidInSize(source, "dynamic", img);
     char* path = (char*)alloca(bufferSize);
-    
+
     FormatPathTidIn(path, source, "dynamic", img, tid, bufferSize);
     this->UseFile(path);
 
@@ -51,9 +51,10 @@ tracer::traceGenerator::DynamicTraceFile::~DynamicTraceFile() {
     if (this->tf.offsetInBytes > 0) {
         this->FlushBuffer();
     }
-    
-    fseek(this->tf.file, 0, SEEK_SET);
+
+    rewind(this->tf.file);
     fwrite(&this->totalExecInst, sizeof(this->totalExecInst), 1, this->tf.file);
+    SINUCA3_DEBUG_PRINTF("totalExecInst [%lu]\n", this->totalExecInst);
 }
 
 void tracer::traceGenerator::DynamicTraceFile::PrepareId(BBLID id) {
