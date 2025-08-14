@@ -44,7 +44,7 @@ tracer::traceGenerator::StaticTraceFile::StaticTraceFile(const char* source,
 
     /*
      * This space will be used to store the total amount of BBLs,
-     * number of instructions, and total number of threads
+     * number of instructions, and number of threads.
      */
     fseek(this->tf.file, 3 * sizeof(unsigned int), SEEK_SET);
 }

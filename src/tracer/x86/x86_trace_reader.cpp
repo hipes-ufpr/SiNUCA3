@@ -24,26 +24,26 @@
 #include <cassert>
 
 #include "sinuca3.hpp"
-#include "tracer/x86/utils/memory_trace_reader.hpp"
-#include "utils/logging.hpp"
 
 int tracer::SinucaTraceReader::OpenTrace(const char *imageName,
                                          const char *sourceDir) {
     StaticTraceFile staticFile(sourceDir, imageName);
     if (!staticFile.Valid()) return 1;
 
+    this->totalThreads = staticFile.GetNumThreads();
     this->binaryTotalBBLs = staticFile.GetTotalBBLs();
-    this->numThreads = staticFile.GetNumThreads();
+    this->thrsInfo = new ThrInfo[this->totalThreads];
 
-    this->thrsInfo = new ThrInfo[this->numThreads];
-
-    for (int i = 0; i < this->numThreads; i++) {
+    for (int i = 0; i < this->totalThreads; i++) {
         if (this->thrsInfo[i].Allocate(sourceDir, imageName, i)) {
             return 1;
         }
     }
 
-    this->GenerateBinaryDict(&staticFile);
+    if (this->GenerateBinaryDict(&staticFile)) {
+        SINUCA3_ERROR_PRINTF("Failed to generate instruction dictionary\n");
+        return 1;
+    }
 
     return 0;
 }
@@ -55,8 +55,8 @@ void tracer::SinucaTraceReader::CloseTrace() {
     delete[] this->binaryDict;
 }
 
-void tracer::SinucaTraceReader::GenerateBinaryDict(StaticTraceFile *stFile) {
-    InstructionInfo *package;
+int tracer::SinucaTraceReader::GenerateBinaryDict(StaticTraceFile *stFile) {
+    InstructionInfo *instInfoPtr;
     unsigned long poolOffset;
     unsigned int bblSize;
     unsigned int instCounter;
@@ -68,18 +68,22 @@ void tracer::SinucaTraceReader::GenerateBinaryDict(StaticTraceFile *stFile) {
     poolOffset = 0;
 
     for (bblCounter = 0; bblCounter < this->binaryTotalBBLs; bblCounter++) {
-        bblSize = stFile->GetNewBBlSize();
-
+        if (stFile->GetNewBBLSize(&bblSize)) {
+            return 1;
+        }
         this->binaryBBLsSize[bblCounter] = bblSize;
         this->binaryDict[bblCounter] = &this->pool[poolOffset];
         poolOffset += bblSize;
 
-        SINUCA3_DEBUG_PRINTF("Bbl [%u] Size [%u]\n", bblCounter + 1, bblSize);
         for (instCounter = 0; instCounter < bblSize; instCounter++) {
-            package = &this->binaryDict[bblCounter][instCounter];
-            stFile->ReadNextPackage(package);
+            instInfoPtr = &this->binaryDict[bblCounter][instCounter];
+            stFile->ReadNextInstruction(instInfoPtr);
         }
+
+        SINUCA3_DEBUG_PRINTF("bbl [%u] size [%u]\n", bblCounter + 1, bblSize);
     }
+
+    return 0;
 }
 
 FetchResult tracer::SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
@@ -114,12 +118,7 @@ FetchResult tracer::SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
     return FetchResultOk;  // Maybe this is not suitable for multiple threads
 }
 
-void tracer::SinucaTraceReader::PrintStatistics() {
-    SINUCA3_LOG_PRINTF("###########################\n");
-    SINUCA3_LOG_PRINTF("Sinuca3 Trace Reader\n");
-    // SINUCA3_LOG_PRINTF("Fetch Instructions:%lu\n", this->fetchInstructions);
-    SINUCA3_LOG_PRINTF("###########################\n");
-}
+int tracer::SinucaTraceReader::GetTotalThreads() { return this->totalThreads; }
 
 unsigned long tracer::SinucaTraceReader::GetTotalBBLs() {
     return this->binaryTotalBBLs;
@@ -130,13 +129,19 @@ unsigned long tracer::SinucaTraceReader::GetNumberOfFetchedInst(int tid) {
 }
 
 unsigned long tracer::SinucaTraceReader::GetTotalInstToBeFetched(int tid) {
+    return this->thrsInfo[tid].dynFile->GetTotalExecInst();
+}
 
+void tracer::SinucaTraceReader::PrintStatistics() {
+    SINUCA3_LOG_PRINTF("###########################\n");
+    SINUCA3_LOG_PRINTF("Sinuca3 Trace Reader\n");
+    // SINUCA3_LOG_PRINTF("Fetch Instructions:%lu\n", this->fetchInstructions);
+    SINUCA3_LOG_PRINTF("###########################\n");
 }
 
 tracer::ThrInfo::ThrInfo() {
     this->isInsideBBL = false;
     this->fetchedInst = 0;
-    this->totalInst = 0;
 }
 
 int tracer::ThrInfo::Allocate(const char *sourceDir, const char *imageName,

@@ -36,16 +36,18 @@ namespace traceGenerator {
 
 class DynamicTraceFile : public TraceFileWriter {
   private:
-    BBLID bblId;
+    BBLID bblId;                 /**<Basic block identifier. */
+    unsigned long totalExecInst; /**<Total instructions executed per thread. */
 
     void DynamicAppendToBuffer(void *ptr, unsigned long len);
 
   public:
     DynamicTraceFile(const char *source, const char *img, THREADID tid);
-    ~DynamicTraceFile();
     void PrepareId(BBLID id);
+    void IncTotalExecInst(int ins);
     void AppendToBufferId();
-};
+    ~DynamicTraceFile();
+  };
 
 }  // namespace traceGenerator
 }  // namespace tracer

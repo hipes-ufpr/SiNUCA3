@@ -43,8 +43,13 @@ tracer::DynamicTraceFile::DynamicTraceFile(const char *folderPath,
 
     this->bufActiveSize =
         (unsigned int)(BUFFER_SIZE / sizeof(BBLID)) * sizeof(BBLID);
-    this->RetrieveBuffer();  // First buffer read
+    this->RetrieveBuffer(); /* First buffer read */
     this->isValid = true;
+    /*
+     * The number of executed instructions is placed at the top of the dynamic
+     * file. 
+     */
+    fread(&this->totalExecInst, sizeof(this->totalExecInst), 1, this->tf.file);
 }
 
 int tracer::DynamicTraceFile::ReadNextBBl(BBLID *bbl) {

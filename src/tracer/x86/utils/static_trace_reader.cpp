@@ -31,7 +31,8 @@ extern "C" {
 #include <unistd.h>    // lseek
 }
 
-tracer::StaticTraceFile::StaticTraceFile(const char *folderPath, const char *img) {
+tracer::StaticTraceFile::StaticTraceFile(const char *folderPath,
+                                         const char *img) {
     unsigned long bufferLen = GetPathTidOutSize(folderPath, "static", img);
     char *staticPath = (char *)alloca(bufferLen);
     FormatPathTidOut(staticPath, folderPath, "static", img, bufferLen);
@@ -52,25 +53,22 @@ tracer::StaticTraceFile::StaticTraceFile(const char *folderPath, const char *img
         return;
     }
 
+    /* Skip static trace header information */
     this->mmapOffset = 3 * sizeof(unsigned int);
 
-    // Get number of threads
-    this->numThreads = *(unsigned int *)(this->mmapPtr + 0);
-    SINUCA3_DEBUG_PRINTF("Number of Threads [%u]\n", this->numThreads);
-
-    // Get total number of Basic Blocks
-    this->totalBBLs =
-        *(unsigned int *)(this->mmapPtr + sizeof(this->numThreads));
+    this->totalThreads = *(unsigned int *)(this->mmapPtr + 0);
+    SINUCA3_DEBUG_PRINTF("Number of Threads [%u]\n", this->totalThreads);
+    this->totalBBLs = *(unsigned int *)(this->mmapPtr + sizeof(unsigned int));
     SINUCA3_DEBUG_PRINTF("Number of BBLs [%u]\n", this->totalBBLs);
-    // Get total number of instructions
     this->totalIns =
-        *(unsigned int *)(this->mmapPtr + sizeof(this->numThreads) +
-                          sizeof(this->totalBBLs));
+        *(unsigned int *)(this->mmapPtr + 2 * sizeof(unsigned int));
     SINUCA3_DEBUG_PRINTF("Number of Instructions [%u]\n", this->totalIns);
+
     this->isValid = true;
+    this->instLeftInBBL = 0;
 }
 
-void tracer::StaticTraceFile::ReadNextPackage(InstructionInfo *info) {
+void tracer::StaticTraceFile::ReadNextInstruction(InstructionInfo *info) {
     DataINS *data = (DataINS *)(this->GetData(sizeof(DataINS)));
 
     unsigned long len = strlen(data->name);
@@ -81,15 +79,23 @@ void tracer::StaticTraceFile::ReadNextPackage(InstructionInfo *info) {
     info->staticInfo.indexReg = data->indexReg;
     info->staticInfo.opcodeAddress = data->addr;
 
-    this->GetFlagValues(info, data);
-    this->GetBranchFields(&info->staticInfo, data);
-    this->GetRegs(&info->staticInfo, data);
+    this->GetBooleanValues(&info->staticInfo, data);
+    this->GetBranchType(&info->staticInfo, data);
+    this->GetRegisters(&info->staticInfo, data);
+
+    if (!info->staticInfo.isNonStdMemOp) {
+        info->staticNumReadings = data->isRead + data->isRead2;
+        info->staticNumWritings = data->isWrite;
+    }
+
+    this->instLeftInBBL--;
 }
 
-unsigned int tracer::StaticTraceFile::GetNewBBlSize() {
-    unsigned int *numIns;
-    numIns = (unsigned int *)(this->GetData(SIZE_NUM_BBL_INS));
-    return *numIns;
+int tracer::StaticTraceFile::GetNewBBLSize(unsigned int *size) {
+    if (this->instLeftInBBL > 0) return 1;
+    *size = *(unsigned int *)(this->GetData(SIZE_NUM_BBL_INS));
+    instLeftInBBL = *size;
+    return 0;
 }
 
 void *tracer::StaticTraceFile::GetData(unsigned long len) {
@@ -98,22 +104,17 @@ void *tracer::StaticTraceFile::GetData(unsigned long len) {
     return ptr;
 }
 
-void tracer::StaticTraceFile::GetFlagValues(InstructionInfo *info,
-                                    struct DataINS *data) {
-    info->staticInfo.isPredicated = static_cast<bool>(data->isPredicated);
-    info->staticInfo.isPrefetch = static_cast<bool>(data->isPrefetch);
-    info->staticInfo.isNonStdMemOp =
-        static_cast<bool>(data->isNonStandardMemOp);
-    if (!info->staticInfo.isNonStdMemOp) {
-        info->staticNumReadings = data->isRead + data->isRead2;
-        info->staticNumWritings = data->isWrite;
-    }
+void tracer::StaticTraceFile::GetBooleanValues(StaticInstructionInfo *info,
+                                               DataINS *data) {
+    info->isNonStdMemOp = static_cast<bool>(data->isNonStandardMemOp);
+    info->isControlFlow = static_cast<bool>(data->isControlFlow);
+    info->isPredicated = static_cast<bool>(data->isPredicated);
+    info->isPrefetch = static_cast<bool>(data->isPrefetch);
+    info->isIndirect = static_cast<bool>(data->isIndirectControlFlow);
 }
 
-void tracer::StaticTraceFile::GetBranchFields(StaticInstructionInfo *info,
-                                      struct DataINS *data) {
-    info->isIndirect = static_cast<bool>(data->isIndirectControlFlow);
-    info->isControlFlow = static_cast<bool>(data->isControlFlow);
+void tracer::StaticTraceFile::GetBranchType(StaticInstructionInfo *info,
+                                            DataINS *data) {
     switch (data->branchType) {
         case BRANCH_CALL:
             info->branchType = BranchCall;
@@ -133,8 +134,8 @@ void tracer::StaticTraceFile::GetBranchFields(StaticInstructionInfo *info,
     }
 }
 
-void tracer::StaticTraceFile::GetRegs(StaticInstructionInfo *info,
-                              struct DataINS *data) {
+void tracer::StaticTraceFile::GetRegisters(StaticInstructionInfo *info,
+                                           struct DataINS *data) {
     info->numReadRegs = data->numReadRegs;
     memcpy(info->readRegs, data->readRegs,
            data->numReadRegs * sizeof(*data->readRegs));

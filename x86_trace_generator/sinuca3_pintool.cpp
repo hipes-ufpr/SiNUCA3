@@ -21,6 +21,7 @@
  */
 
 #include <cassert>  // assert
+#include <cstdint>
 
 #include "pin.H"
 
@@ -183,11 +184,12 @@ VOID DisableInstrumentationInThread(THREADID tid) {
     PIN_ReleaseLock(&pinLock);
 }
 
-VOID AppendToDynamicTrace(UINT32 bblId) {
+VOID AppendToDynamicTrace(UINT32 bblId, UINT32 numInst) {
     THREADID tid = PIN_ThreadId();
     if (!isThreadAnalysisEnabled[tid]) return;
     dynamicTraces[tid]->PrepareId(bblId);
     dynamicTraces[tid]->AppendToBufferId();
+    dynamicTraces[tid]->IncTotalExecInst(numInst);
 }
 
 VOID AppendToMemTraceStd(ADDRINT addr, UINT32 size) {
@@ -282,11 +284,13 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
     PIN_GetLock(&pinLock, tid);
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
+        unsigned int numberInstBBl = BBL_NumIns(bbl);
         BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)AppendToDynamicTrace,
-                       IARG_UINT32, staticTrace->GetBBlCount(), IARG_END);
+                       IARG_UINT32, staticTrace->GetBBlCount(), 
+                       IARG_UINT32, numberInstBBl, IARG_END);
 
         staticTrace->IncBBlCount();
-        staticTrace->AppendToBufferNumIns(BBL_NumIns(bbl));
+        staticTrace->AppendToBufferNumIns(numberInstBBl);
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
             staticTrace->PrepareDataINS(&ins);
             staticTrace->AppendToBufferDataINS();

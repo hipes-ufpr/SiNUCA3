@@ -36,7 +36,6 @@ struct ThrInfo {
     unsigned int currentBBL;    /**<Index of basic block. */
     unsigned int currentOpcode; /**<Index of instruction inside basic block. */
     unsigned long fetchedInst;  /**<Number of instructions fetched */
-    unsigned long totalInst;    /**<Total of instructions to be fetched */
     bool isInsideBBL;
 
   public:
@@ -49,7 +48,7 @@ class SinucaTraceReader : public TraceReader {
   private:
     ThrInfo *thrsInfo; /**<Information specific to each thread. */
 
-    int numThreads;
+    int totalThreads;
 
     unsigned int binaryTotalBBLs; /**<Number of basic blocks in static file. */
     unsigned int *binaryBBLsSize; /**<Number of instructions per basic block. */
@@ -64,17 +63,20 @@ class SinucaTraceReader : public TraceReader {
      * Is read        | Has read2   | Is write    | Num. Write Regs |
      * Num. Read Regs | Read Regs   | Write Regs  | Ins. Mnemonic   |
      * Branch Type
+     * @return 1 on failure, 0 otherwise.
      */
-    void GenerateBinaryDict(StaticTraceFile *);
+    int GenerateBinaryDict(StaticTraceFile *stFile);
 
   public:
     virtual int OpenTrace(const char *imageName, const char *sourceDir);
     virtual void PrintStatistics();
+    virtual int GetTotalThreads();
     virtual unsigned long GetTotalBBLs();
     virtual unsigned long GetTotalInstToBeFetched(int tid);
     virtual unsigned long GetNumberOfFetchedInst(int tid);
     virtual FetchResult Fetch(InstructionPacket *ret, int tid);
     virtual void CloseTrace();
+
     inline ~SinucaTraceReader() { this->CloseTrace(); }
 };
 

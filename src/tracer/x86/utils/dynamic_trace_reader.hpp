@@ -31,6 +31,8 @@
 namespace tracer {
 
 class DynamicTraceFile : public TraceFileReader {
+  private:
+    unsigned long totalExecInst; /**<Total instructions executed per thread. */
   public:
     DynamicTraceFile(const char *sourceDir, const char *imgName, THREADID tid);
     /**
@@ -40,6 +42,8 @@ class DynamicTraceFile : public TraceFileReader {
      * @return 1 if end of file reached, 0 otherwise.
      */
     int ReadNextBBl(BBLID *bbl);
+    
+    inline unsigned long GetTotalExecInst() {return this->totalExecInst;}
 };
 
 }  // namespace tracer

@@ -41,11 +41,17 @@ class TraceReader {
      */
     virtual int OpenTrace(const char *traceFileName, const char *tracePath) = 0;
     /**
-     * @brief Number of currently fetch instructions.
+     * @return Number of threads.
+     */
+    virtual int GetTotalThreads() = 0;
+    /**
+     * @brief Number of currently fetched instructions.
+     * @param tid Thread Identifier.
      */
     virtual unsigned long GetNumberOfFetchedInst(int tid) = 0;
     /**
      * @brief Number of instructions to be fetched.
+     * @param tid Thread Identifier.
      */
     virtual unsigned long GetTotalInstToBeFetched(int tid) = 0;
     /**

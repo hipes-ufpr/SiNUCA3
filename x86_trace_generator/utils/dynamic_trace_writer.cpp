@@ -34,9 +34,16 @@ tracer::traceGenerator::DynamicTraceFile::DynamicTraceFile(const char* source,
                                                           THREADID tid) {
     unsigned long bufferSize = tracer::GetPathTidInSize(source, "dynamic", img);
     char* path = (char*)alloca(bufferSize);
+    
     FormatPathTidIn(path, source, "dynamic", img, tid, bufferSize);
+    this->UseFile(path);
 
-    this->::tracer::TraceFileWriter::UseFile(path);
+    this->totalExecInst = 0;
+    /*
+     * This space will be used to store the total of instruction executed per
+     * thread.
+     */
+    fseek(this->tf.file, 1 * sizeof(this->totalExecInst), SEEK_SET);
 }
 
 tracer::traceGenerator::DynamicTraceFile::~DynamicTraceFile() {
@@ -44,10 +51,17 @@ tracer::traceGenerator::DynamicTraceFile::~DynamicTraceFile() {
     if (this->tf.offsetInBytes > 0) {
         this->FlushBuffer();
     }
+    
+    fseek(this->tf.file, 0, SEEK_SET);
+    fwrite(&this->totalExecInst, sizeof(this->totalExecInst), 1, this->tf.file);
 }
 
 void tracer::traceGenerator::DynamicTraceFile::PrepareId(BBLID id) {
     this->bblId = id;
+}
+
+void tracer::traceGenerator::DynamicTraceFile::IncTotalExecInst(int ins) {
+    this->totalExecInst += ins;
 }
 
 void tracer::traceGenerator::DynamicTraceFile::AppendToBufferId() {
