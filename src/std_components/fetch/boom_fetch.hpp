@@ -72,10 +72,10 @@ class BoomFetch : public Component<FetchPacket> {
         fetch; /**< Component from which to fetch instructions >*/
     Component<InstructionPacket>*
         instructionMemory; /**< Component for instruction memory >*/
-    Component<BTBPacket>*
-        btb; /**< Branch Target Buffer for storing branch targets >*/
-    Component<PredictorPacket>*
-        ras; /**< Return Address Stack for storing return addresses >*/
+    BranchTargetBuffer*
+        btb;  /**< Branch Target Buffer for storing branch targets >*/
+    Ras* ras; /**< Return Address Stack for storing return addresses >*/
+    Component<PredictorPacket>* preditor;
     FetchBufferEntry*
         fetchBuffer; /**< Fetch Buffer for storing fetched instructions >*/
 
@@ -110,6 +110,8 @@ class BoomFetch : public Component<FetchPacket> {
     int BTBConfigParameter(ConfigValue value);
     /** @brief Helper to set the RAS config parameter. */
     int RASConfigParameter(ConfigValue value);
+    /** @brief Helper to set the Predictor config parameter. */
+    int PredictorConfigParameter(ConfigValue value);
     /** @brief Helper to set the fetch size config parameter. */
     int FetchSizeConfigParameter(ConfigValue value);
     /** @brief Helper to set the fetch interval config parameter. */
@@ -121,9 +123,9 @@ class BoomFetch : public Component<FetchPacket> {
     inline BoomFetch()
         : fetch(NULL),
           instructionMemory(NULL),
-          fetchBuffer(NULL),
           btb(NULL),
           ras(NULL),
+          fetchBuffer(NULL),
           fetchBufferUsage(0),
           fetchSize(1),
           fetchInterval(1),
