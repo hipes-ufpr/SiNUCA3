@@ -1,5 +1,5 @@
-#ifndef SINUCA3_X86_FILE_HANDLER_HPP_
-#define SINUCA3_X86_FILE_HANDLER_HPP_
+#ifndef SINUCA3_SINUCA_TRACER_FILE_HANDLER_HPP_
+#define SINUCA3_SINUCA_TRACER_FILE_HANDLER_HPP_
 
 //
 // Copyright (C) 2024  HiPES - Universidade Federal do Paraná

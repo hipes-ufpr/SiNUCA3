@@ -1,5 +1,5 @@
-#ifndef SINUCA3_X86_TRACE_READER_HPP_
-#define SINUCA3_X86_TRACE_READER_HPP_
+#ifndef SINUCA3_SINUCA_TRACER_TRACE_READER_HPP_
+#define SINUCA3_SINUCA_TRACER_TRACE_READER_HPP_
 
 //
 // Copyright (C) 2025  HiPES - Universidade Federal do Paraná
@@ -82,4 +82,4 @@ class SinucaTraceReader : public TraceReader {
 
 }  // namespace sinucaTracer
 
-#endif  // SINUCA3_X86_TRACE_READER_HPP_
+#endif  // SINUCA3_SINUCA_TRACER_TRACE_READER_HPP_
