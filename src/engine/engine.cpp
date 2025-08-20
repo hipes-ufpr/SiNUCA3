@@ -88,8 +88,6 @@ void Engine::Clock() {
     }
 }
 
-void Engine::Flush() { this->flush = true; }
-
 void Engine::PrintStatistics() {
     SINUCA3_LOG_PRINTF("engine: Cycled %lu times.\n", this->totalCycles);
     SINUCA3_LOG_PRINTF("engine: Fetched %lu instructions.\n",
@@ -141,14 +139,6 @@ int Engine::Simulate(TraceReader* traceReader) {
     while (!this->end && !this->error) {
         if ((this->totalCycles + 1) % (1 << 8) == 0)
             this->PrintTime(start, this->totalCycles + 1);
-
-        if (this->flush) {
-            for (long i = 0; i < this->numberOfComponents; ++i) {
-                this->components[i]->Flush();
-                this->components[i]->LinkableFlush();
-            }
-            this->flush = false;
-        }
 
         for (long i = 0; i < this->numberOfComponents; ++i)
             this->components[i]->Clock();

@@ -35,9 +35,6 @@
 #include <tests.hpp>
 #endif
 
-/** @brief Definition of the ENGINE global object declared in sinuca3.hpp. */
-Engine* ENGINE;
-
 /**
  * @brief Prints licensing information.
  */
@@ -164,8 +161,8 @@ int main(int argc, char* const argv[]) {
     }
 
     EngineBuilder builder;
-    ENGINE = builder.Instantiate(rootConfigFile);
-    if (ENGINE == NULL) return 1;
+    Engine* engine = builder.Instantiate(rootConfigFile);
+    if (engine == NULL) return 1;
 
     TraceReader* traceReader = AllocTraceReader(traceReaderName);
     if (traceReader == NULL) {
@@ -175,8 +172,8 @@ int main(int argc, char* const argv[]) {
     }
     if (traceReader->OpenTrace(traceFileName, traceDir)) return 1;
 
-    ENGINE->Simulate(traceReader);
-    delete ENGINE;
+    engine->Simulate(traceReader);
+    delete engine;
     delete traceReader;
 
     return 0;

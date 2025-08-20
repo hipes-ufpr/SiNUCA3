@@ -126,9 +126,3 @@ bool CircularBuffer::Dequeue(void* elementOutput) {
 
     return 1;
 }
-
-void CircularBuffer::Flush() {
-    this->occupation = 0;
-    this->startOfBuffer = 0;
-    this->endOfBuffer = 0;
-}

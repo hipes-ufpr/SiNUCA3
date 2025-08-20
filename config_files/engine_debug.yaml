@@ -1,6 +1,5 @@
 example: &example
   class: EngineDebugComponent
-  flush: 15
   pointer:
     class: EngineDebugComponent
     pointerOther: *otherComponent

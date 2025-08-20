@@ -69,12 +69,6 @@ struct Connection {
     void SwapBuffers();
 
     /**
-     * @brief Flush the connection, clearing the buffers.
-     * @details This method is called to clear the buffers of the connection.
-     */
-    void FlushConnection();
-
-    /**
      * @brief Insert a message into a requestBuffer.
      * @param id The id of the buffer.
      * @param messageInput A pointer to the message to send.
@@ -218,11 +212,6 @@ class Linkable {
      */
     void PosClock();
     /**
-     * @brief Don't call this method.
-     * @details The engine calls this method when a flush is needed.
-     */
-    void LinkableFlush();
-    /**
      * @brief This method should be declared here so the simulator can send the
      * finish setup message.
      * @details This method is called after the config file is and all
@@ -251,12 +240,6 @@ class Linkable {
      * clock cycles.
      */
     virtual void Clock() = 0;
-
-    /**
-     * @brief This method is called by the engine when a flush should occur.
-     * It's always called at the beggining of the cycle.
-     */
-    virtual void Flush() = 0;
 
     /**
      * @brief This method is called by the engine after the simulation stops, so

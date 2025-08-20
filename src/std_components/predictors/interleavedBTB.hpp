@@ -276,8 +276,6 @@ class BranchTargetBuffer : public Component<struct BTBPacket> {
 
     virtual void Clock();
 
-    virtual void Flush();
-
     virtual void PrintStatistics();
 
     ~BranchTargetBuffer();

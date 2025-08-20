@@ -41,7 +41,6 @@ class QueueTester : public Component<long> {
         return 0;
     }
     virtual void Clock() {}
-    virtual void Flush() {}
     virtual void PrintStatistics() {}
     virtual ~QueueTester() {}
 

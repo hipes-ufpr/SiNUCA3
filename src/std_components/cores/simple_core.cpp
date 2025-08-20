@@ -126,8 +126,6 @@ void SimpleCore::Clock() {
     }
 }
 
-void SimpleCore::Flush() {}
-
 void SimpleCore::PrintStatistics() {
     SINUCA3_LOG_PRINTF("SimpleCore %p: %lu instructions fetched\n", this,
                        this->numFetchedInstructions);

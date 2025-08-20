@@ -93,10 +93,6 @@ int EngineDebugComponent::SetConfigParameter(const char* parameter,
         this->otherConnectionID = this->other->Connect(4);
         return 0;
     }
-    if (strcmp(parameter, "flush") == 0) {
-        this->flush = value.value.integer;
-        return 0;
-    }
     if (strcmp(parameter, "fetch") == 0) {
         this->fetch = dynamic_cast<Component<FetchPacket>*>(
             value.value.componentReference);
@@ -133,11 +129,6 @@ void EngineDebugComponent::Clock() {
         }
     }
 
-    if (this->flush > 0) {
-        --this->flush;
-        if (this->flush == 0) ENGINE->Flush();
-    }
-
     InstructionPacket messageInput = {NULL, DynamicInstructionInfo(), 0};
     InstructionPacket messageOutput = {NULL, DynamicInstructionInfo(), 0};
 
@@ -172,10 +163,6 @@ void EngineDebugComponent::Clock() {
             }
         }
     }
-}
-
-void EngineDebugComponent::Flush() {
-    SINUCA3_DEBUG_PRINTF("%p: A flush happened!\n", this);
 }
 
 void EngineDebugComponent::PrintStatistics() {

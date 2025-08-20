@@ -33,11 +33,7 @@
  * @details The component will log with SINUCA3_DEBUG_PRINTF it's parameters
  * along with their values. If passed the parameter "failNow" with any value,
  * the method SetConfigParameter will return with failure. If passed the
- * parameter "failOnFinish", the method FinishSetup will return with failure. If
- * passed the parameter "flush" with an integer n, it'll ask the engine to flush
- * after n cycles. It'll also log it's clock. Before each log, the pointer to
- * the component is printed to differentiate between multiple
- * EngineDebugComponent.
+ * parameter "failOnFinish", the method FinishSetup will return with failure.
  */
 class EngineDebugComponent : public Component<InstructionPacket> {
   private:
@@ -50,7 +46,6 @@ class EngineDebugComponent : public Component<InstructionPacket> {
     bool send; /** @brief Tells wether we already sent a message to other. */
     bool shallFailOnFinish; /** @brief If true, fails at the FinishSetup method
                                to test the engine handling of failures. */
-    long flush; /** @brief If >0, asks the engine for a flush at this cycle. */
 
     /**
      * @brief Prints a config value along with the parameter name. This is
@@ -70,13 +65,11 @@ class EngineDebugComponent : public Component<InstructionPacket> {
           otherConnectionID(-1),
           fetchConnectionID(-1),
           send(false),
-          shallFailOnFinish(false),
-          flush(-1) {}
+          shallFailOnFinish(false) {}
 
     virtual int FinishSetup();
     virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual void Clock();
-    virtual void Flush();
     virtual void PrintStatistics();
 
     virtual ~EngineDebugComponent();

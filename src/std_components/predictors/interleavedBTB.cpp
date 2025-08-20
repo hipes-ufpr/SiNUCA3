@@ -333,8 +333,6 @@ void BranchTargetBuffer::Clock() {
     }
 }
 
-void BranchTargetBuffer::Flush() {};
-
 void BranchTargetBuffer::PrintStatistics() {
     SINUCA3_LOG_PRINTF("BranchTargetBuffer %p: %lu queries", this,
                        this->numQueries);

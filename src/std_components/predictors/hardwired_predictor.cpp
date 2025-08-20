@@ -139,8 +139,6 @@ void HardwiredPredictor::Clock() {
     }
 }
 
-void HardwiredPredictor::Flush() {}
-
 void HardwiredPredictor::PrintStatistics() {
     SINUCA3_LOG_PRINTF(
         "HardwiredPredictor %p: %lu syscalls executed (predict: %b).\n", this,

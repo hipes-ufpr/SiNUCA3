@@ -56,7 +56,6 @@ class SimpleCore : public Component<InstructionPacket> {
     virtual int FinishSetup();
     virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual void Clock();
-    virtual void Flush();
     virtual void PrintStatistics();
     ~SimpleCore();
 };

@@ -109,12 +109,6 @@ class CircularBuffer {
      */
     bool Dequeue(void* elementOutput);
 
-    /**
-     * @brief Flushes the buffer.
-     * @details This method is called to clear the buffer.
-     */
-    void Flush();
-
     ~CircularBuffer() { this->Deallocate(); };
 };
 

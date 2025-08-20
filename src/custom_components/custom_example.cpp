@@ -34,8 +34,6 @@ int CustomExample::SetConfigParameter(const char* parameter,
 
 void CustomExample::Clock() {}
 
-void CustomExample::Flush() {}
-
 int CustomExample::FinishSetup() { return 0; }
 
 void CustomExample::PrintStatistics() {}

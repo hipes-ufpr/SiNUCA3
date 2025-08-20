@@ -34,8 +34,6 @@ int SimpleExecutionUnit::SetConfigParameter(const char* parameter,
 
 int SimpleExecutionUnit::FinishSetup() { return 0; }
 
-void SimpleExecutionUnit::Flush() {}
-
 void SimpleExecutionUnit::Clock() {
     unsigned long numberOfConnections = this->GetNumberOfConnections();
     for (unsigned long i = 0; i < numberOfConnections; ++i) {

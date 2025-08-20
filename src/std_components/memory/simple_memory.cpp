@@ -44,8 +44,6 @@ void SimpleMemory::Clock() {
     }
 }
 
-void SimpleMemory::Flush() {}
-
 void SimpleMemory::PrintStatistics() {
     SINUCA3_LOG_PRINTF("SimpleMemory %p: %lu requests made\n", this,
                        this->numberOfRequests);

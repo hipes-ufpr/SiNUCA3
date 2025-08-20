@@ -285,8 +285,6 @@ void Fetcher::Clock() {
     ++this->fetchClock;
 }
 
-void Fetcher::Flush() {}
-
 void Fetcher::PrintStatistics() {
     SINUCA3_LOG_PRINTF("Fetcher %p: %lu fetched instructions.\n", this,
                        this->fetchedInstructions);

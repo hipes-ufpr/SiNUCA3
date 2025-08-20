@@ -62,13 +62,6 @@ void Connection::SwapBuffers() {
     this->responseBuffers[1] = aux;
 }
 
-void Connection::FlushConnection() {
-    this->requestBuffers[0]->Flush();
-    this->requestBuffers[1]->Flush();
-    this->responseBuffers[0]->Flush();
-    this->responseBuffers[1]->Flush();
-}
-
 bool Connection::InsertIntoRequestBuffer(int id, void* messageInput) {
     return this->requestBuffers[id]->Enqueue(messageInput);
 }
@@ -108,11 +101,6 @@ void Linkable::AddConnection(Connection* newConnection) {
 }
 
 long Linkable::GetNumberOfConnections() { return this->numberOfConnections; }
-
-void Linkable::LinkableFlush() {
-    for (unsigned int i = 0; i < this->connections.size(); ++i)
-        this->connections[i]->FlushConnection();
-}
 
 void Linkable::PosClock() {
     for (unsigned int i = 0; i < this->connections.size(); ++i)

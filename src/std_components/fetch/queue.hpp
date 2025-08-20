@@ -58,7 +58,6 @@ class Queue : public Component<Type> {
     virtual int FinishSetup();
     virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual void Clock();
-    virtual void Flush();
     virtual void PrintStatistics();
     virtual ~Queue();
 };
@@ -120,9 +119,6 @@ void Queue<Type>::Clock() {
         }
     }
 }
-
-template <typename Type>
-void Queue<Type>::Flush() {}
 
 template <typename Type>
 void Queue<Type>::PrintStatistics() {}

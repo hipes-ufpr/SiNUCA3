@@ -32,11 +32,6 @@
 #include <engine/linkable.hpp>
 #include <utils/logging.hpp>  // IWYU pragma: export
 
-/**
- * @brief Global engine object so everyone can call it's methods.
- */
-extern Engine* ENGINE;
-
 #define COMPONENT(type) \
     if (!strcmp(name, #type)) return new type
 
