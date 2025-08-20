@@ -41,6 +41,8 @@ const FetchBufferEntryFlags FetchBufferEntryFlagsPredicted = (1 << 0);
 const FetchBufferEntryFlags FetchBufferEntryFlagsSentToPredictor = (1 << 1);
 /** @brief We already sent this instruction to the memory. */
 const FetchBufferEntryFlags FetchBufferEntryFlagsSentToMemory = (1 << 2);
+/** @brief We already sent this instruction to the btb. */
+const FetchBufferEntryFlags FetchBufferEntryFlagsSentToBTBAndRas = (1 << 3);
 
 struct FetchBufferEntry {
     InstructionPacket instruction; /**< Fetched instruction >*/
@@ -96,6 +98,7 @@ class BoomFetch : public Component<FetchPacket> {
 
     int fetchID;             /**< ID of the fetch component >*/
     int instructionMemoryID; /**< ID of the instruction memory component >*/
+    int predictorID;
     FetchBufferEntryFlags
         flagsToCheck; /**<Flags to check when removing entries from the buffer.
                          If there's a predictor, we need to check wether the
@@ -119,6 +122,10 @@ class BoomFetch : public Component<FetchPacket> {
     /** @brief Helper to set the missprediction penalty config parameter. */
     int MisspredictPenaltyConfigParameter(ConfigValue value);
 
+    /** @brief Helper to send the fetched instructions to the memory and the
+     * predictor. */
+    void ClockSendBuffered();
+
   public:
     inline BoomFetch()
         : fetch(NULL),
@@ -136,10 +143,11 @@ class BoomFetch : public Component<FetchPacket> {
           fetchedInstructions(0),
           fetchID(-1),
           instructionMemoryID(-1),
+          predictorID(-1),
           flagsToCheck(FetchBufferEntryFlagsSentToMemory) {}
 
-    virtual int FinishSetup();
     virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+    virtual int FinishSetup();
     virtual void Clock();
     virtual void Flush();
     virtual void PrintStatistics();

@@ -134,6 +134,31 @@ int BoomFetch::MisspredictPenaltyConfigParameter(ConfigValue value) {
     return 1;
 }
 
+int BoomFetch::SetConfigParameter(const char* parameter, ConfigValue value) {
+    if (strcmp(parameter, "fetch") == 0) {
+        return this->FetchConfigParameter(value);
+    } else if (strcmp(parameter, "instructionMemory") == 0) {
+        return this->InstructionMemoryConfigParameter(value);
+    } else if (strcmp(parameter, "fetchSize") == 0) {
+        return this->FetchSizeConfigParameter(value);
+    } else if (strcmp(parameter, "fetchInterval") == 0) {
+        return this->FetchIntervalConfigParameter(value);
+    } else if (strcmp(parameter, "BranchTargetBuffer") == 0) {
+        return this->BTBConfigParameter(value);
+    } else if (strcmp(parameter, "Ras") == 0) {
+        return this->RASConfigParameter(value);
+    } else if (strcmp(parameter, "predictor") == 0) {
+        return this->PredictorConfigParameter(value);
+    } else if (strcmp(parameter, "misspredictPenalty") == 0) {
+        return this->MisspredictPenaltyConfigParameter(value);
+    }
+
+    SINUCA3_ERROR_PRINTF("Boom Fetch received unknown parameter %s.\n",
+                         parameter);
+
+    return 1;
+}
+
 int BoomFetch::FinishSetup() {
     if (this->fetch == NULL) {
         SINUCA3_ERROR_PRINTF(
@@ -163,35 +188,50 @@ int BoomFetch::FinishSetup() {
     this->fetchID = this->fetch->Connect(this->fetchSize);
     this->instructionMemoryID =
         this->instructionMemory->Connect(this->fetchSize);
+    this->predictorID = this->preditor->Connect(this->fetchSize);
 
     this->fetchBuffer = new FetchBufferEntry[this->fetchSize];
 
     return 0;
 }
 
-int BoomFetch::SetConfigParameter(const char* parameter, ConfigValue value) {
-    if (strcmp(parameter, "fetch") == 0) {
-        return this->FetchConfigParameter(value);
-    } else if (strcmp(parameter, "instructionMemory") == 0) {
-        return this->InstructionMemoryConfigParameter(value);
-    } else if (strcmp(parameter, "fetchSize") == 0) {
-        return this->FetchSizeConfigParameter(value);
-    } else if (strcmp(parameter, "fetchInterval") == 0) {
-        return this->FetchIntervalConfigParameter(value);
-    } else if (strcmp(parameter, "BranchTargetBuffer") == 0) {
-        return this->BTBConfigParameter(value);
-    } else if (strcmp(parameter, "Ras") == 0) {
-        return this->RASConfigParameter(value);
-    } else if (strcmp(parameter, "predictor") == 0) {
-        return this->PredictorConfigParameter(value);
-    } else if (strcmp(parameter, "misspredictPenalty") == 0) {
-        return this->MisspredictPenaltyConfigParameter(value);
+void BoomFetch::ClockSendBuffered() {
+    unsigned int i = 0;
+
+    // Skip instructions we already sent.
+    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToMemory) ++i;
+
+    while ((i < this->fetchBufferUsage) &&
+           (this->instructionMemory->SendRequest(
+                this->instructionMemoryID, &this->fetchBuffer[i].instruction) ==
+            0)) {
+        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToMemory;
+        ++i;
     }
 
-    SINUCA3_ERROR_PRINTF("Boom Fetch received unknown parameter %s.\n",
-                         parameter);
+    i = 0;
+    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToPredictor)
+        ++i;
 
-    return 1;
+    while (i < this->fetchBufferUsage) {
+        PredictorPacket predictorPacket;
+        predictorPacket.type = PredictorPacketTypeRequestQuery;
+        predictorPacket.data.requestQuery = this->fetchBuffer[i].instruction;
+        if (this->preditor->SendRequest(this->predictorID, &predictorPacket) !=
+            0) {
+            break;
+        }
+        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToPredictor;
+        ++i;
+    }
+
+    i = 0;
+    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToBTBAndRas)
+        ++i;
+
+    /* Logic to BTB and RAS */
+    while (i < this->fetchBufferUsage) {
+    }
 }
 
 void BoomFetch::Clock() {
