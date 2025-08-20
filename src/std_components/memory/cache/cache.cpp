@@ -76,13 +76,13 @@ int Cache::FinishSetup() {
         return 1;
     }
 
-    this->entries = new CacheEntry *[this->numSets];
     size_t n = this->numSets * this->numWays;
+    this->entries = new CacheEntry *[this->numSets];
     this->entries[0] = new CacheEntry[n];
     memset(this->entries[0], 0, n * sizeof(CacheEntry));
     for (int i = 1; i < this->numSets; ++i) {
         this->entries[i] =
-            this->entries[0] + (i * this->numWays * sizeof(CacheEntry));
+            this->entries[0] + (i * this->numWays);
     }
 
     for (int i = 0; i < this->numSets; ++i) {
