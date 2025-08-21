@@ -16,7 +16,7 @@
 //
 
 /**
- * @file x86_file_handler.cpp
+ * @file file_handler.cpp
  * @details Implementation of the file handler, a helper class for handling
  * trace files.
  */
@@ -107,8 +107,8 @@ unsigned long sinucaTracer::GetPathTidInSize(const char *sourceDir,
     unsigned long sourceDirLen = strlen(sourceDir);
     unsigned long prefixLen = strlen(prefix);
     unsigned long imageNameLen = strlen(imageName);
-    // 13 is the number of characters on the format string
-    return MAX_INT_DIGITS + 7 + sourceDirLen + prefixLen + imageNameLen;
+    // 10 is the number of characters on the format string
+    return MAX_INT_DIGITS + 10 + sourceDirLen + prefixLen + imageNameLen;
 }
 
 void sinucaTracer::FormatPathTidIn(char *dest, const char *sourceDir,
