@@ -19,6 +19,20 @@
 //
 
 /**
+ * @file delay_queue.hpp
+ * @brief Queue designed to simulate delay
+ * @details The delay queue component is a queue designed to simulate delay
+ * existing in real life components. Therefore, it has a `delay` parameter
+ * that corresponds to the waiting time in the queue. Beware that any component
+ * has a natural delay of two cycles: 
+ * 
+ * clock #1: component 1 sends message to component 2
+ * clock #2: component 2 receives message and forwards it to component 3
+ * clock #3: component 3 receives message
+ *
+ * The delay queue allows messages from multiple components to be received, but
+ * any request that exceeds the total capacity of the queue mau be  discarded,
+ * so the `throughput` parameter must be set carefully.
  */
 
 #include <engine/component.hpp>
@@ -33,23 +47,35 @@ class DelayQueue : public Component<Type> {
   private:
     struct Input {
         Type elem;
-        unsigned long removeAt;
+        unsigned long removeAt; /**<Cycles until removal> */
         void SetRemoval(unsigned long l) { this->removeAt = l; }
     };
 
-    Input queueFirst;
-    Input elemToInsert;
-    Input elemToRemove;
-    CircularBuffer delayBuffer;
+    Input queueFirst;           /**<Oldest input in the delay buffer> */
+    Input elemToInsert;         /**<Input to be inserted in delay buffer> */
+    Input elemToRemove;         /**<Input removed from delay buffer> */
+    CircularBuffer delayBuffer; /**<Used if delay >= 1 */
     Component<Type>* sendTo;
-    unsigned long cyclesClock;
-    long occupation;
+    unsigned long cyclesClock; /**<A cycles clock> */
+    unsigned long occupation;
+    unsigned long delayBufferSize;
     long throughput;
-    long delay;
+    long delay; /**<Number of cycles of delay> */
     int sendToId;
 
-    int CalculateDelayBufferSize();
+    inline bool IsEmpty() { return !this->occupation; }
+    inline bool IsFull() { return this->delayBuffer.IsFull(); }
+    void CalculateDelayBufferSize();
+    /**
+     * @brief No insertion if full. If empty, the queueFirst is set with new
+     * elemToInsert. Otherwise, it is inserted in delay buffer.
+     */
     int Enqueue();
+    /**
+     * @brief No removal if empty or not time to remove queueFirst. Else, 
+     * elemToRemove receives queueFirst and if occupation is greater than one,
+     * queueFirst receives the oldest input from delay buffer.
+     */
     int Dequeue();
 
   public:
@@ -63,7 +89,7 @@ class DelayQueue : public Component<Type> {
 
 template <typename Type>
 DelayQueue<Type>::DelayQueue()
-    : sendTo(NULL), cyclesClock(0), occupation(0), throughput(0), delay(0) {}
+    : sendTo(NULL), cyclesClock(0), occupation(0), delayBufferSize(0) {}
 
 template <typename Type>
 DelayQueue<Type>::~DelayQueue() {
@@ -71,16 +97,16 @@ DelayQueue<Type>::~DelayQueue() {
 }
 
 template <typename Type>
-int DelayQueue<Type>::CalculateDelayBufferSize() {
-    return this->delay * this->throughput;
+void DelayQueue<Type>::CalculateDelayBufferSize() {
+    this->delayBufferSize = this->delay * this->throughput;
 }
 
 template <typename Type>
 int DelayQueue<Type>::Enqueue() {
-    if (this->delayBuffer.IsFull()) {
+    if (this->IsFull()) {
         return 1;
     }
-    if (this->occupation == 0) {
+    if (this->IsEmpty()) {
         this->queueFirst = this->elemToInsert;
     } else {
         this->delayBuffer.Enqueue(&this->elemToInsert);
@@ -91,7 +117,7 @@ int DelayQueue<Type>::Enqueue() {
 
 template <typename Type>
 int DelayQueue<Type>::Dequeue() {
-    if (this->occupation < 1) {
+    if (this->IsEmpty()) {
         return 1;
     }
     if (this->queueFirst.removeAt > this->cyclesClock) {
@@ -146,11 +172,14 @@ int DelayQueue<Type>::SetConfigParameter(const char* param, ConfigValue val) {
 
 template <typename Type>
 int DelayQueue<Type>::FinishSetup() {
-    if (this->delay == 0 || this->throughput == 0 || this->sendTo == NULL) {
+    if (this->sendTo == NULL) {
         return 1;
     }
     this->sendToId = this->sendTo->Connect(this->throughput);
-    this->delayBuffer.Allocate(this->CalculateDelayBufferSize(), sizeof(Input));
+    this->CalculateDelayBufferSize();
+    if (this->delayBufferSize > 0) {
+        this->delayBuffer.Allocate(this->delayBufferSize, sizeof(Input));
+    }
     return 0;
 }
 
@@ -167,10 +196,10 @@ void DelayQueue<Type>::Clock() {
     }
 
     if (this->delay == 0) {
-        Type* elem = &this->elemToInsert.elem;
+        Type elem;
         for (long i = 0; i < totalConnections; i++) {
-            while (!this->ReceiveRequestFromConnection(i, elem)) {
-                if (this->sendTo->SendRequest(sendToId, elem)) return;
+            while (!this->ReceiveRequestFromConnection(i, &elem)) {
+                if (this->sendTo->SendRequest(sendToId, &elem)) return;
             }
         }
         return;
@@ -179,10 +208,11 @@ void DelayQueue<Type>::Clock() {
     while (!this->Dequeue()) {
         this->sendTo->SendRequest(sendToId, &this->elemToRemove.elem);
     }
+
     this->elemToInsert.SetRemoval(this->cyclesClock + this->delay);
     for (long i = 0; i < totalConnections; i++) {
-        Type* elem = &this->elemToInsert.elem;
-        while (!this->ReceiveRequestFromConnection(i, elem)) {
+        while (
+            !this->ReceiveRequestFromConnection(i, &this->elemToInsert.elem)) {
             if (this->Enqueue()) return;
         }
     }

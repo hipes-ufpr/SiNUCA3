@@ -16,6 +16,8 @@
 //
 
 /**
+ * @file delay_queue.cpp
+ * @brief Implementation of a test of the delay queue.
  */
 
 #include "delay_queue.hpp"
