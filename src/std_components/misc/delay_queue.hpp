@@ -24,8 +24,8 @@
  * @details The delay queue component is a queue designed to simulate delay
  * existing in real life components. Therefore, it has a `delay` parameter
  * that corresponds to the waiting time in the queue. Beware that any component
- * has a natural delay of two cycles: 
- * 
+ * has a natural delay of two cycles:
+ *
  * clock #1: component 1 sends message to component 2
  * clock #2: component 2 receives message and forwards it to component 3
  * clock #3: component 3 receives message
@@ -35,12 +35,10 @@
  * so the `throughput` parameter must be set carefully.
  */
 
+#include <cassert>
 #include <engine/component.hpp>
 #include <sinuca3.hpp>
 #include <utils/circular_buffer.hpp>
-
-#include "config/config.hpp"
-#include "utils/logging.hpp"
 
 template <typename Type>
 class DelayQueue : public Component<Type> {
@@ -54,13 +52,14 @@ class DelayQueue : public Component<Type> {
     Input queueFirst;           /**<Oldest input in the delay buffer> */
     Input elemToInsert;         /**<Input to be inserted in delay buffer> */
     Input elemToRemove;         /**<Input removed from delay buffer> */
+
     CircularBuffer delayBuffer; /**<Used if delay >= 1 */
     Component<Type>* sendTo;
     unsigned long cyclesClock; /**<A cycles clock> */
     unsigned long occupation;
     unsigned long delayBufferSize;
-    long throughput;
-    long delay; /**<Number of cycles of delay> */
+    unsigned long throughput;
+    unsigned long delay; /**<Number of cycles of delay> */
     int sendToId;
 
     inline bool IsEmpty() { return !this->occupation; }
@@ -72,7 +71,7 @@ class DelayQueue : public Component<Type> {
      */
     int Enqueue();
     /**
-     * @brief No removal if empty or not time to remove queueFirst. Else, 
+     * @brief No removal if empty or not time to remove queueFirst. Else,
      * elemToRemove receives queueFirst and if occupation is greater than one,
      * queueFirst receives the oldest input from delay buffer.
      */
@@ -106,6 +105,7 @@ int DelayQueue<Type>::Enqueue() {
     if (this->IsFull()) {
         return 1;
     }
+    this->elemToInsert.SetRemoval(this->cyclesClock + this->delay);
     if (this->IsEmpty()) {
         this->queueFirst = this->elemToInsert;
     } else {
@@ -137,7 +137,7 @@ int DelayQueue<Type>::SetConfigParameter(const char* param, ConfigValue val) {
         if (val.type != ConfigValueTypeInteger) {
             return 1;
         }
-        long delay = val.value.integer;
+        unsigned long delay = val.value.integer;
         if (delay < 0) {
             return 1;
         }
@@ -148,7 +148,7 @@ int DelayQueue<Type>::SetConfigParameter(const char* param, ConfigValue val) {
         if (val.type != ConfigValueTypeInteger) {
             return 1;
         }
-        long throughput = val.value.integer;
+        unsigned long throughput = val.value.integer;
         if (throughput <= 0) {
             return 1;
         }
@@ -172,9 +172,9 @@ int DelayQueue<Type>::SetConfigParameter(const char* param, ConfigValue val) {
 
 template <typename Type>
 int DelayQueue<Type>::FinishSetup() {
-    if (this->sendTo == NULL) {
-        return 1;
-    }
+    assert(this->sendTo != NULL);
+    assert(this->throughput > 0);
+
     this->sendToId = this->sendTo->Connect(this->throughput);
     this->CalculateDelayBufferSize();
     if (this->delayBufferSize > 0) {
@@ -185,24 +185,20 @@ int DelayQueue<Type>::FinishSetup() {
 
 template <typename Type>
 void DelayQueue<Type>::Clock() {
-    long totalConnections = this->GetNumberOfConnections();
+    assert(this->throughput > 0);
+    assert(this->sendTo != NULL);
+    assert(this->cyclesClock + this->delay != (unsigned long)~0);
 
     this->cyclesClock++;
-    if (this->cyclesClock + (unsigned long)this->delay == (unsigned long)~0) {
-        SINUCA3_ERROR_PRINTF(
-            "Congratulations! You've achieved something deemed impossible "
-            "[%lu] cycles in delay queue\n",
-            this->cyclesClock);
-    }
 
-    long requests(0);
+    long totalConnections = this->GetNumberOfConnections();
+
+    unsigned long requests(0);
     if (this->delay == 0) {
         Type elem;
         for (long i = 0; i < totalConnections; i++) {
             while (!this->ReceiveRequestFromConnection(i, &elem)) {
-                if (requests >= this->throughput) {
-                    break;
-                }
+                if (requests >= this->throughput) return;
                 this->sendTo->SendRequest(sendToId, &elem);
                 requests++;
             }
@@ -214,13 +210,10 @@ void DelayQueue<Type>::Clock() {
         this->sendTo->SendRequest(sendToId, &this->elemToRemove.elem);
     }
 
-    this->elemToInsert.SetRemoval(this->cyclesClock + this->delay);
     for (long i = 0; i < totalConnections; i++) {
         while (
             !this->ReceiveRequestFromConnection(i, &this->elemToInsert.elem)) {
-            if (requests >= this->throughput) {
-                break;
-            }
+            if (requests >= this->throughput) return;
             this->Enqueue();
             requests++;
         }

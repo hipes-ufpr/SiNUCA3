@@ -137,7 +137,7 @@ int TestDelayQueue() {
 
     DelayQueue<long> dq2;
     QueueTester component2;
-    dq2.SetConfigParameter("delay", ConfigValue((long)0)); // Zero delay
+    dq2.SetConfigParameter("delay", ConfigValue((long)0));  // Zero delay
     dq2.SetConfigParameter("throughput", ConfigValue((long)1));
     dq2.SetConfigParameter("sendTo", ConfigValue(&component2));
     dq2.FinishSetup();
