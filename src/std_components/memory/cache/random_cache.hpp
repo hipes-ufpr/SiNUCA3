@@ -42,7 +42,9 @@ class RandomCache : public Component<MemoryPacket> {
                                    ConfigValue value);
 
   private:
-    Cache c;
+    Cache cache;
+    unsigned int seed;
+    bool isSeedSet;
     unsigned long numberOfRequests;
 
 };

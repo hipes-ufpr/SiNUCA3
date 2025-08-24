@@ -23,17 +23,30 @@
 #include "random_cache.hpp"
 
 #include <cassert>
+#include <cstdlib>
+#include <ctime>
 
 #include "../../../utils/logging.hpp"
 #include "cache.hpp"
 
-RandomCache::RandomCache() : numberOfRequests(0) {}
+RandomCache::RandomCache() : numberOfRequests(0), isSeedSet(false) {}
 
 RandomCache::~RandomCache() {}
 
-bool RandomCache::Read(unsigned long addr, CacheEntry **result) {}
+bool RandomCache::Read(unsigned long addr, CacheEntry **result) {
+    return this->cache.GetEntry(addr, result);
+}
 
-void RandomCache::Write(unsigned long addr, unsigned long value) {}
+void RandomCache::Write(unsigned long addr, unsigned long value) {
+    unsigned long tag = this->cache.GetTag(addr);
+    unsigned long set = this->cache.GetIndex(addr);
+
+    CacheEntry *entry;
+    if(this->cache.FindEmptyEntry(addr, &entry)){
+        *entry = CacheEntry(entry, tag, set, value);
+        return;
+    }
+}
 
 void RandomCache::Clock() {
     SINUCA3_DEBUG_PRINTF("%p: CacheNWay Clock!\n", this);
@@ -71,10 +84,39 @@ void RandomCache::Flush(){}
 void RandomCache::PrintStatistics(){}
 
 int RandomCache::FinishSetup(){
-    return this->c.FinishSetup();
+    if(this->cache.FinishSetup())
+        return 1;
+
+    if(this->isSeedSet)
+        srand(this->seed);
+    else
+        srand(time(NULL));
+
+    return 0;
 }
 
 int RandomCache::SetConfigParameter(const char *parameter,
                                ConfigValue value){
-                                   return this->c.SetConfigParameter(parameter, value);
+
+                                   if(this->cache.SetConfigParameter(parameter, value))
+                                       return 1;
+
+                                   bool isSeed = (strcmp(parameter, "seed") == 0);
+                                   if (!isSeed) {
+                                       SINUCA3_ERROR_PRINTF("Random Cache received an unkown parameter: %s.\n",
+                                                            parameter);
+                                       return 1;
+                                   }
+
+                                   if (isSeed &&
+                                       value.type != ConfigValueTypeInteger) {
+                                       SINUCA3_ERROR_PRINTF("Random Cache parameter \"seed\" is not an integer.\n");
+                                       return 1;
+                                   }
+
+                                    const long v = value.value.integer;
+                                    this->seed = v;
+                                    this->isSeedSet = true;
+
+                                   return 0;
                                }
