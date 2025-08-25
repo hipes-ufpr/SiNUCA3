@@ -79,13 +79,13 @@ Cache::~Cache() {
 int Cache::FinishSetup() {
     if (this->numSets == 0) {
         SINUCA3_ERROR_PRINTF(
-            "TLB didn't received obrigatory parameter \"sets\"\n");
+            "Cache didn't received obrigatory parameter \"sets\"\n");
         return 1;
     }
 
     if (this->numWays == 0) {
         SINUCA3_ERROR_PRINTF(
-            "TLB didn't received obrigatory parameter \"ways\"\n");
+            "Cache didn't received obrigatory parameter \"ways\"\n");
         return 1;
     }
 
@@ -114,14 +114,14 @@ int Cache::SetConfigParameter(const char *parameter,
     bool isWays = (strcmp(parameter, "ways") == 0);
 
     if (!isSets && !isWays) {
-        SINUCA3_ERROR_PRINTF("TLB received an unkown parameter: %s.\n",
+        SINUCA3_ERROR_PRINTF("Cache received an unkown parameter: %s.\n",
                              parameter);
         return 1;
     }
 
     if ((isSets || isWays) &&
         value.type != ConfigValueTypeInteger) {
-        SINUCA3_ERROR_PRINTF("TLB parameter \"%s\" is not an integer.\n",
+        SINUCA3_ERROR_PRINTF("Cache parameter \"%s\" is not an integer.\n",
                              isSets ? "sets" : "ways");
         return 1;
     }
@@ -130,7 +130,7 @@ int Cache::SetConfigParameter(const char *parameter,
         const long v = value.value.integer;
         if (v <= 0) {
             SINUCA3_ERROR_PRINTF(
-                "Invalid value for TLB parameter \"sets\": should be > 0.");
+                "Invalid value for Cache parameter \"sets\": should be > 0.");
             return 1;
         }
         this->numSets = v;
@@ -140,7 +140,7 @@ int Cache::SetConfigParameter(const char *parameter,
         const long v = value.value.integer;
         if (v <= 0) {
             SINUCA3_ERROR_PRINTF(
-                "Invalid value for TLB parameter \"ways\": should be > 0.");
+                "Invalid value for Cache parameter \"ways\": should be > 0.");
             return 1;
         }
         this->numWays = v;

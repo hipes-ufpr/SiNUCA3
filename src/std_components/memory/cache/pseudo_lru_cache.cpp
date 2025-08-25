@@ -86,7 +86,7 @@ void PseudoLRUCache::Write(unsigned long addr, unsigned long value) {
 }
 
 void PseudoLRUCache::Clock() {
-    SINUCA3_DEBUG_PRINTF("%p: CacheNWay Clock!\n", this);
+    SINUCA3_DEBUG_PRINTF("%p: PseudoLRUCache Clock!\n", this);
     long numberOfConnections = this->GetNumberOfConnections();
     MemoryPacket packet;
     for (long i = 0; i < numberOfConnections; ++i) {
