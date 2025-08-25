@@ -29,7 +29,7 @@
 #include "../../../utils/logging.hpp"
 #include "cache.hpp"
 
-RandomCache::RandomCache() : numberOfRequests(0), isSeedSet(false) {}
+RandomCache::RandomCache() : isSeedSet(false), numberOfRequests(0) {}
 
 RandomCache::~RandomCache() {}
 
