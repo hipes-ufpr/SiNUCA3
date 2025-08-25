@@ -23,8 +23,8 @@
  * @details WP! A cache using LRU as replacement policy.
  */
 
-#include "../../../sinuca3.hpp"
-#include "cache.hpp"
+#include <sinuca3.hpp>
+#include <utils/cache.hpp>
 
 class LRUCache : public Component<MemoryPacket> {
   public:

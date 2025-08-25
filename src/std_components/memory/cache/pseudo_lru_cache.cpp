@@ -25,8 +25,8 @@
 #include <cassert>
 #include <cstring>
 
-#include "../../../utils/logging.hpp"
-#include "cache.hpp"
+#include <utils/logging.hpp>
+#include <utils/cache.hpp>
 
 PseudoLRUCache::PseudoLRUCache() : numberOfRequests(0) {}
 

@@ -25,7 +25,7 @@
 
 #include <cstddef>
 
-#include "../../../sinuca3.hpp"
+#include <sinuca3.hpp>
 
 struct CacheEntry {
     unsigned long tag;

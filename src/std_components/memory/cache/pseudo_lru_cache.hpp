@@ -23,8 +23,8 @@
  * @details WP! A cache using PSEUDO_LRU as replacement policy.
  */
 
-#include "../../../sinuca3.hpp"
-#include "cache.hpp"
+#include <sinuca3.hpp>
+#include <utils/cache.hpp>
 
 struct plruNode {
     unsigned char direction;  // 0 = left, 1 = right

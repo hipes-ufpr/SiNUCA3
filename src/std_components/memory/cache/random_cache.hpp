@@ -23,8 +23,8 @@
  * @details WP! A cache using Random as replacement policy.
  */
 
-#include "../../../sinuca3.hpp"
-#include "cache.hpp"
+#include <sinuca3.hpp>
+#include <utils/cache.hpp>
 
 class RandomCache : public Component<MemoryPacket> {
   public:

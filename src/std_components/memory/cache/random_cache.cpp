@@ -26,8 +26,8 @@
 #include <cstdlib>
 #include <ctime>
 
-#include "../../../utils/logging.hpp"
-#include "cache.hpp"
+#include <utils/logging.hpp>
+#include <utils/cache.hpp>
 
 RandomCache::RandomCache() : isSeedSet(false), numberOfRequests(0) {}
 

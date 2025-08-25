@@ -31,7 +31,7 @@ unsigned long tagBitsMask = 46;
 
 #include <cassert>
 
-#include "../../../utils/logging.hpp"
+#include <utils/logging.hpp>
 #include "cache.hpp"
 
 unsigned long Cache::GetIndex(unsigned long addr) const {

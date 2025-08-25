@@ -25,8 +25,8 @@
 #include <cassert>
 #include <cstring>
 
-#include "../../../utils/logging.hpp"
-#include "cache.hpp"
+#include <utils/logging.hpp>
+#include <utils/cache.hpp>
 
 RoundRobinCache::RoundRobinCache() : numberOfRequests(0) {}
 
