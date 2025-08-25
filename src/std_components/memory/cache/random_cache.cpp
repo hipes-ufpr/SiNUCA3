@@ -46,10 +46,15 @@ void RandomCache::Write(unsigned long addr, unsigned long value) {
         *entry = CacheEntry(entry, tag, set, value);
         return;
     }
+
+    int random = rand() % this->cache.numWays;
+    entry = &this->cache.entries[set][random];
+    *entry = CacheEntry(entry, tag, set, value);
+    return;
 }
 
 void RandomCache::Clock() {
-    SINUCA3_DEBUG_PRINTF("%p: CacheNWay Clock!\n", this);
+    SINUCA3_DEBUG_PRINTF("%p: RandomCache Clock!\n", this);
     long numberOfConnections = this->GetNumberOfConnections();
     MemoryPacket packet;
     for (long i = 0; i < numberOfConnections; ++i) {
