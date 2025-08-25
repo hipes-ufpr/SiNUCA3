@@ -24,9 +24,8 @@
 
 #include <cassert>
 #include <cstring>
-
-#include <utils/logging.hpp>
 #include <utils/cache.hpp>
+#include <utils/logging.hpp>
 
 LRUCache::LRUCache() : numberOfRequests(0) {}
 
@@ -67,26 +66,24 @@ void LRUCache::Write(unsigned long addr, unsigned long value) {
     *lruEntry = CacheEntry(lruEntry, tag, set, value);
 }
 
-int LRUCache::FinishSetup(){
-    if(this->cache.FinishSetup())
-        return 1;
+int LRUCache::FinishSetup() {
+    if (this->cache.FinishSetup()) return 1;
 
     this->WayUsageCounters = new unsigned int*[this->cache.numSets];
     int n = this->cache.numSets * this->cache.numWays;
     this->WayUsageCounters[0] = new unsigned int[n];
     memset(this->WayUsageCounters[0], 0, n * sizeof(unsigned int));
     for (int i = 1; i < this->cache.numSets; ++i) {
-        this->WayUsageCounters[i] = this->WayUsageCounters[0] +
-                                    (i * this->cache.numWays);
+        this->WayUsageCounters[i] =
+            this->WayUsageCounters[0] + (i * this->cache.numWays);
     }
 
     return 0;
 }
 
-int LRUCache::SetConfigParameter(const char *parameter,
-                               ConfigValue value){
-                                   return this->cache.SetConfigParameter(parameter, value);
-                               }
+int LRUCache::SetConfigParameter(const char* parameter, ConfigValue value) {
+    return this->cache.SetConfigParameter(parameter, value);
+}
 
 void LRUCache::Clock() {
     SINUCA3_DEBUG_PRINTF("%p: LRUCache Clock!\n", this);
@@ -96,7 +93,7 @@ void LRUCache::Clock() {
         if (this->ReceiveRequestFromConnection(i, &packet) == 0) {
             ++this->numberOfRequests;
 
-            CacheEntry *result;
+            CacheEntry* result;
 
             // We dont have (and dont need) data to send back, so a
             // MemoryPacket is send back to to signal
@@ -119,6 +116,6 @@ void LRUCache::Clock() {
     }
 }
 
-void LRUCache::Flush(){}
+void LRUCache::Flush() {}
 
-void LRUCache::PrintStatistics(){}
+void LRUCache::PrintStatistics() {}

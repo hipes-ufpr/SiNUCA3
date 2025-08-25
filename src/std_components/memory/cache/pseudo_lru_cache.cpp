@@ -24,9 +24,8 @@
 
 #include <cassert>
 #include <cstring>
-
-#include <utils/logging.hpp>
 #include <utils/cache.hpp>
+#include <utils/logging.hpp>
 
 PseudoLRUCache::PseudoLRUCache() : numberOfRequests(0) {}
 
@@ -66,7 +65,7 @@ void PseudoLRUCache::Write(unsigned long addr, unsigned long value) {
     int j = 0;
 
     CacheEntry *entry;
-    if(this->cache.FindEmptyEntry(addr, &entry)){
+    if (this->cache.FindEmptyEntry(addr, &entry)) {
         *entry = CacheEntry(entry, tag, set, value);
         return;
     }
@@ -116,9 +115,9 @@ void PseudoLRUCache::Clock() {
     }
 }
 
-void PseudoLRUCache::Flush(){}
+void PseudoLRUCache::Flush() {}
 
-void PseudoLRUCache::PrintStatistics(){}
+void PseudoLRUCache::PrintStatistics() {}
 
 int PseudoLRUCache::FinishSetup() {
     if (!(this->cache.numWays % 2)) {
@@ -128,16 +127,14 @@ int PseudoLRUCache::FinishSetup() {
         return 1;
     }
 
-    if(this->cache.FinishSetup())
-        return 1;
+    if (this->cache.FinishSetup()) return 1;
 
     this->plruTree = new struct plruNode *[this->cache.numSets];
     int n = this->cache.numSets * (this->cache.numWays - 1);
     this->plruTree[0] = new struct plruNode[n];
     memset(this->plruTree[0], 0, n * sizeof(struct plruNode));
     for (int i = 1; i < this->cache.numSets; ++i) {
-        this->plruTree[i] =
-            this->plruTree[0] + (i * this->cache.numWays);
+        this->plruTree[i] = this->plruTree[0] + (i * this->cache.numWays);
     }
 
     // Inicialize tree node's range
@@ -168,8 +165,7 @@ int PseudoLRUCache::FinishSetup() {
     return 0;
 }
 
-
 int PseudoLRUCache::SetConfigParameter(const char *parameter,
-                               ConfigValue value){
-                                   return this->cache.SetConfigParameter(parameter, value);
-                               }
+                                       ConfigValue value) {
+    return this->cache.SetConfigParameter(parameter, value);
+}

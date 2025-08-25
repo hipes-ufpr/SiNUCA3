@@ -44,8 +44,7 @@ class PseudoLRUCache : public Component<MemoryPacket> {
     virtual void Flush();
     virtual void PrintStatistics();
     virtual int FinishSetup();
-    virtual int SetConfigParameter(const char *parameter,
-                                   ConfigValue value);
+    virtual int SetConfigParameter(const char *parameter, ConfigValue value);
 
   private:
     Cache cache;

@@ -24,9 +24,8 @@
 
 #include <cassert>
 #include <cstring>
-
-#include <utils/logging.hpp>
 #include <utils/cache.hpp>
+#include <utils/logging.hpp>
 
 RoundRobinCache::RoundRobinCache() : numberOfRequests(0) {}
 
@@ -41,7 +40,7 @@ void RoundRobinCache::Write(unsigned long addr, unsigned long value) {
     unsigned long set = this->cache.GetIndex(addr);
 
     CacheEntry *entry;
-    if(this->cache.FindEmptyEntry(addr, &entry)){
+    if (this->cache.FindEmptyEntry(addr, &entry)) {
         *entry = CacheEntry(entry, tag, set, value);
         return;
     }
@@ -84,13 +83,12 @@ void RoundRobinCache::Clock() {
     }
 }
 
-void RoundRobinCache::Flush(){}
+void RoundRobinCache::Flush() {}
 
-void RoundRobinCache::PrintStatistics(){}
+void RoundRobinCache::PrintStatistics() {}
 
-int RoundRobinCache::FinishSetup(){
-    if(this->cache.FinishSetup())
-        return 1;
+int RoundRobinCache::FinishSetup() {
+    if (this->cache.FinishSetup()) return 1;
 
     this->rrIndex = new int[this->cache.numSets];
     memset(this->rrIndex, 0, sizeof(int) * this->cache.numSets);
@@ -99,6 +97,6 @@ int RoundRobinCache::FinishSetup(){
 }
 
 int RoundRobinCache::SetConfigParameter(const char *parameter,
-                               ConfigValue value){
-                                   return this->cache.SetConfigParameter(parameter, value);
-                               }
+                                        ConfigValue value) {
+    return this->cache.SetConfigParameter(parameter, value);
+}

@@ -24,7 +24,6 @@
  */
 
 #include <cstddef>
-
 #include <sinuca3.hpp>
 
 struct CacheEntry {
@@ -36,22 +35,27 @@ struct CacheEntry {
 
     CacheEntry() {};
 
-    inline CacheEntry(int i, int j, unsigned long tag, unsigned long index, unsigned long value)
-    : tag(tag), index(index), isValid(false), i(i), j(j), value(value) {};
+    inline CacheEntry(int i, int j, unsigned long tag, unsigned long index,
+                      unsigned long value)
+        : tag(tag), index(index), isValid(false), i(i), j(j), value(value) {};
 
-    inline CacheEntry(CacheEntry *entry, unsigned long tag, unsigned long index, unsigned long value)
-    : tag(tag), index(index), isValid(true), i(entry->i), j(entry->j), value(value) {};
+    inline CacheEntry(CacheEntry *entry, unsigned long tag, unsigned long index,
+                      unsigned long value)
+        : tag(tag),
+          index(index),
+          isValid(true),
+          i(entry->i),
+          j(entry->j),
+          value(value) {};
 };
 
 class Cache {
   public:
-    inline Cache()
-        : numSets(0), numWays(0), entries(NULL) {};
+    inline Cache() : numSets(0), numWays(0), entries(NULL) {};
     virtual ~Cache();
 
     int FinishSetup();
-    int SetConfigParameter(const char *parameter,
-                                   ConfigValue value);
+    int SetConfigParameter(const char *parameter, ConfigValue value);
 
     int numSets;
     int numWays;
@@ -74,7 +78,8 @@ class Cache {
 
     /**
      * @brief Can be used to find a entry that is not valid yet.
-     * @detail  If no victim is found, a replacement algorithm must choose which items to discard to make room for new data.
+     * @detail  If no victim is found, a replacement algorithm must choose which
+     * items to discard to make room for new data.
      * @param addr Address to look for.
      * @param result Pointer to store result.
      * @return True if victim is found, false otherwise.

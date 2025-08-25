@@ -30,8 +30,8 @@ unsigned long indexBitsMask = 6;
 unsigned long tagBitsMask = 46;
 
 #include <cassert>
-
 #include <utils/logging.hpp>
+
 #include "cache.hpp"
 
 unsigned long Cache::GetIndex(unsigned long addr) const {
@@ -56,7 +56,7 @@ bool Cache::GetEntry(unsigned long addr, CacheEntry **result) const {
     return false;
 }
 
-bool Cache::FindEmptyEntry(unsigned long addr, CacheEntry **result) const{
+bool Cache::FindEmptyEntry(unsigned long addr, CacheEntry **result) const {
     unsigned long index = this->GetIndex(addr);
     for (int way = 0; way < this->numWays; ++way) {
         CacheEntry *entry = &this->entries[index][way];
@@ -94,8 +94,7 @@ int Cache::FinishSetup() {
     this->entries[0] = new CacheEntry[n];
     memset(this->entries[0], 0, n * sizeof(CacheEntry));
     for (int i = 1; i < this->numSets; ++i) {
-        this->entries[i] =
-            this->entries[0] + (i * this->numWays);
+        this->entries[i] = this->entries[0] + (i * this->numWays);
     }
 
     for (int i = 0; i < this->numSets; ++i) {
@@ -108,8 +107,7 @@ int Cache::FinishSetup() {
     return 0;
 }
 
-int Cache::SetConfigParameter(const char *parameter,
-                              ConfigValue value) {
+int Cache::SetConfigParameter(const char *parameter, ConfigValue value) {
     bool isSets = (strcmp(parameter, "sets") == 0);
     bool isWays = (strcmp(parameter, "ways") == 0);
 
@@ -119,8 +117,7 @@ int Cache::SetConfigParameter(const char *parameter,
         return 1;
     }
 
-    if ((isSets || isWays) &&
-        value.type != ConfigValueTypeInteger) {
+    if ((isSets || isWays) && value.type != ConfigValueTypeInteger) {
         SINUCA3_ERROR_PRINTF("Cache parameter \"%s\" is not an integer.\n",
                              isSets ? "sets" : "ways");
         return 1;
