@@ -146,6 +146,8 @@ class BoomFetch : public Component<FetchPacket> {
           fetchID(-1),
           instructionMemoryID(-1),
           predictorID(-1),
+          btbID(-1),
+          rasID(-1),
           flagsToCheck(FetchBufferEntryFlagsSentToMemory) {}
 
     virtual int SetConfigParameter(const char* parameter, ConfigValue value);
