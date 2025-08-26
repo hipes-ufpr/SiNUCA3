@@ -98,7 +98,7 @@ BranchTargetBuffer::BranchTargetBuffer()
       interleavingFactor(0),
       numEntries(0),
       interleavingBits(0),
-      entriesBits(0) {};
+      entriesBits(0){};
 
 int BranchTargetBuffer::Configure(Config config) {
     long interleavingFactor;
@@ -175,8 +175,8 @@ int BranchTargetBuffer::UpdateBranch(const StaticInstructionInfo* instruction,
     return this->btb[index]->UpdateEntry(bank, branchState);
 }
 
-inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
-                                      int connectionID) {
+void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
+                               int connectionID) {
     unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
     unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
     BTBPacket response;
@@ -233,13 +233,13 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
     }
 }
 
-inline int BranchTargetBuffer::AddEntry(
-    const StaticInstructionInfo* instruction, unsigned long targetAddress) {
+int BranchTargetBuffer::AddEntry(const StaticInstructionInfo* instruction,
+                                 unsigned long targetAddress) {
     return this->RegisterNewBranch(instruction, targetAddress);
 }
 
-inline int BranchTargetBuffer::Update(const StaticInstructionInfo* instruction,
-                                      bool branchState) {
+int BranchTargetBuffer::Update(const StaticInstructionInfo* instruction,
+                               bool branchState) {
     return this->UpdateBranch(instruction, branchState);
 }
 

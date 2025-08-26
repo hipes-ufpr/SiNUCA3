@@ -42,7 +42,7 @@ const FetchBufferEntryFlags FetchBufferEntryFlagsSentToPredictor = (1 << 1);
 /** @brief We already sent this instruction to the memory. */
 const FetchBufferEntryFlags FetchBufferEntryFlagsSentToMemory = (1 << 2);
 /** @brief We already sent this instruction to the btb. */
-const FetchBufferEntryFlags FetchBufferEntryFlagsSentToBTBAndRas = (1 << 3);
+const FetchBufferEntryFlags FetchBufferEntryFlagsSentToBTB = (1 << 3);
 
 struct FetchBufferEntry {
     InstructionPacket instruction; /**< Fetched instruction >*/
@@ -98,7 +98,9 @@ class BoomFetch : public Component<FetchPacket> {
 
     int fetchID;             /**< ID of the fetch component >*/
     int instructionMemoryID; /**< ID of the instruction memory component >*/
-    int predictorID;
+    int predictorID;         /**< ID of the predictor component */
+    int btbID;               /**< ID of the BTB component */
+    int rasID;               /**< ID of the RAS component */
     FetchBufferEntryFlags
         flagsToCheck; /**<Flags to check when removing entries from the buffer.
                          If there's a predictor, we need to check wether the
