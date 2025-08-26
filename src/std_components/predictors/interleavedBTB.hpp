@@ -40,7 +40,7 @@
  */
 
 #include <sinuca3.hpp>
-#include <utils/bimodal_predictor.hpp>
+#include <utils/bimodal_counter.hpp>
 
 const int MAX_INTERLEAVING_FACTOR = 16;
 

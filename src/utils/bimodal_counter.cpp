@@ -20,7 +20,7 @@
  * @details Implementation of a generic bimodal predictor.
  */
 
-#include "bimodal_predictor.hpp"
+#include "bimodal_counter.hpp"
 
 BimodalPredictor::BimodalPredictor() : prediction(2) {}
 
