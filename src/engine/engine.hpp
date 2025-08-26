@@ -25,7 +25,7 @@
 
 #include <ctime>
 #include <engine/component.hpp>
-#include <trace_reader/trace_reader.hpp>
+#include <tracer/trace_reader.hpp>
 
 /**
  * @brief The engine itself.
@@ -47,6 +47,8 @@ class Engine : public Component<FetchPacket> {
     unsigned long totalCycles; /** @brief Counter of cycles. */
     unsigned long
         fetchedInstructions; /** @brief Counter of instructions fetched. */
+    unsigned long traceSize; /** @brief The total amount of instructions to be
+                                executed. */
 
     /**
      * @brief Will be one when there's no more instructions in the trace file.
@@ -54,6 +56,11 @@ class Engine : public Component<FetchPacket> {
     bool end;
     /** @brief Will be set if the traceReader returns an error. */
     bool error;
+
+    /**
+     * @brief Returns the number of instructions to be executed.
+     */
+    unsigned long GetTraceSize();
 
     /**
      * @brief Prints the estimated remaining simulation time.

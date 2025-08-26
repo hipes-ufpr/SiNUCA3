@@ -28,11 +28,11 @@
  * deals with buffering/flushing the data.
  */
 
-#include "../../src/utils/file_handler.hpp"
+#include <tracer/sinuca/file_handler.hpp>
+
 #include "pin.H"
 
-namespace trace {
-namespace traceGenerator {
+namespace sinucaTracer {
 
 // Set to be equal to same constant declared in default_packets.hpp
 const unsigned int MAX_MEM_OPERATIONS = 16;
@@ -56,7 +56,6 @@ class MemoryTraceFile : public TraceFileWriter {
     void AppendToBufferLastMemoryAccess();
 };
 
-}  // namespace traceGenerator
-}  // namespace trace
+}  // namespace sinucaTracer
 
 #endif

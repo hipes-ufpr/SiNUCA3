@@ -25,9 +25,6 @@
  * component that instantiates this template class to use it.
  */
 
-#include "../../sinuca3.hpp"
-#include "../../utils/logging.hpp"
-
 /**
  * @brief Queue is a template class for creating fetching queues.
  * @details The queue uses the connection ones creates to it as buffer. Thus,
@@ -127,6 +124,31 @@ template <typename Type>
 Queue<Type>::~Queue() {}
 
 #ifndef NDEBUG
+/** @brief Component for testing the Queue template class. */
+class QueueTester : public Component<long> {
+  public:
+    virtual int FinishSetup() { return 0; }
+    virtual int SetConfigParameter(const char* parameter, ConfigValue value) {
+        (void)parameter;
+        (void)value;
+
+        return 0;
+    }
+    virtual void Clock() {}
+    virtual void PrintStatistics() {}
+    virtual ~QueueTester() {}
+
+    /** @brief Get's a message as a `long`, returning 0 if no message is
+     * available. */
+    long GetMessage() {
+        long msg;
+        if (!this->ReceiveRequestFromConnection(0, &msg)) {
+            return msg;
+        }
+        return 0;
+    }
+};
+
 int TestQueue();
 #endif  // NDEBUG
 

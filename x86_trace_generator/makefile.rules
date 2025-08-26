@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 #
 
-UTILS := ../src/utils
+UTILS := ../src/tracer/sinuca
 # This defines the tool location
 TOOL_ROOTS := sinuca3_pintool
 
@@ -16,17 +16,20 @@ TOOL_ROOTS := sinuca3_pintool
 # This section contains the build rules for all binaries that have special build rules.
 # See makefile.default.rules for the default build rules.
 
+$(OBJDIR)sinuca3_pintool$(OBJ_SUFFIX): sinuca3_pintool.cpp
+	$(CXX) $(TOOL_CXXFLAGS) -I../src -I. $(COMP_OBJ)$@ $<
+
 $(OBJDIR)file_handler$(OBJ_SUFFIX): $(UTILS)/file_handler.cpp $(UTILS)/file_handler.hpp
-	$(CXX) $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $<
+	$(CXX) $(TOOL_CXXFLAGS) -I../src -I. $(COMP_OBJ)$@ $<
 
 $(OBJDIR)static_trace_writer$(OBJ_SUFFIX): ./utils/static_trace_writer.cpp ./utils/static_trace_writer.hpp
-	$(CXX) $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $<
+	$(CXX) $(TOOL_CXXFLAGS) -I../src -I. $(COMP_OBJ)$@ $<
 
 $(OBJDIR)dynamic_trace_writer$(OBJ_SUFFIX): ./utils/dynamic_trace_writer.cpp ./utils/dynamic_trace_writer.hpp
-	$(CXX) $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $<
+	$(CXX) $(TOOL_CXXFLAGS) -I../src -I. $(COMP_OBJ)$@ $<
 
 $(OBJDIR)memory_trace_writer$(OBJ_SUFFIX): ./utils/memory_trace_writer.cpp ./utils/memory_trace_writer.hpp
-	$(CXX) $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $<
+	$(CXX) $(TOOL_CXXFLAGS) -I../src -I. $(COMP_OBJ)$@ $<
 
 $(OBJDIR)sinuca3_pintool$(PINTOOL_SUFFIX): $(OBJDIR)sinuca3_pintool$(OBJ_SUFFIX) $(OBJDIR)static_trace_writer$(OBJ_SUFFIX) $(OBJDIR)dynamic_trace_writer$(OBJ_SUFFIX) $(OBJDIR)memory_trace_writer$(OBJ_SUFFIX) $(OBJDIR)file_handler$(OBJ_SUFFIX)
 	$(LINKER) $(TOOL_LDFLAGS) $(LINK_EXE)$@ $^ $(TOOL_LPATHS) $(TOOL_LIBS)

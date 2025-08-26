@@ -28,11 +28,11 @@
  * deals with buffering/flushing the data.
  */
 
-#include "../../src/utils/file_handler.hpp"
-#include "pin.H"
+#include <pin.H>
 
-namespace trace {
-namespace traceGenerator {
+#include <tracer/sinuca/file_handler.hpp>
+
+namespace sinucaTracer {
 
 class StaticTraceFile : public TraceFileWriter {
   private:
@@ -59,7 +59,6 @@ class StaticTraceFile : public TraceFileWriter {
     inline unsigned int GetBBlCount() { return this->bblCount; }
 };
 
-}  // namespace traceGenerator
-}  // namespace trace
+}  // namespace sinucaTracer
 
 #endif

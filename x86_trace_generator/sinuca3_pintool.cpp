@@ -29,10 +29,10 @@ extern "C" {
 #include <unistd.h>    // access
 }
 
-#include "../src/utils/logging.hpp"
-#include "./utils/static_trace_writer.hpp"
-#include "./utils/dynamic_trace_writer.hpp"
-#include "./utils/memory_trace_writer.hpp"
+#include <sinuca3.hpp>
+#include <utils/dynamic_trace_writer.hpp>
+#include <utils/memory_trace_writer.hpp>
+#include <utils/static_trace_writer.hpp>
 
 /* Prototypes */
 int Usage();
@@ -45,7 +45,7 @@ VOID EnableInstrumentationInThread(THREADID tid);
 VOID DisableInstrumentationInThread(THREADID tid);
 VOID InsertInstrumentionOnMemoryOperations(const INS* ins);
 
-VOID AppendToDynamicTrace(UINT32 bblId);
+VOID AppendToDynamicTrace(UINT32 bblId, UINT32 numInst);
 VOID AppendToMemTraceStd(ADDRINT addr, UINT32 size);
 VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* accessInfo);
 
@@ -68,53 +68,60 @@ const int MEMREAD2_EA = IARG_MEMORYREAD2_EA;
 const int DEBUG_PRINT_GOMP_RNT = 0;
 
 /**
- * @note Instrumentation is the process of deciding where and what code should be inserted into the target program,
- * while analysis refers to the code that is actually executed at those insertion points to gather information
- * about the program’s behavior.
+ * @note Instrumentation is the process of deciding where and what code should
+ * be inserted into the target program, while analysis refers to the code that
+ * is actually executed at those insertion points to gather information about
+ * the program’s behavior.
  *
- * @brief When enabled, this flag allows the pintool to record all instructions static info into a static trace file,
- * and allows the instrumentation phase (e.g., in OnTrace) to insert analysis code into the target program.
- * However, the inserted analysis code will only execute at runtime if the corresponding thread has its
- * threadInstrumentationEnabled flag set to true.
+ * @brief When enabled, this flag allows the pintool to record all instructions
+ * static info into a static trace file, and allows the instrumentation phase
+ * (e.g., in OnTrace) to insert analysis code into the target program. However,
+ * the inserted analysis code will only execute at runtime if the corresponding
+ * thread has its threadInstrumentationEnabled flag set to true.
  */
 static bool isInstrumentating;
 /**
- * @note Instrumentation is the process of deciding where and what code should be inserted into the target program,
- * while analysis refers to the code that is actually executed at those insertion points to gather information
- * about the program’s behavior.
+ * @note Instrumentation is the process of deciding where and what code should
+ * be inserted into the target program, while analysis refers to the code that
+ * is actually executed at those insertion points to gather information about
+ * the program’s behavior.
  *
- * @brief Indicates, for each thread, whether it is allowed to execute previously inserted analysis code.
+ * @brief Indicates, for each thread, whether it is allowed to execute
+ * previously inserted analysis code.
  *
- * This flag does not control the instrumentation process itself (i.e., whether code is inserted into the target
- * program), but rather whether a specific thread is permitted to execute that analysis code at runtime.
+ * This flag does not control the instrumentation process itself (i.e., whether
+ * code is inserted into the target program), but rather whether a specific
+ * thread is permitted to execute that analysis code at runtime.
  *
- * The insertion of analysis code occurs only when the global `isInstrumentating` flag is enabled. Later, during
- * program execution, the inserted code will only be executed by a thread if its corresponding entry in
+ * The insertion of analysis code occurs only when the global
+ * `isInstrumentating` flag is enabled. Later, during program execution, the
+ * inserted code will only be executed by a thread if its corresponding entry in
  * this vector is set to true.
  *
- * When executed, the analysis code records dynamic and memory trace information into files associated
- * with the executing thread.
+ * When executed, the analysis code records dynamic and memory trace information
+ * into files associated with the executing thread.
  */
 static std::vector<bool> isThreadAnalysisEnabled;
 
-
 char* imageName = NULL;
 const char* folderPath;
-bool wasInstrumented = false; // true, if program was been instrumented once at least.
+bool wasInstrumented =
+    false;  // true, if program was been instrumented once at least.
 
-trace::traceGenerator::StaticTraceFile* staticTrace;
-std::vector<trace::traceGenerator::DynamicTraceFile*> dynamicTraces;
-std::vector<trace::traceGenerator::MemoryTraceFile*> memoryTraces;
+sinucaTracer::StaticTraceFile* staticTrace;
+std::vector<sinucaTracer::DynamicTraceFile*> dynamicTraces;
+std::vector<sinucaTracer::MemoryTraceFile*> memoryTraces;
 
 PIN_LOCK pinLock;
 std::vector<const char*> OMP_ignore;
 
 KNOB<INT> KnobNumberIns(KNOB_MODE_WRITEONCE, "pintool", "number_max_inst", "-1",
                         "Maximum number of instructions to be traced");
-KNOB<std::string> KnobFolder(KNOB_MODE_WRITEONCE, "pintool", "o",
-                             "./", "Path to store the trace files");
-KNOB<BOOL> KnobForceInstrumentation(KNOB_MODE_WRITEONCE, "pintool", "f",
-                             "0", "Force instrumentation for the entire execution for all created threads");
+KNOB<std::string> KnobFolder(KNOB_MODE_WRITEONCE, "pintool", "o", "./",
+                             "Path to store the trace files");
+KNOB<BOOL> KnobForceInstrumentation(
+    KNOB_MODE_WRITEONCE, "pintool", "f", "0",
+    "Force instrumentation for the entire execution for all created threads");
 
 int Usage() {
     SINUCA3_LOG_PRINTF("Tool knob summary: %s\n",
@@ -132,7 +139,7 @@ bool StrStartsWithGomp(const char* s) {
     return true;
 }
 
-void InitGompHandling(){
+void InitGompHandling() {
     // All these functions have a PAUSE instruction (Spin-lock hint)
     OMP_ignore.push_back("gomp_barrier_wait_end");
     OMP_ignore.push_back("gomp_team_barrier_wait_end");
@@ -176,18 +183,20 @@ VOID EnableInstrumentationInThread(THREADID tid) {
 }
 
 VOID DisableInstrumentationInThread(THREADID tid) {
-    if (!isThreadAnalysisEnabled[tid] || KnobForceInstrumentation.Value()) return;
+    if (!isThreadAnalysisEnabled[tid] || KnobForceInstrumentation.Value())
+        return;
     PIN_GetLock(&pinLock, tid);
     SINUCA3_LOG_PRINTF("Disabling tool instrumentation in thread [%d]\n", tid);
     isThreadAnalysisEnabled[tid] = false;
     PIN_ReleaseLock(&pinLock);
 }
 
-VOID AppendToDynamicTrace(UINT32 bblId) {
+VOID AppendToDynamicTrace(UINT32 bblId, UINT32 numInst) {
     THREADID tid = PIN_ThreadId();
     if (!isThreadAnalysisEnabled[tid]) return;
     dynamicTraces[tid]->PrepareId(bblId);
     dynamicTraces[tid]->AppendToBufferId();
+    dynamicTraces[tid]->IncTotalExecInst(numInst);
 }
 
 VOID AppendToMemTraceStd(ADDRINT addr, UINT32 size) {
@@ -208,11 +217,13 @@ VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
     PIN_GetLock(&pinLock, tid);
     SINUCA3_DEBUG_PRINTF("New thread created! N => %d (%s)\n", tid, imageName);
     staticTrace->IncThreadCount();
-    isThreadAnalysisEnabled.push_back(KnobForceInstrumentation.Value()); // Init with instru. disabled (or enabled if forced with "-f")
-    dynamicTraces.push_back(new trace::traceGenerator::DynamicTraceFile(
-        folderPath, imageName, tid));
+    isThreadAnalysisEnabled.push_back(
+        KnobForceInstrumentation.Value());  // Init with instru. disabled (or
+                                            // enabled if forced with "-f")
+    dynamicTraces.push_back(
+        new sinucaTracer::DynamicTraceFile(folderPath, imageName, tid));
     memoryTraces.push_back(
-        new trace::traceGenerator::MemoryTraceFile(folderPath, imageName, tid));
+        new sinucaTracer::MemoryTraceFile(folderPath, imageName, tid));
     PIN_ReleaseLock(&pinLock);
 }
 
@@ -260,12 +271,12 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
 
     if (RTN_Valid(traceRtn)) {
         const char* traceRtnName = RTN_Name(traceRtn).c_str();
-        #if DEBUG_PRINT_GOMP_RNT == 1
+#if DEBUG_PRINT_GOMP_RNT == 1
         if (StrStartsWithGomp(traceRtnName)) {
             TRACE_InsertCall(trace, IPOINT_BEFORE, (AFUNPTR)DebugPrintRtnName,
                              IARG_PTR, traceRtnName, IARG_THREAD_ID, IARG_END);
         }
-        #endif
+#endif
         /*
          * This will make every function call from libgomp that have a
          * PAUSE instruction to be ignored
@@ -282,11 +293,13 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
     PIN_GetLock(&pinLock, tid);
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
+        unsigned int numberInstBBl = BBL_NumIns(bbl);
         BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)AppendToDynamicTrace,
-                       IARG_UINT32, staticTrace->GetBBlCount(), IARG_END);
+                       IARG_UINT32, staticTrace->GetBBlCount(), IARG_UINT32,
+                       numberInstBBl, IARG_END);
 
         staticTrace->IncBBlCount();
-        staticTrace->AppendToBufferNumIns(BBL_NumIns(bbl));
+        staticTrace->AppendToBufferNumIns(numberInstBBl);
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
             staticTrace->PrepareDataINS(&ins);
             staticTrace->AppendToBufferDataINS();
@@ -316,11 +329,10 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
         }
     }
     unsigned long imageNameLen = imgPathLen - idx + sizeof('\0');
-    imageName = (char*)malloc(imageNameLen); // freed in Fini()
+    imageName = (char*)malloc(imageNameLen);  // freed in Fini()
     memcpy(imageName, completeImgPathPtr + idx, imageNameLen);
 
-    staticTrace =
-        new trace::traceGenerator::StaticTraceFile(folderPath, imageName);
+    staticTrace = new sinucaTracer::StaticTraceFile(folderPath, imageName);
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
         for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn)) {
             RTN_Open(rtn);
@@ -357,8 +369,7 @@ VOID OnFini(INT32 code, VOID* ptr) {
     SINUCA3_LOG_PRINTF("End of tool execution\n");
     SINUCA3_DEBUG_PRINTF("Number of BBLs [%u]\n", staticTrace->GetBBlCount());
 
-    if(imageName != NULL)
-        free(imageName);
+    if (imageName != NULL) free(imageName);
 
     // Close static trace file
     delete staticTrace;
@@ -367,12 +378,15 @@ VOID OnFini(INT32 code, VOID* ptr) {
         SINUCA3_WARNING_PRINTF(
             "No instrumentation blocks were found in the target program.\n"
             "As result, no instruction data was recorded in the trace files.\n"
-            "To enable instrumentation, wrap the target code with BeginInstrumentationBlock() and EndInstrumentationBlock().\n"
-            "Instrumentation code is only inserted within these blocks, and analysis is only executed if the thread has\n"
+            "To enable instrumentation, wrap the target code with "
+            "BeginInstrumentationBlock() and EndInstrumentationBlock().\n"
+            "Instrumentation code is only inserted within these blocks, and "
+            "analysis is only executed if the thread has\n"
             "called EnableThreadInstrumentation().\n"
-            "Use the -f flag to force instrumentation even when no blocks are defined.\n"
-            "Use the -f flag to force instrumentation even when no blocks are defined.\n"
-        );
+            "Use the -f flag to force instrumentation even when no blocks are "
+            "defined.\n"
+            "Use the -f flag to force instrumentation even when no blocks are "
+            "defined.\n");
     }
 }
 
@@ -391,10 +405,12 @@ int main(int argc, char* argv[]) {
     PIN_InitLock(&pinLock);
 
     // Init with instru. disabled (or enabled if forced with "-f");
-    if(KnobForceInstrumentation.Value()){
-        SINUCA3_WARNING_PRINTF("Force flag (\"-f\") enabled: Instrumentating entire program for all created threads.\n");
+    if (KnobForceInstrumentation.Value()) {
+        SINUCA3_WARNING_PRINTF(
+            "Force flag (\"-f\") enabled: Instrumentating entire program for "
+            "all created threads.\n");
         InitInstrumentation();
-    } else{
+    } else {
         isInstrumentating = false;
     }
 

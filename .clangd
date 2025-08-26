@@ -1,0 +1,10 @@
+{
+    "CompileFlags": {
+        "Remove": [
+            "-fabi-version=2"
+        ],
+        "Add": [
+            "-D_LIBCPP_DISABLE_AVAILABILITY"
+        ]
+    }
+}
