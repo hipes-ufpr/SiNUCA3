@@ -30,31 +30,6 @@
 
 #ifndef NDEBUG
 
-/** @brief Component for testing the Queue template class. */
-class QueueTester : public Component<long> {
-  public:
-    virtual int FinishSetup() { return 0; }
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value) {
-        (void)parameter;
-        (void)value;
-
-        return 0;
-    }
-    virtual void Clock() {}
-    virtual void PrintStatistics() {}
-    virtual ~QueueTester() {}
-
-    /** @brief Get's a message as a `long`, returning 0 if no message is
-     * available. */
-    long GetMessage() {
-        long msg;
-        if (!this->ReceiveRequestFromConnection(0, &msg)) {
-            return msg;
-        }
-        return 0;
-    }
-};
-
 /** @brief Test for the Queue template class. */
 int TestQueue() {
     Queue<long> queue;
