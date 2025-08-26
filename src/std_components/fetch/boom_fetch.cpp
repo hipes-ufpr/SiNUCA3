@@ -189,6 +189,8 @@ int BoomFetch::FinishSetup() {
     this->instructionMemoryID =
         this->instructionMemory->Connect(this->fetchSize);
     this->predictorID = this->preditor->Connect(this->fetchSize);
+    this->btbID = this->btb->Connect(this->fetchSize);
+    this->rasID = this->ras->Connect(this->fetchSize);
 
     this->fetchBuffer = new FetchBufferEntry[this->fetchSize];
 
@@ -226,16 +228,22 @@ void BoomFetch::ClockSendBuffered() {
     }
 
     i = 0;
-    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToBTBAndRas)
-        ++i;
+    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToBTB) ++i;
 
-    /* Logic to BTB and RAS */
-    while (i < this->fetchBufferUsage) {
+    if (i < this->fetchBufferUsage) {
+        this->btb->Query(this->fetchBuffer[i].instruction.staticInfo,
+                         this->btbID);
     }
 }
 
 void BoomFetch::Clock() {
-    // Implementation of Clock
+    // If paying a misspredict penalty
+    if (this->currentPenalty > 0) {
+        --this->currentPenalty;
+        return;
+    }
+
+    this->ClockSendBuffered();
 }
 
 void BoomFetch::Flush() {
