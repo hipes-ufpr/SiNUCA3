@@ -57,31 +57,6 @@ int BoomFetch::InstructionMemoryConfigParameter(ConfigValue value) {
     return 1;
 }
 
-int BoomFetch::BTBConfigParameter(ConfigValue value) {
-    if (value.type == ConfigValueTypeComponentReference) {
-        this->btb =
-            dynamic_cast<BranchTargetBuffer*>(value.value.componentReference);
-        if (this->btb != NULL) {
-            return 0;
-        }
-    }
-    SINUCA3_ERROR_PRINTF(
-        "Boom Fetch parameter `btb` is not a "
-        "BranchTargetBuffer.\n");
-    return 1;
-}
-
-int BoomFetch::RASConfigParameter(ConfigValue value) {
-    if (value.type == ConfigValueTypeComponentReference) {
-        this->ras = dynamic_cast<Ras*>(value.value.componentReference);
-        if (this->ras != NULL) {
-            return 0;
-        }
-    }
-    SINUCA3_ERROR_PRINTF("Boom Fetch parameter `ras` is not a Ras.\n");
-    return 1;
-}
-
 int BoomFetch::PredictorConfigParameter(ConfigValue value) {
     if (value.type == ConfigValueTypeComponentReference) {
         this->preditor = dynamic_cast<Component<PredictorPacket>*>(
@@ -135,6 +110,14 @@ int BoomFetch::MisspredictPenaltyConfigParameter(ConfigValue value) {
 }
 
 int BoomFetch::SetConfigParameter(const char* parameter, ConfigValue value) {
+    if (this->btb == NULL) {
+        this->btb = new BranchTargetBuffer;
+    }
+
+    if (this->ras == NULL) {
+        this->ras = new Ras;
+    }
+
     if (strcmp(parameter, "fetch") == 0) {
         return this->FetchConfigParameter(value);
     } else if (strcmp(parameter, "instructionMemory") == 0) {
@@ -143,14 +126,16 @@ int BoomFetch::SetConfigParameter(const char* parameter, ConfigValue value) {
         return this->FetchSizeConfigParameter(value);
     } else if (strcmp(parameter, "fetchInterval") == 0) {
         return this->FetchIntervalConfigParameter(value);
-    } else if (strcmp(parameter, "BranchTargetBuffer") == 0) {
-        return this->BTBConfigParameter(value);
-    } else if (strcmp(parameter, "Ras") == 0) {
-        return this->RASConfigParameter(value);
     } else if (strcmp(parameter, "predictor") == 0) {
         return this->PredictorConfigParameter(value);
     } else if (strcmp(parameter, "misspredictPenalty") == 0) {
         return this->MisspredictPenaltyConfigParameter(value);
+    } else if (strcmp(parameter, "interleavingFactor") == 0) {
+        return this->btb->SetConfigParameter(parameter, value);
+    } else if (strcmp(parameter, "numberOfEntries") == 0) {
+        return this->btb->SetConfigParameter(parameter, value);
+    } else if (strcmp(parameter, "size") == 0) {
+        return this->ras->SetConfigParameter(parameter, value);
     }
 
     SINUCA3_ERROR_PRINTF("Boom Fetch received unknown parameter %s.\n",
@@ -193,6 +178,14 @@ int BoomFetch::FinishSetup() {
     this->rasID = this->ras->Connect(this->fetchSize);
 
     this->fetchBuffer = new FetchBufferEntry[this->fetchSize];
+
+    if (this->btb->FinishSetup()) {
+        return 1;
+    }
+
+    if (this->ras->FinishSetup()) {
+        return 1;
+    }
 
     return 0;
 }
@@ -247,5 +240,15 @@ void BoomFetch::PrintStatistics() {
 }
 
 BoomFetch::~BoomFetch() {
-    // Implementation of destructor
+    if (this->fetchBuffer != NULL) {
+        delete[] this->fetchBuffer;
+    }
+
+    if (this->btb != NULL) {
+        delete this->btb;
+    }
+
+    if (this->ras != NULL) {
+        delete this->ras;
+    }
 }

@@ -111,10 +111,6 @@ class BoomFetch : public Component<FetchPacket> {
     int FetchConfigParameter(ConfigValue value);
     /** @brief Helper to set the instruction memory config parameter. */
     int InstructionMemoryConfigParameter(ConfigValue value);
-    /** @brief Helper to set the BTB config parameter. */
-    int BTBConfigParameter(ConfigValue value);
-    /** @brief Helper to set the RAS config parameter. */
-    int RASConfigParameter(ConfigValue value);
     /** @brief Helper to set the Predictor config parameter. */
     int PredictorConfigParameter(ConfigValue value);
     /** @brief Helper to set the fetch size config parameter. */
