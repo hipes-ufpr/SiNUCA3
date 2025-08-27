@@ -226,14 +226,6 @@ void BoomFetch::ClockSendBuffered() {
         this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToPredictor;
         ++i;
     }
-
-    i = 0;
-    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToBTB) ++i;
-
-    if (i < this->fetchBufferUsage) {
-        this->btb->Query(this->fetchBuffer[i].instruction.staticInfo,
-                         this->btbID);
-    }
 }
 
 void BoomFetch::Clock() {

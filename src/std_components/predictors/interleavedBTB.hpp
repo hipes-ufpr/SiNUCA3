@@ -232,13 +232,6 @@ class BranchTargetBuffer : public Component<struct BTBPacket> {
     int UpdateBranch(const StaticInstructionInfo* instruction,
                      bool branchState);
 
-  public:
-    BranchTargetBuffer();
-
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
-
-    virtual int FinishSetup();
-
     /**
      * @brief Method for Request Query.
      * @param address The fetch address received by a request message.
@@ -253,7 +246,8 @@ class BranchTargetBuffer : public Component<struct BTBPacket> {
      * limited vector with all bits set to 1, assuming that all instructions in
      * the block are predicted to execute.
      */
-    void Query(const StaticInstructionInfo* instruction, int connectionID);
+    inline void Query(const StaticInstructionInfo* instruction,
+                      int connectionID);
 
     /**
      * @brief Method for RequestAddEntry.
@@ -261,8 +255,8 @@ class BranchTargetBuffer : public Component<struct BTBPacket> {
      * @param targetAddress The target address of the branch instruction.
      * @details A wrapper for the method of registering a new entry in the BTB.
      */
-    int AddEntry(const StaticInstructionInfo* instruction,
-                 unsigned long targetAddress);
+    inline int AddEntry(const StaticInstructionInfo* instruction,
+                        unsigned long targetAddress);
 
     /**
      * @brief Method for RequestUpdate.
@@ -270,7 +264,15 @@ class BranchTargetBuffer : public Component<struct BTBPacket> {
      * @param branchState The Information on whether the branch has been taken.
      * @details A wrapper for the method of updating an entry in the BTB.
      */
-    int Update(const StaticInstructionInfo* instruction, bool branchState);
+    inline int Update(const StaticInstructionInfo* instruction,
+                      bool branchState);
+
+  public:
+    BranchTargetBuffer();
+
+    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+
+    virtual int FinishSetup();
 
     virtual void Clock();
 
