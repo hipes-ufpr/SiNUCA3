@@ -271,7 +271,39 @@ int BoomFetch::ClockCheckPredictor() {
     return 0;
 }
 
-int BoomFetch::ClockCheckBTB() {}
+int BoomFetch::ClockCheckBTB() {
+    int i = 0;
+    if (this->btb == NULL) return 0;
+
+    BTBPacket response;
+
+    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToBTB) {
+        ++i;
+    }
+
+    if (this->btb->ReceiveResponse(this->btbID, &response) == 0) {
+        assert(this->fetchBuffer[i].instruction.staticInfo ==
+               response.instruction);
+        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsBTBPredicted;
+        long target =
+            this->fetchBuffer[i].instruction.staticInfo->opcodeAddress +
+            this->fetchSize;
+
+        if (response.type == BTBPacketTypeResponseBTBHit) {
+            target = response.data.response.target;
+        }
+
+        i = 0;
+        while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToMemory)
+            ++i;
+
+        if (target != this->fetchBuffer[i].instruction.nextInstruction) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
 
 void BoomFetch::ClockUnbuffer() {
     unsigned long i = 0;
