@@ -22,6 +22,7 @@
 
 #include "boom_fetch.hpp"
 
+#include <cassert>
 #include <cstddef>
 
 #include "config/config.hpp"
@@ -59,9 +60,9 @@ int BoomFetch::InstructionMemoryConfigParameter(ConfigValue value) {
 
 int BoomFetch::PredictorConfigParameter(ConfigValue value) {
     if (value.type == ConfigValueTypeComponentReference) {
-        this->preditor = dynamic_cast<Component<PredictorPacket>*>(
+        this->predictor = dynamic_cast<Component<PredictorPacket>*>(
             value.value.componentReference);
-        if (this->preditor != NULL) {
+        if (this->predictor != NULL) {
             return 0;
         }
     }
@@ -173,7 +174,7 @@ int BoomFetch::FinishSetup() {
     this->fetchID = this->fetch->Connect(this->fetchSize);
     this->instructionMemoryID =
         this->instructionMemory->Connect(this->fetchSize);
-    this->predictorID = this->preditor->Connect(this->fetchSize);
+    this->predictorID = this->predictor->Connect(this->fetchSize);
     this->btbID = this->btb->Connect(this->fetchSize);
     this->rasID = this->ras->Connect(this->fetchSize);
 
@@ -212,12 +213,79 @@ void BoomFetch::ClockSendBuffered() {
         PredictorPacket predictorPacket;
         predictorPacket.type = PredictorPacketTypeRequestQuery;
         predictorPacket.data.requestQuery = this->fetchBuffer[i].instruction;
-        if (this->preditor->SendRequest(this->predictorID, &predictorPacket) !=
+        if (this->predictor->SendRequest(this->predictorID, &predictorPacket) !=
             0) {
             break;
         }
         this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToPredictor;
         ++i;
+    }
+
+    i = 0;
+    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToBTB) {
+        ++i;
+    }
+
+    if (i < this->fetchBufferUsage) {
+        BTBPacket btbPacket;
+        btbPacket.type = BTBPacketTypeRequestQuery;
+        btbPacket.data.requestQuery =
+            this->fetchBuffer[i].instruction.staticInfo;
+
+        if (this->btb->SendRequest(this->btbID, &btbPacket) == 0) {
+            this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToBTB;
+        }
+    }
+}
+
+int BoomFetch::ClockCheckPredictor() {
+    if (this->predictor == NULL) return 0;
+
+    PredictorPacket response;
+    unsigned long i = 0;
+
+    /*We depend on the predictor sending the responses in order and, of course,
+     * sending only what we actually asked for. */
+    while (this->predictor->ReceiveResponse(this->predictorID, &response) ==
+           0) {
+        assert(this->fetchBuffer[i].instruction.staticInfo ==
+               response.data.response.instruction.staticInfo);
+        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToPredictor;
+        long target =
+            this->fetchBuffer[i].instruction.staticInfo->opcodeAddress +
+            this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
+
+        // "Redirect" the fetch only if the predictor has an address, otherwise
+        // expect the instruction to be at the next logical PC.
+        if (response.type == PredictorPacketTypeResponseTakeToAddress) {
+            target = response.data.response.target;
+        }
+
+        // If a missprediction happened.
+        if (target != this->fetchBuffer[i].instruction.nextInstruction) {
+            return 1;
+        }
+        ++i;
+    }
+
+    return 0;
+}
+
+int BoomFetch::ClockCheckBTB() {}
+
+void BoomFetch::ClockUnbuffer() {
+    unsigned long i = 0;
+    while (i < this->fetchBufferUsage &&
+           ((this->fetchBuffer[i].flags & this->flagsToCheck) ==
+            this->flagsToCheck)) {
+        ++i;
+    }
+
+    /* Moves the instructions to start */
+    this->fetchBufferUsage -= i;
+    if (this->fetchBufferUsage > 0) {
+        memmove(this->fetchBuffer, &this->fetchBuffer[i],
+                sizeof(*this->fetchBuffer) * this->fetchBufferUsage);
     }
 }
 
@@ -229,6 +297,13 @@ void BoomFetch::Clock() {
     }
 
     this->ClockSendBuffered();
+    const int predictionResult = this->ClockCheckPredictor();
+
+    if (predictionResult != 0) {
+        ++this->misspredictions;
+        this->currentPenalty = this->misspredictPenalty;
+        this->fetchClock = 0;
+    }
 }
 
 void BoomFetch::Flush() {

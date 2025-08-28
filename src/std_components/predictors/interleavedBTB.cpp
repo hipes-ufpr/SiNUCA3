@@ -226,9 +226,8 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
         response.type = BTBPacketTypeResponseBTBMiss;
     }
 
-    if (this->sendTo == NULL) {
-        this->SendResponseToConnection(connectionID, &response);
-    } else {
+    this->SendResponseToConnection(connectionID, &response);
+    if (this->sendTo != NULL) {
         this->sendTo->SendRequest(this->sendToID, &response);
     }
 }
