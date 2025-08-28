@@ -41,8 +41,10 @@ const FetchBufferEntryFlags FetchBufferEntryFlagsPredicted = (1 << 0);
 const FetchBufferEntryFlags FetchBufferEntryFlagsSentToPredictor = (1 << 1);
 /** @brief We already sent this instruction to the memory. */
 const FetchBufferEntryFlags FetchBufferEntryFlagsSentToMemory = (1 << 2);
+/** @brief BTB responded about this instruction. */
+const FetchBufferEntryFlags FetchBufferEntryFlagsBTBPredicted = (1 << 3);
 /** @brief We already sent this instruction to the btb. */
-const FetchBufferEntryFlags FetchBufferEntryFlagsSentToBTB = (1 << 3);
+const FetchBufferEntryFlags FetchBufferEntryFlagsSentToBTB = (1 << 4);
 
 struct FetchBufferEntry {
     InstructionPacket instruction; /**< Fetched instruction >*/
@@ -150,7 +152,7 @@ class BoomFetch : public Component<FetchPacket> {
           predictorID(-1),
           btbID(-1),
           rasID(-1),
-          flagsToCheck(FetchBufferEntryFlagsSentToMemory) {}
+          flagsToCheck(FetchBufferEntryFlagsSentToBTB) {}
 
     virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual int FinishSetup();
