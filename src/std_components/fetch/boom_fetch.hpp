@@ -77,7 +77,7 @@ class BoomFetch : public Component<FetchPacket> {
     BranchTargetBuffer*
         btb;  /**< Branch Target Buffer for storing branch targets >*/
     Ras* ras; /**< Return Address Stack for storing return addresses >*/
-    Component<PredictorPacket>* preditor;
+    Component<PredictorPacket>* predictor;
     FetchBufferEntry*
         fetchBuffer; /**< Fetch Buffer for storing fetched instructions >*/
 
@@ -120,9 +120,15 @@ class BoomFetch : public Component<FetchPacket> {
     /** @brief Helper to set the missprediction penalty config parameter. */
     int MisspredictPenaltyConfigParameter(ConfigValue value);
 
-    /** @brief Helper to send the fetched instructions to the memory and the
-     * predictor. */
+    /** @brief Helper to send the fetched instructions to the memory, predictor
+     * and btb. */
     void ClockSendBuffered();
+    /** @brief Helper to check predicted instructions. */
+    int ClockCheckPredictor();
+    /** @brief Helper to check predicted instructions via BTB */
+    int ClockCheckBTB();
+    /** @brief Helper to remove instructions from the buffer. */
+    void ClockUnbuffer();
 
   public:
     inline BoomFetch()
