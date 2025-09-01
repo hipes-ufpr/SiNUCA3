@@ -20,10 +20,6 @@
  * @brief Implementation of a abstract nway cache.
  */
 
-// TODO
-// We need to know how many bits are going to be used as offset... in other
-// words... how large is one page in memory. Idealy, we import this information
-// from elsewhere. But I will leave as global constants for now.
 #include "cacheMemory.hpp"
 
 #include <cassert>
