@@ -34,6 +34,7 @@
 #include "predictors/hardwired_predictor.hpp"
 #include "predictors/interleavedBTB.hpp"
 #include "predictors/ras.hpp"
+#include "std_components/memory/simple_cache.hpp"
 
 Linkable* CreateDefaultComponentByClass(const char* name) {
 #ifndef NDEBUG
@@ -51,6 +52,7 @@ Linkable* CreateDefaultComponentByClass(const char* name) {
     COMPONENT(Fetcher);
     COMPONENT(SimpleExecutionUnit);
     COMPONENT(HardwiredPredictor);
+    COMPONENT(SimpleCache);
 
     return NULL;
 }
