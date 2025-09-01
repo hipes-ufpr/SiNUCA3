@@ -47,6 +47,36 @@ Cache::~Cache() {
     delete this->policy;
 }
 
+bool Cache::Read(MemoryPacket addr){
+    bool exist;
+    CacheEntry *result;
+
+    exist = this->GetEntry(addr, &result);
+    this->policy->Acess(result);
+
+    return exist;
+}
+
+void Cache::Write(MemoryPacket addr){
+    CacheEntry *victim;
+    unsigned long tag = GetTag(addr);
+    unsigned long index = GetIndex(addr);
+
+    if(FindEmptyEntry(addr, &victim)){
+        *victim = CacheEntry(victim, tag, index);
+        this->policy->Acess(victim);
+        return;
+    }
+
+    int set, way;
+    this->policy->SelectVictim(tag, index, &set, &way);
+    victim = &this->entries[set][way];
+
+    *victim = CacheEntry(victim, tag, index);
+    this->policy->Acess(victim);
+    return;
+}
+
 unsigned long Cache::GetIndex(unsigned long addr) const {
     return (addr & indexBitsMask) >> offsetBitsMask;
 }

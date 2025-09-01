@@ -66,6 +66,22 @@ class Cache {
 
     bool SetReplacementPolicy(ReplacementPoliciesID id);
 
+    /**
+     * @brief Reads a cache.
+     * @param addr Address to look for.
+     * @return True if is HIT, false if is MISS.
+     */
+    bool Read(MemoryPacket addr);
+
+    /**
+     * @brief Write a cache.
+     * @detail This just simulate the behavior. So, no actual data need to be stored.
+     * If no empty (isValid == false) is found, a replacement algorithm must choose which
+     * items to discard.
+     * @param addr Address to write to.
+     */
+    void Write(MemoryPacket addr);
+
     unsigned long GetIndex(unsigned long addr) const;
     unsigned long GetTag(unsigned long addr) const;
 
@@ -81,9 +97,7 @@ class Cache {
     bool GetEntry(unsigned long addr, CacheEntry **result) const;
 
     /**
-     * @brief Can be used to find a entry that is not valid yet.
-     * @detail  If no victim is found, a replacement algorithm must choose which
-     * items to discard to make room for new data.
+     * @brief Can be used to find a entry that is not valid.
      * @param addr Address to look for.
      * @param result Pointer to store result.
      * @return True if victim is found, false otherwise.
