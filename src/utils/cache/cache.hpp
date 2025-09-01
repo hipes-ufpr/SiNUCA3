@@ -28,11 +28,7 @@
 
 #include "replacement_policy.hpp"
 
-enum ReplacementPoliciesID {
-  LruID = 0,
-  RandomID = 1,
-  RoundRobinID = 2
-};
+enum ReplacementPoliciesID { LruID = 0, RandomID = 1, RoundRobinID = 2 };
 
 struct CacheEntry {
     unsigned long tag;
@@ -49,16 +45,18 @@ struct CacheEntry {
         : tag(tag), index(index), isValid(false), i(i), j(j) {};
 
     inline CacheEntry(CacheEntry *entry, unsigned long tag, unsigned long index)
-        : tag(tag),
-          index(index),
-          isValid(true),
-          i(entry->i),
-          j(entry->j){};
+        : tag(tag), index(index), isValid(true), i(entry->i), j(entry->j) {};
 };
 
 class Cache {
   public:
-    inline Cache() : numSets(0), numWays(0), entries(NULL), policy(NULL) {};
+    inline Cache()
+        : addrSizeBits(64),
+          cacheSize(0),
+          lineSize(0),
+          numWays(-1),
+          entries(NULL),
+          policy(NULL) {};
     virtual ~Cache();
 
     int FinishSetup();
@@ -75,13 +73,14 @@ class Cache {
 
     /**
      * @brief Write a cache.
-     * @detail This just simulate the behavior. So, no actual data need to be stored.
-     * If no empty (isValid == false) is found, a replacement algorithm must choose which
-     * items to discard.
+     * @detail This just simulate the behavior. So, no actual data need to be
+     * stored. If no empty (isValid == false) is found, a replacement algorithm
+     * must choose which items to discard.
      * @param addr Address to write to.
      */
     void Write(MemoryPacket addr);
 
+    unsigned long GetOffset(unsigned long addr) const;
     unsigned long GetIndex(unsigned long addr) const;
     unsigned long GetTag(unsigned long addr) const;
 
@@ -104,12 +103,34 @@ class Cache {
      */
     bool FindEmptyEntry(unsigned long addr, CacheEntry **result) const;
 
-    int numSets;
+    void setAddrSizeBits(unsigned int addrSizeBits);
+
+  protected:
+    /**
+     * @brief Number of bits in a address.
+     * Default is 64 bits.
+     * It can be modified using `setAddrSizeBits()`,
+     * but it should be set before configuring the cache,
+     * for example, in your component's constructor.
+     */
+    unsigned int addrSizeBits;
+
+    unsigned int cacheSize;  // Bytes
+    unsigned int lineSize;   // Bytes
     int numWays;
+
+    int numSets;
+
+    unsigned int offsetBits;
+    unsigned int indexBits;
+    unsigned int tagBits;
+    unsigned long offsetMask;
+    unsigned long indexMask;
+    unsigned long tagMask;
+
     CacheEntry **entries;  // matrix [sets x ways]
 
-    private:
-        ReplacementPolicy *policy;
+    ReplacementPolicy *policy;
 };
 
 #endif
