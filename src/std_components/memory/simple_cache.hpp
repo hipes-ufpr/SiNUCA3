@@ -20,27 +20,29 @@
 
 /**
  * @file simple_cache.hpp
- * @details Implementation of a SimpleCache without latency or coherence protocol.
+ * @details Implementation of a SimpleCache without latency or coherence
+ * protocol.
  */
 
- #include <sinuca3.hpp>
+#include <sinuca3.hpp>
+
 #include "engine/component.hpp"
 #include "engine/default_packets.hpp"
 #include "utils/cache/cache.hpp"
 
 class SimpleCache : public Component<MemoryPacket> {
-    public:
-        SimpleCache() : numberOfRequests(0) {};
-        virtual ~SimpleCache();
+  public:
+    SimpleCache() : numberOfRequests(0) {};
+    virtual ~SimpleCache() {};
 
-        virtual int FinishSetup();
-        virtual int SetConfigParameter(const char* parameter, ConfigValue value);
-        virtual void Clock();
-        virtual void PrintStatistics();
+    virtual int FinishSetup();
+    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+    virtual void Clock();
+    virtual void PrintStatistics();
 
-    private:
+  private:
     Cache cache;
-     unsigned int numberOfRequests;
+    unsigned int numberOfRequests;
 };
 
- #endif
+#endif
