@@ -9,18 +9,17 @@
 
 class GsharePredictor : public Component<PredictorPacket> {
   private:
-    struct Request {
-        unsigned long index;
-    };
-
     BimodalCounter* entries;
-    CircularBuffer requestsQueue;
+    CircularBuffer indexQueue;
     unsigned long globalBranchHistReg;
     unsigned long numberOfEntries;
     unsigned long numberOfPredictions;
     unsigned long numberOfWrongpredictions;
-    unsigned int requestsQueueSize;
+    unsigned long currentIndex;
+    unsigned int indexQueueSize;
     unsigned int indexBitsSize;
+    bool directionPredicted;
+    bool directionTaken;
 
     Component<PredictorPacket>* sendTo;
     int sendToId;
@@ -28,13 +27,13 @@ class GsharePredictor : public Component<PredictorPacket> {
     int Allocate();
     void Deallocate();
     int RoundNumberOfEntries(unsigned long requestedSize);
-    void UpdateEntry(unsigned long idx, bool direction);
-    void UpdateGlobBranchHistReg(bool direction);
-    bool QueryEntry(unsigned long idx);
-    unsigned long CalculateIndex(unsigned long addr);
-
-    inline void EnqueueReq(Request req) { this->requestsQueue.Enqueue(&req); }
-    inline void DequeueReq(Request* req) { this->requestsQueue.Dequeue(req); }
+    void PreparePacket(PredictorPacket* pkt);
+    int EnqueueIndex();
+    int DequeueIndex();
+    GsharePredictor* CalculateIndex(unsigned long addr);
+    GsharePredictor* UpdateEntry();
+    GsharePredictor* UpdateGlobBranchHistReg();
+    GsharePredictor* QueryEntry();
 
   public:
     GsharePredictor();
@@ -42,7 +41,7 @@ class GsharePredictor : public Component<PredictorPacket> {
     virtual void PrintStatistics();
     virtual int FinishSetup();
     virtual void Clock();
-    virtual ~GsharePredictor(); 
+    virtual ~GsharePredictor();
 };
 
 #endif  // SINUCA3_GSHARE_PREDICTOR

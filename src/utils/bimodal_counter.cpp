@@ -20,9 +20,6 @@
  * @details Implementation of a generic bimodal predictor.
  */
 
-const bool NTAKEN = 0;
-const bool TAKEN = 1;
-
 #include "bimodal_counter.hpp"
 
 BimodalCounter::BimodalCounter() : prediction(2) {}
