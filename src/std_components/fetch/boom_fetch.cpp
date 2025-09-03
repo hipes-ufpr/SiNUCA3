@@ -279,7 +279,7 @@ int BoomFetch::ClockCheckPredictor() {
         assert(this->fetchBuffer[i].instruction.staticInfo ==
                response.data.response.instruction.staticInfo);
         this->fetchBuffer[i].flags |= FetchBufferEntryFlagsPredicted;
-        long target =
+        unsigned long target =
             this->fetchBuffer[i].instruction.staticInfo->opcodeAddress +
             this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
 
@@ -302,7 +302,7 @@ int BoomFetch::ClockCheckPredictor() {
 int BoomFetch::ClockCheckRas() {
     if (this->ras == NULL) return 0;
 
-    long target;
+    unsigned long target;
     PredictorPacket response;
 
     while (this->ras->ReceiveResponse(this->rasID, &response) == 0) {

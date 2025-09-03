@@ -198,7 +198,7 @@ int Fetcher::ClockCheckPredictor() {
         assert(this->fetchBuffer[i].instruction.staticInfo ==
                response.data.response.instruction.staticInfo);
         this->fetchBuffer[i].flags |= FetchBufferEntryFlagsPredicted;
-        long target =
+        unsigned long target =
             this->fetchBuffer[i].instruction.staticInfo->opcodeAddress +
             this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
         // "Redirect" the fetch only if the predictor has an address, otherwise
