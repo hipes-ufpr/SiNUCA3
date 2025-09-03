@@ -98,8 +98,8 @@ struct DynamicInstructionInfo {
 struct InstructionPacket {
     const StaticInstructionInfo* staticInfo;
     DynamicInstructionInfo dynamicInfo;
-    long nextInstruction; /** @brief The engine fills this as it buffers the
-                             next instruction. */
+    unsigned long nextInstruction; /** @brief The engine fills this as it
+                             buffers the next instruction. */
 };
 
 /**
