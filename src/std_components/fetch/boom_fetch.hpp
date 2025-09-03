@@ -135,6 +135,10 @@ class BoomFetch : public Component<FetchPacket> {
     int ClockCheckBTB();
     /** @brief Helper to remove instructions from the buffer. */
     void ClockUnbuffer();
+    /** @brief Helper to request instructions to 'fetch'. */
+    void ClockRequestFetch();
+    /** @brief Helper to get the fetched instructions. */
+    void ClockFetch();
 
   public:
     inline BoomFetch()
