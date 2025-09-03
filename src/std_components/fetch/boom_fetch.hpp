@@ -43,7 +43,7 @@ const FetchBufferEntryFlags FetchBufferEntryFlagsSentToPredictor = (1 << 1);
 const FetchBufferEntryFlags FetchBufferEntryFlagsSentToMemory = (1 << 2);
 /** @brief BTB responded about this instruction. */
 const FetchBufferEntryFlags FetchBufferEntryFlagsBTBPredicted = (1 << 3);
-/** @brief We already sent this instruction to the btb. */
+/** @brief Ras responded about this instruction. */
 const FetchBufferEntryFlags FetchBufferEntryFlagsSentToBTB = (1 << 4);
 /** @brief We already sent this instuction to the ras. */
 const FetchBufferEntryFlags FetchBufferEntryFlagsSentToRAS = (1 << 5);
@@ -129,6 +129,8 @@ class BoomFetch : public Component<FetchPacket> {
     void ClockSendBuffered();
     /** @brief Helper to check predicted instructions. */
     int ClockCheckPredictor();
+    /** @brief Helper to check ras responses. */
+    int ClockCheckRas();
     /** @brief Helper to check predicted instructions via BTB */
     int ClockCheckBTB();
     /** @brief Helper to remove instructions from the buffer. */

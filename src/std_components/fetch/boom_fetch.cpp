@@ -225,23 +225,6 @@ void BoomFetch::ClockSendBuffered() {
 
     // Skip instructions we already sent.
     i = 0;
-    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToBTB) {
-        ++i;
-    }
-
-    if (i < this->fetchBufferUsage) {
-        BTBPacket btbPacket;
-        btbPacket.type = BTBPacketTypeRequestQuery;
-        btbPacket.data.requestQuery =
-            this->fetchBuffer[i].instruction.staticInfo;
-
-        if (this->btb->SendRequest(this->btbID, &btbPacket) == 0) {
-            this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToBTB;
-        }
-    }
-
-    // Skip instructions we already sent.
-    i = 0;
     while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToRAS) {
         ++i;
     }
@@ -263,7 +246,6 @@ void BoomFetch::ClockSendBuffered() {
             if (this->ras->SendRequest(this->rasID, &predictorPacket) != 0) {
                 break;
             }
-            this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToRAS;
 
         } else if (this->fetchBuffer[i].instruction.staticInfo->branchType ==
                    BranchReturn) {
@@ -278,7 +260,6 @@ void BoomFetch::ClockSendBuffered() {
             if (this->ras->SendRequest(this->rasID, &predictorPacket) != 0) {
                 break;
             }
-            this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToRAS;
         }
         this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToRAS;
         i++;
@@ -297,7 +278,7 @@ int BoomFetch::ClockCheckPredictor() {
            0) {
         assert(this->fetchBuffer[i].instruction.staticInfo ==
                response.data.response.instruction.staticInfo);
-        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToPredictor;
+        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsPredicted;
         long target =
             this->fetchBuffer[i].instruction.staticInfo->opcodeAddress +
             this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
@@ -318,39 +299,25 @@ int BoomFetch::ClockCheckPredictor() {
     return 0;
 }
 
-int BoomFetch::ClockCheckBTB() {
-    int i = 0;
-    if (this->btb == NULL) return 0;
+int BoomFetch::ClockCheckRas() {
+    if (this->ras == NULL) return 0;
 
-    BTBPacket response;
+    long target;
+    PredictorPacket response;
 
-    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToBTB) {
-        ++i;
-    }
+    while (this->ras->ReceiveResponse(this->rasID, &response) == 0) {
+        target = response.data.response.target;
 
-    if (this->btb->ReceiveResponse(this->btbID, &response) == 0) {
-        assert(this->fetchBuffer[i].instruction.staticInfo ==
-               response.instruction);
-        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsBTBPredicted;
-        long target =
-            this->fetchBuffer[i].instruction.staticInfo->opcodeAddress +
-            this->fetchSize;
-
-        if (response.type == BTBPacketTypeResponseBTBHit) {
-            target = response.data.response.target;
-        }
-
-        i = 0;
-        while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToMemory)
-            ++i;
-
-        if (target != this->fetchBuffer[i].instruction.nextInstruction) {
+        /* The return address does not match the next address */
+        if (response.data.response.instruction.nextInstruction != target) {
             return 1;
         }
     }
 
     return 0;
 }
+
+int BoomFetch::ClockCheckBTB() { return 0; }
 
 void BoomFetch::ClockUnbuffer() {
     unsigned long i = 0;
@@ -377,8 +344,9 @@ void BoomFetch::Clock() {
 
     this->ClockSendBuffered();
     const int predictionResult = this->ClockCheckPredictor();
+    const int rasResult = this->ClockCheckRas();
 
-    if (predictionResult != 0) {
+    if ((predictionResult != 0) || (rasResult != 0)) {
         ++this->misspredictions;
         this->currentPenalty = this->misspredictPenalty;
         this->fetchClock = 0;
