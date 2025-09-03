@@ -192,9 +192,10 @@ int BoomFetch::FinishSetup() {
 }
 
 void BoomFetch::ClockSendBuffered() {
-    unsigned int i = 0;
+    unsigned int i;
 
     // Skip instructions we already sent.
+    i = 0;
     while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToMemory) ++i;
 
     while ((i < this->fetchBufferUsage) &&
@@ -205,6 +206,7 @@ void BoomFetch::ClockSendBuffered() {
         ++i;
     }
 
+    // Skip instructions we already sent.
     i = 0;
     while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToPredictor)
         ++i;
@@ -221,6 +223,7 @@ void BoomFetch::ClockSendBuffered() {
         ++i;
     }
 
+    // Skip instructions we already sent.
     i = 0;
     while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToBTB) {
         ++i;
@@ -235,6 +238,50 @@ void BoomFetch::ClockSendBuffered() {
         if (this->btb->SendRequest(this->btbID, &btbPacket) == 0) {
             this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToBTB;
         }
+    }
+
+    // Skip instructions we already sent.
+    i = 0;
+    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToRAS) {
+        ++i;
+    }
+
+    while (i < this->fetchBufferUsage) {
+        if (this->fetchBuffer[i].instruction.staticInfo->branchType ==
+            BranchCall) {
+            PredictorPacket predictorPacket;
+
+            /* Fills the packet with the instruction and target info. */
+            /* We found a call instruction and want to insert its target into
+             * the ras */
+            predictorPacket.data.requestUpdate.instruction =
+                this->fetchBuffer[i].instruction;
+            predictorPacket.data.requestUpdate.target =
+                this->fetchBuffer[i].instruction.nextInstruction;
+            predictorPacket.type = PredictorPacketTypeRequestUpdate;
+
+            if (this->ras->SendRequest(this->rasID, &predictorPacket) != 0) {
+                break;
+            }
+            this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToRAS;
+
+        } else if (this->fetchBuffer[i].instruction.staticInfo->branchType ==
+                   BranchReturn) {
+            PredictorPacket predictorPacket;
+
+            /* We found a return statement, so we unstacked the most recent
+             * target from the ras. */
+            predictorPacket.data.requestQuery =
+                this->fetchBuffer[i].instruction;
+            predictorPacket.type = PredictorPacketTypeRequestQuery;
+
+            if (this->ras->SendRequest(this->rasID, &predictorPacket) != 0) {
+                break;
+            }
+            this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToRAS;
+        }
+        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToRAS;
+        i++;
     }
 }
 

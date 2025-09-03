@@ -45,6 +45,8 @@ const FetchBufferEntryFlags FetchBufferEntryFlagsSentToMemory = (1 << 2);
 const FetchBufferEntryFlags FetchBufferEntryFlagsBTBPredicted = (1 << 3);
 /** @brief We already sent this instruction to the btb. */
 const FetchBufferEntryFlags FetchBufferEntryFlagsSentToBTB = (1 << 4);
+/** @brief We already sent this instuction to the ras. */
+const FetchBufferEntryFlags FetchBufferEntryFlagsSentToRAS = (1 << 5);
 
 struct FetchBufferEntry {
     InstructionPacket instruction; /**< Fetched instruction >*/
@@ -152,7 +154,7 @@ class BoomFetch : public Component<FetchPacket> {
           predictorID(-1),
           btbID(-1),
           rasID(-1),
-          flagsToCheck(FetchBufferEntryFlagsSentToBTB) {}
+          flagsToCheck(FetchBufferEntryFlagsSentToRAS) {}
 
     virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual int FinishSetup();
