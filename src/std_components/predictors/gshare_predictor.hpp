@@ -2,10 +2,11 @@
 #define SINUCA3_GSHARE_PREDICTOR_HPP_
 
 #include <sinuca3.hpp>
+#include <utils/bimodal_counter.hpp>
+#include <utils/circular_buffer.hpp>
+
 #include "engine/component.hpp"
 #include "engine/default_packets.hpp"
-#include <utils/circular_buffer.hpp>
-#include <utils/bimodal_counter.hpp>
 
 class GsharePredictor : public Component<PredictorPacket> {
   private:
@@ -28,12 +29,13 @@ class GsharePredictor : public Component<PredictorPacket> {
     void Deallocate();
     int RoundNumberOfEntries(unsigned long requestedSize);
     void PreparePacket(PredictorPacket* pkt);
+    void ReadPacket(PredictorPacket* pkt);
     int EnqueueIndex();
     int DequeueIndex();
-    GsharePredictor* CalculateIndex(unsigned long addr);
-    GsharePredictor* UpdateEntry();
-    GsharePredictor* UpdateGlobBranchHistReg();
-    GsharePredictor* QueryEntry();
+    void CalculateIndex(unsigned long addr);
+    void UpdateEntry();
+    void UpdateGlobBranchHistReg();
+    void QueryEntry();
 
   public:
     GsharePredictor();

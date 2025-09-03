@@ -55,6 +55,10 @@ void GsharePredictor::PreparePacket(PredictorPacket* pkt) {
     }
 }
 
+void GsharePredictor::ReadPacket(PredictorPacket* pkt) {
+    this->directionTaken = pkt->data.directionRequestUpdate.direction;
+}
+
 int GsharePredictor::EnqueueIndex() {
     return this->indexQueue.Enqueue(&this->currentIndex);
 }
@@ -63,34 +67,30 @@ int GsharePredictor::DequeueIndex() {
     return this->indexQueue.Dequeue(&this->currentIndex);
 }
 
-GsharePredictor* GsharePredictor::UpdateEntry() {
+void GsharePredictor::UpdateEntry() {
     bool pred = this->entries[this->currentIndex].GetPrediction();
     if (pred != this->directionTaken) {
         this->numberOfWrongpredictions++;
     }
     this->entries[this->currentIndex].UpdatePrediction(this->directionTaken);
-    return this;
 }
 
-GsharePredictor* GsharePredictor::UpdateGlobBranchHistReg() {
+void GsharePredictor::UpdateGlobBranchHistReg() {
     this->globalBranchHistReg <<= 1;
     if (this->directionTaken == TAKEN) {
         this->globalBranchHistReg |= 1;
     }
-    return this;
 }
 
-GsharePredictor* GsharePredictor::QueryEntry() {
+void GsharePredictor::QueryEntry() {
     this->numberOfPredictions++;
     this->directionPredicted =
         this->entries[this->currentIndex].GetPrediction();
-    return this;
 }
 
-GsharePredictor* GsharePredictor::CalculateIndex(unsigned long addr) {
+void GsharePredictor::CalculateIndex(unsigned long addr) {
     this->currentIndex =
         (this->globalBranchHistReg ^ addr) & this->indexBitsSize;
-    return this;
 }
 
 int GsharePredictor::SetConfigParameter(const char* parameter,
@@ -144,7 +144,8 @@ void GsharePredictor::Clock() {
             switch (packet.type) {
                 case PredictorPacketTypeRequestQuery:
                     addr = packet.data.requestQuery.staticInfo->opcodeAddress;
-                    this->CalculateIndex(addr)->QueryEntry();
+                    this->CalculateIndex(addr);
+                    this->QueryEntry();
                     if (this->EnqueueIndex()) {
                         SINUCA3_WARNING_PRINTF("Gshare index buffer full\n");
                     }
@@ -156,7 +157,9 @@ void GsharePredictor::Clock() {
                         SINUCA3_ERROR_PRINTF("Gshare table not updated\n");
                         return;
                     }
-                    this->UpdateEntry()->UpdateGlobBranchHistReg();
+                    this->ReadPacket(&packet);
+                    this->UpdateEntry();
+                    this->UpdateGlobBranchHistReg();
                     break;
                 default:
                     SINUCA3_ERROR_PRINTF("Gshare invalid packet type\n");
