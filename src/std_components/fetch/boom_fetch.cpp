@@ -335,6 +335,28 @@ void BoomFetch::ClockUnbuffer() {
     }
 }
 
+void BoomFetch::ClockRequestFetch() {
+    unsigned long fetchBufferByteUsage = 0;
+    for (unsigned long i = 0; i < this->fetchBufferUsage; ++i) {
+        fetchBufferByteUsage +=
+            this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
+    }
+
+    FetchPacket request;
+    request.request = this->fetchSize - fetchBufferByteUsage;
+    this->fetch->SendRequest(this->fetchID, &request);
+}
+
+void BoomFetch::ClockFetch() {
+    while (this->fetch->ReceiveResponse(
+               this->fetchID,
+               (FetchPacket*)&this->fetchBuffer[this->fetchBufferUsage]) == 0) {
+        this->fetchBuffer[this->fetchBufferUsage].flags = 0;
+        ++this->fetchBufferUsage;
+        ++this->fetchedInstructions;
+    }
+}
+
 void BoomFetch::Clock() {
     // If paying a misspredict penalty
     if (this->currentPenalty > 0) {
@@ -345,16 +367,22 @@ void BoomFetch::Clock() {
     this->ClockSendBuffered();
     const int predictionResult = this->ClockCheckPredictor();
     const int rasResult = this->ClockCheckRas();
+    this->ClockUnbuffer();
 
     if ((predictionResult != 0) || (rasResult != 0)) {
         ++this->misspredictions;
         this->currentPenalty = this->misspredictPenalty;
         this->fetchClock = 0;
     }
-}
 
-void BoomFetch::Flush() {
-    // Implementation of Flush
+    this->ClockFetch();
+
+    if (this->fetchClock % this->fetchInterval == 0) {
+        this->fetchClock = 0;
+        this->ClockRequestFetch();
+    }
+
+    ++this->fetchClock;
 }
 
 void BoomFetch::PrintStatistics() {
