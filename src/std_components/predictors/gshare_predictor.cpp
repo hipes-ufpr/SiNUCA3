@@ -68,7 +68,7 @@ void GsharePredictor::PreparePacket(PredictorPacket* pkt) {
 }
 
 void GsharePredictor::ReadPacket(PredictorPacket* pkt) {
-    this->directionTaken = pkt->data.directionRequestUpdate.direction;
+    this->directionTaken = pkt->data.DirectionUpdate.direction;
 }
 
 int GsharePredictor::EnqueueIndex() {
