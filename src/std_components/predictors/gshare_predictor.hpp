@@ -18,24 +18,28 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+/**
+ * @file gshare_predictor.hpp
+ * @brief
+ * @details
+ */
+
 #include <sinuca3.hpp>
 #include <utils/bimodal_counter.hpp>
 #include <utils/circular_buffer.hpp>
 
-#include "engine/component.hpp"
-#include "engine/default_packets.hpp"
-
+/** @brief Refer to gshare_predictor.hpp documentation for details */
 class GsharePredictor : public Component<PredictorPacket> {
   private:
-    BimodalCounter* entries;
-    CircularBuffer indexQueue;
-    unsigned long globalBranchHistReg;
+    BimodalCounter* entries;           /**< */
+    CircularBuffer indexQueue;         /**< */
+    unsigned long globalBranchHistReg; /**< */
     unsigned long numberOfEntries;
     unsigned long numberOfPredictions;
     unsigned long numberOfWrongPredictions;
-    unsigned long currentIndex;
-    unsigned int indexQueueSize;
-    unsigned int indexBitsSize;
+    unsigned long currentIndex;  /**< */
+    unsigned int indexQueueSize; /**<Queue size. Default value is 0> */
+    unsigned int indexBitsSize;  /**< */
     bool directionPredicted;
     bool directionTaken;
 
@@ -44,14 +48,29 @@ class GsharePredictor : public Component<PredictorPacket> {
 
     int Allocate();
     void Deallocate();
+    /**
+     * @brief
+     */
     int RoundNumberOfEntries(unsigned long requestedSize);
+    /**
+     * @brief
+     */
     void PreparePacket(PredictorPacket* pkt);
+    /**
+     * @brief
+     */
     void ReadPacket(PredictorPacket* pkt);
     int EnqueueIndex();
     int DequeueIndex();
+    /**
+     * @brief
+     */
     void CalculateIndex(unsigned long addr);
     void UpdateEntry();
     void UpdateGlobBranchHistReg();
+    /**
+     * @brief
+     */
     void QueryEntry();
 
   public:

@@ -18,9 +18,6 @@
 #include "gshare_predictor.hpp"
 
 #include <cmath>
-
-#include "config/config.hpp"
-#include "engine/default_packets.hpp"
 #include "utils/logging.hpp"
 
 GsharePredictor::GsharePredictor()
@@ -53,7 +50,7 @@ void GsharePredictor::Deallocate() {
 }
 
 int GsharePredictor::RoundNumberOfEntries(unsigned long requestedSize) {
-    int bits = (unsigned int)floor(log2(requestedSize));
+    unsigned int bits = (unsigned int)floor(log2(requestedSize));
     if (bits == 0) {
         return 1;
     }
@@ -104,8 +101,8 @@ void GsharePredictor::QueryEntry() {
 }
 
 void GsharePredictor::CalculateIndex(unsigned long addr) {
-    this->currentIndex =
-        (this->globalBranchHistReg ^ addr) & this->indexBitsSize;
+    unsigned long mask = (1 << this->indexBitsSize) - 1;
+    this->currentIndex = (this->globalBranchHistReg ^ addr) & mask;
 }
 
 int GsharePredictor::SetConfigParameter(const char* parameter,
@@ -115,7 +112,7 @@ int GsharePredictor::SetConfigParameter(const char* parameter,
             return 1;
         }
         unsigned long requestedNumberOfEntries = value.value.integer;
-        if (requestedNumberOfEntries <= 1) {
+        if (requestedNumberOfEntries == 0) {
             return 1;
         }
         return 0;
@@ -132,18 +129,22 @@ int GsharePredictor::SetConfigParameter(const char* parameter,
 }
 
 void GsharePredictor::PrintStatistics() {
-    double percentage =
-        (double)this->numberOfWrongPredictions / this->numberOfPredictions;
+    unsigned long percentage =
+        this->numberOfWrongPredictions / this->numberOfPredictions;
     SINUCA3_DEBUG_PRINTF(
         "Gshare table size [%lu] & number of index bits [%u]\n",
         this->numberOfEntries, this->indexBitsSize);
     SINUCA3_LOG_PRINTF("Gshare number of predictions [%lu]\n",
                        this->numberOfPredictions);
-    SINUCA3_LOG_PRINTF("Gshare rate of wrong predictions [%lf]%%\n",
+    SINUCA3_LOG_PRINTF("Gshare rate of wrong predictions [%ld]%%\n",
                        percentage);
 }
 
 int GsharePredictor::FinishSetup() {
+    if (this->numberOfEntries == 0) {
+        SINUCA3_ERROR_PRINTF("Gshare invalid number of entries\n");
+        return 1;
+    }
     if (this->Allocate()) {
         return 1;
     }
@@ -156,28 +157,26 @@ void GsharePredictor::Clock() {
     long totalConnections = this->GetNumberOfConnections();
     for (long i = 0; i < totalConnections; i++) {
         while (this->ReceiveRequestFromConnection(i, &packet) == 0) {
-            switch (packet.type) {
-                case PredictorPacketTypeRequestQuery:
-                    addr = packet.data.requestQuery.staticInfo->opcodeAddress;
-                    this->CalculateIndex(addr);
-                    this->QueryEntry();
-                    if (this->EnqueueIndex()) {
-                        SINUCA3_WARNING_PRINTF("Gshare index buffer full\n");
-                    }
-                    this->PreparePacket(&packet);
-                    this->sendTo->SendRequest(sendToId, &packet);
-                    break;
-                case PredictorPacketTypeRequestUpdate:
-                    if (this->DequeueIndex()) {
-                        SINUCA3_ERROR_PRINTF("Gshare table not updated\n");
-                        return;
-                    }
-                    this->ReadPacket(&packet);
-                    this->UpdateEntry();
-                    this->UpdateGlobBranchHistReg();
-                    break;
-                default:
-                    SINUCA3_ERROR_PRINTF("Gshare invalid packet type\n");
+            if (packet.type == PredictorPacketTypeRequestQuery) {
+                addr = packet.data.requestQuery.staticInfo->opcodeAddress;
+                this->CalculateIndex(addr);
+                this->QueryEntry();
+                if (this->EnqueueIndex()) {
+                    SINUCA3_WARNING_PRINTF("Gshare index buffer full\n");
+                }
+                this->PreparePacket(&packet);
+                this->sendTo->SendRequest(sendToId, &packet);
+                return;
+            }
+            if (packet.type == PredictorPacketTypeRequestUpdate) {
+                if (this->DequeueIndex()) {
+                    SINUCA3_ERROR_PRINTF("Gshare table was not updated\n");
+                    return;
+                }
+                this->ReadPacket(&packet);
+                this->UpdateEntry();
+                this->UpdateGlobBranchHistReg();
+                return;
             }
         }
     }
