@@ -165,7 +165,9 @@ int GsharePredictor::FinishSetup() {
     if (this->Allocate()) {
         return 1;
     }
-    this->sendToId = this->sendTo->Connect(0);
+    if (sendTo != NULL) {
+        this->sendToId = this->sendTo->Connect(0);
+    }
     return 0;
 }
 
@@ -183,8 +185,11 @@ void GsharePredictor::Clock() {
                     SINUCA3_WARNING_PRINTF("Gshare index buffer full\n");
                 }
                 this->PreparePacket(&packet);
+                if (this->sendTo == NULL) {
+                    this->SendResponseToConnection(i, &packet);
+                    return;
+                }
                 this->sendTo->SendRequest(sendToId, &packet);
-                return;
             }
             if (packet.type == PredictorPacketTypeRequestUpdate) {
                 if (this->DequeueIndex()) {
@@ -194,15 +199,16 @@ void GsharePredictor::Clock() {
                 this->ReadPacket(&packet);
                 this->UpdateEntry();
                 this->UpdateGlobBranchHistReg();
-                return;
             }
         }
     }
 }
 
 #ifndef NDEBUG
-int TestDelayQueue() {
+int TestGshare() {
     GsharePredictor predictor;
+
+
 
     return 0;
 }
