@@ -19,6 +19,9 @@
 
 #include <cmath>
 
+#include "engine/default_packets.hpp"
+#include "utils/logging.hpp"
+
 GsharePredictor::GsharePredictor()
     : entries(NULL),
       globalBranchHistReg(0),
@@ -73,7 +76,7 @@ void GsharePredictor::ReadPacket(PredictorPacket* pkt) {
 int GsharePredictor::EnqueueIndex() {
     bool ret = this->indexQueue.Enqueue(&this->currentIndex);
 #ifndef NDEBUG
-    SINUCA3_LOG_PRINTF("ENQ [%ld]\n", this->currentIndex);
+    SINUCA3_DEBUG_PRINTF("Gshare Enq [%ld]\n", this->currentIndex);
 #endif
     return ret;
 }
@@ -81,7 +84,7 @@ int GsharePredictor::EnqueueIndex() {
 int GsharePredictor::DequeueIndex() {
     bool ret = this->indexQueue.Dequeue(&this->currentIndex);
 #ifndef NDEBUG
-    SINUCA3_LOG_PRINTF("DEQ [%ld]\n", this->currentIndex);
+    SINUCA3_DEBUG_PRINTF("Gshare Deq [%ld]\n", this->currentIndex);
 #endif
     return ret;
 }
@@ -100,7 +103,7 @@ void GsharePredictor::UpdateGlobBranchHistReg() {
         this->globalBranchHistReg |= 1;
     }
 #ifndef NDEBUG
-    SINUCA3_LOG_PRINTF("GBHR [%ld]\n", this->globalBranchHistReg);
+    SINUCA3_DEBUG_PRINTF("Gshare gbhr [%ld]\n", this->globalBranchHistReg);
 #endif
 }
 
@@ -114,7 +117,7 @@ void GsharePredictor::CalculateIndex(unsigned long addr) {
     unsigned long mask = (1 << this->indexBitsSize) - 1;
     this->currentIndex = (this->globalBranchHistReg ^ addr) & mask;
 #ifndef NDEBUG
-    SINUCA3_LOG_PRINTF("IDX [%ld]\n", this->currentIndex);
+    SINUCA3_LOG_PRINTF("Gshare idx [%ld]\n", this->currentIndex);
 #endif
 }
 
@@ -213,46 +216,79 @@ void GsharePredictor::Clock() {
 }
 
 #ifndef NDEBUG
+void PrepareQuery(PredictorPacket* pkt, StaticInstructionInfo* ins) {
+    pkt->type = PredictorPacketTypeRequestQuery;
+    pkt->data.requestQuery.staticInfo = ins;
+}
+
+void PrepareUpdateRequest(PredictorPacket* pkt, bool direc) {
+    pkt->type = PredictorPacketTypeRequestUpdate;
+    pkt->data.DirectionUpdate.direction = direc;
+}
+
 int TestGshare() {
     GsharePredictor predictor;
     PredictorPacket packet[2];
     StaticInstructionInfo ins[2];
-    const char* names[] = {"a", "b"};
     const long addrs[] = {0x1, 0x2};
-    const bool direc[] = {TAKEN, NTAKEN};
+    const bool direc[] = {NTAKEN, TAKEN};
 
-    for (int i = 0; i < 2; i++) {
-        packet[i].data.requestQuery.staticInfo = &ins[i];
-        ins[i].opcodeAssembly[0] = '\0';
-        strcpy(ins[i].opcodeAssembly, names[i]);
-        ins[i].opcodeAddress = addrs[i];
-    }
+    ins[0].opcodeAddress = addrs[0];
+    ins[1].opcodeAddress = addrs[1];
 
     predictor.SetConfigParameter("numberOfEntries", (long)2);
-    int id = predictor.Connect(1);
+    int id = predictor.Connect(2);
 
-    /* Wrong prediction */
-    for (int i = 0; i < 2; i++) {
-        packet[i].type = PredictorPacketTypeRequestQuery;
+    /* clock 1 */
+    PrepareQuery(&packet[0], &ins[0]);
+    predictor.SendRequest(id, &packet[0]);
+    PrepareQuery(&packet[1], &ins[1]);
+    predictor.SendRequest(id, &packet[1]);
+    predictor.Clock();
+    predictor.PosClock();
+
+    /* clock 2 */
+    predictor.Clock();
+    predictor.PosClock();
+
+    /* clock 3 */
+    predictor.ReceiveResponse(id, &packet[0]);
+    predictor.ReceiveResponse(id, &packet[1]);
+    if (packet[0].type != packet[1].type) {
+        SINUCA3_ERROR_PRINTF("Gshare returned different predictions\n");
+        return 1;
     }
 
-    for (int i = 0; i < 2; i++) {
-        packet[i].type = PredictorPacketTypeRequestUpdate;
-    }
+    PrepareUpdateRequest(&packet[0], direc[0]);
+    predictor.SendRequest(id, &packet[0]);
+    PrepareUpdateRequest(&packet[1], direc[1]);
+    predictor.SendRequest(id, &packet[1]);
+    predictor.Clock();
+    predictor.PosClock();
 
-    /* Right prediction */
-    for (int i = 0; i < 2; i++) {
-        packet[i].type = PredictorPacketTypeRequestQuery;
-    }
+    /* clock 4 */
+    predictor.Clock();
+    predictor.PosClock();
 
-    for (int i = 0; i < 2; i++) {
-        packet[i].type = PredictorPacketTypeRequestUpdate;
-    }
+    /* clock 6 */
+    PrepareQuery(&packet[0], &ins[0]);
+    predictor.SendRequest(id, &packet[0]);
+    PrepareQuery(&packet[1], &ins[1]);
+    predictor.SendRequest(id, &packet[1]);
+    predictor.Clock();
+    predictor.PosClock();
 
-    /* Right prediction */
-    for (int i = 0; i < 2; i++) {
-        packet[i].type = PredictorPacketTypeRequestQuery;
-    }
+    /* clock 7 */
+    predictor.Clock();
+    predictor.PosClock();
+
+    /* clock 8 */
+    predictor.ReceiveResponse(id, &packet[0]);
+    SINUCA3_DEBUG_PRINTF("Gshare predicted [%d] for [%ld] addr\n",
+                         packet[0].type, addrs[0]);
+    predictor.ReceiveResponse(id, &packet[1]);
+    SINUCA3_DEBUG_PRINTF("Gshare predicted [%d] for [%ld] addr\n",
+                         packet[1].type, addrs[1]);
 
     return 0;
 }
