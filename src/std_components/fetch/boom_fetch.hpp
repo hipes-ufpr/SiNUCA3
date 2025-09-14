@@ -35,19 +35,16 @@
  */
 typedef int FetchBufferEntryFlags;
 
-/** @brief Predictor responded about this instruction. */
-const FetchBufferEntryFlags FetchBufferEntryFlagsPredicted = (1 << 0);
-/** @brief We already sent this instruction to the predictor. */
-const FetchBufferEntryFlags FetchBufferEntryFlagsSentToPredictor = (1 << 1);
-/** @brief We already sent this instruction to the memory. */
-const FetchBufferEntryFlags FetchBufferEntryFlagsSentToMemory = (1 << 2);
-/** @brief BTB responded about this instruction. */
-const FetchBufferEntryFlags FetchBufferEntryFlagsBTBPredicted = (1 << 3);
-/** @brief Ras responded about this instruction. */
-const FetchBufferEntryFlags FetchBufferEntryFlagsSentToBTB = (1 << 4);
-/** @brief We already sent this instuction to the ras. */
-const FetchBufferEntryFlags FetchBufferEntryFlagsSentToRAS = (1 << 5);
-
+/** @brief This instruction was send to memory. */
+const FetchBufferEntryFlags FetchBufferEntryFlagsSendMemory = (1 << 0);
+/** @brief This instruction was send to predictor. */
+const FetchBufferEntryFlags FetchBufferEntryFlagsSendPredictor = (1 << 1);
+/** @brief This instruction was send to ras. */
+const FetchBufferEntryFlags FetchBufferEntryFlagsSendRas = (1 << 2);
+/** @brief This instruction was processed by fetch. */
+const FetchBufferEntryFlags FetchBufferEntryFlagsSendInst = (1 << 3);
+/** @brief This instruction was send to btb. */
+const FetchBufferEntryFlags FetchBufferEntryFlagsSendBTB = (1 << 4);
 struct FetchBufferEntry {
     InstructionPacket instruction; /**< Fetched instruction >*/
     FetchBufferEntryFlags flags;   /**< Flags for the entry >*/
@@ -160,7 +157,7 @@ class BoomFetch : public Component<FetchPacket> {
           predictorID(-1),
           btbID(-1),
           rasID(-1),
-          flagsToCheck(FetchBufferEntryFlagsSentToRAS) {}
+          flagsToCheck(FetchBufferEntryFlagsSendInst) {}
 
     virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual int FinishSetup();
