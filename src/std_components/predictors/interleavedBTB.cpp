@@ -239,6 +239,12 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
     unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
     BTBPacket response;
 
+    response.data.response.instruction = instruction;
+    response.data.response.target =
+        instruction->opcodeAddress + this->interleavingFactor;
+    response.data.response.numberOfInstructions = this->interleavingFactor;
+    response.data.response.interleavingBits = this->interleavingBits;
+
     BTBEntry* currentEntry = btb[index];
     if (currentEntry->GetTag() == tag) {
         // BTB Hit
@@ -248,10 +254,7 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
          * taken branch as valid.
          */
         bool branchTaken = false;
-        response.data.response.instruction = instruction;
-        response.data.response.target =
-            instruction->opcodeAddress + this->interleavingFactor;
-        response.data.response.numberOfBits = this->interleavingFactor;
+        response.data.response.isInBTB = true;
 
         for (unsigned int i = 0; i < this->interleavingFactor; ++i) {
             if (!(branchTaken)) {
@@ -274,10 +277,8 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
          * In a BTB Miss, it assumes that all instructions are valid and that
          * the next fetch block is sequential.
          */
-        response.data.response.instruction = instruction;
-        response.data.response.target =
-            instruction->opcodeAddress + this->interleavingFactor;
-        response.data.response.numberOfBits = this->interleavingFactor;
+        response.data.response.isInBTB = false;
+
         for (unsigned int i = 0; i < this->interleavingFactor; ++i) {
             response.data.response.validBits[i] = true;
         }

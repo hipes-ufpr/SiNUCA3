@@ -84,14 +84,17 @@ struct BTBPacket {
         struct {
             const StaticInstructionInfo*
                 instruction; /**<Instruction info this response is about.>*/
-            unsigned int numberOfBits; /**<Size of valid bits array. */
-            unsigned long target;      /**<The target address for the next
-                                                 fetch block. */
+            unsigned int numberOfInstructions; /**<Size of valid bits array. */
+            unsigned long target; /**<The target address for the next
+                                            fetch block. */
             bool validBits[MAX_INTERLEAVING_FACTOR]; /**<The vector of valid
                                                         bits indicates which
                                                         instructions in the
                                                         block are expected to be
                                                         executed. */
+            bool isInBTB; /**<The instruction block is not in the BTB. */
+            int interleavingBits; /**<The number of bits used to index
+                                     instruction blocks. */
         } response;
     } data;
     BTBPacketType type;

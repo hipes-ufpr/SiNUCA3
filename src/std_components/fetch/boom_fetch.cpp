@@ -193,76 +193,106 @@ int BoomFetch::FinishSetup() {
 
 void BoomFetch::ClockSendBuffered() {
     unsigned int i;
+    int rasUsed;
+    int sendMemoryReturn, sendPredictorReturn, sendRasReturn, sendBTBReturn,
+        successfulySend = 1;
 
-    // Skip instructions we already sent.
+    /* Skip instructions we already sent. */
     i = 0;
-    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToMemory) ++i;
+    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSendInst) ++i;
 
-    while ((i < this->fetchBufferUsage) &&
-           (this->instructionMemory->SendRequest(
-                this->instructionMemoryID, &this->fetchBuffer[i].instruction) ==
-            0)) {
-        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToMemory;
-        ++i;
+    BTBPacket btbPacket;
+    btbPacket.data.requestQuery = this->fetchBuffer[i].instruction.staticInfo;
+    btbPacket.type = BTBPacketTypeRequestQuery;
+    sendBTBReturn = this->btb->SendRequest(this->btbID, &btbPacket);
+
+    if (sendBTBReturn) {
+        successfulySend = 0;
+    } else {
+        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSendBTB;
     }
 
-    // Skip instructions we already sent.
-    i = 0;
-    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToPredictor)
-        ++i;
-
     while (i < this->fetchBufferUsage) {
+        rasUsed = 0;
+
+        /* Send to Memory */
+        sendMemoryReturn = this->instructionMemory->SendRequest(
+            this->instructionMemoryID, &this->fetchBuffer[i].instruction);
+        if (sendMemoryReturn) {
+            successfulySend = 0;
+        } else {
+            this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSendMemory;
+        }
+
+        /* Send to Predictor */
         PredictorPacket predictorPacket;
         predictorPacket.type = PredictorPacketTypeRequestQuery;
         predictorPacket.data.requestQuery = this->fetchBuffer[i].instruction;
-        if (this->predictor->SendRequest(this->predictorID, &predictorPacket) !=
-            0) {
-            break;
+        sendPredictorReturn =
+            this->predictor->SendRequest(this->predictorID, &predictorPacket);
+
+        if (sendPredictorReturn) {
+            successfulySend = 0;
+        } else {
+            this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSendPredictor;
         }
-        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToPredictor;
-        ++i;
-    }
 
-    // Skip instructions we already sent.
-    i = 0;
-    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSentToRAS) {
-        ++i;
-    }
-
-    while (i < this->fetchBufferUsage) {
+        /* Send to Ras */
         if (this->fetchBuffer[i].instruction.staticInfo->branchType ==
             BranchCall) {
+            rasUsed = 1;
             PredictorPacket predictorPacket;
 
             /* Fills the packet with the instruction and target info. */
-            /* We found a call instruction and want to insert its target into
-             * the ras */
+            /*
+             * We found a call instruction and want to insert its target into
+             * the ras
+             */
             predictorPacket.data.requestUpdate.instruction =
                 this->fetchBuffer[i].instruction;
             predictorPacket.data.requestUpdate.target =
                 this->fetchBuffer[i].instruction.nextInstruction;
             predictorPacket.type = PredictorPacketTypeRequestUpdate;
 
-            if (this->ras->SendRequest(this->rasID, &predictorPacket) != 0) {
-                break;
+            sendRasReturn =
+                this->ras->SendRequest(this->rasID, &predictorPacket);
+            if (sendRasReturn) {
+                successfulySend = 0;
+            } else {
+                this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSendRas;
             }
 
         } else if (this->fetchBuffer[i].instruction.staticInfo->branchType ==
                    BranchReturn) {
+            rasUsed = 1;
             PredictorPacket predictorPacket;
 
-            /* We found a return statement, so we unstacked the most recent
-             * target from the ras. */
+            /*
+             * We found a return statement, so we unstacked the most recent
+             * target from the ras.
+             */
             predictorPacket.data.requestQuery =
                 this->fetchBuffer[i].instruction;
             predictorPacket.type = PredictorPacketTypeRequestQuery;
 
-            if (this->ras->SendRequest(this->rasID, &predictorPacket) != 0) {
-                break;
+            sendRasReturn =
+                this->ras->SendRequest(this->rasID, &predictorPacket);
+            if (sendRasReturn) {
+                successfulySend = 0;
+            } else {
+                this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSendRas;
             }
         }
-        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSentToRAS;
-        i++;
+
+        if (successfulySend)
+            this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSendInst;
+
+        if (sendMemoryReturn || sendPredictorReturn ||
+            (rasUsed && sendRasReturn)) {
+            break;
+        }
+
+        ++i;
     }
 }
 
@@ -272,24 +302,27 @@ int BoomFetch::ClockCheckPredictor() {
     PredictorPacket response;
     unsigned long i = 0;
 
-    /*We depend on the predictor sending the responses in order and, of course,
-     * sending only what we actually asked for. */
+    /*
+     * We depend on the predictor sending the responses in order and, of course,
+     * sending only what we actually asked for.
+     */
     while (this->predictor->ReceiveResponse(this->predictorID, &response) ==
            0) {
         assert(this->fetchBuffer[i].instruction.staticInfo ==
                response.data.response.instruction.staticInfo);
-        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsPredicted;
         unsigned long target =
             this->fetchBuffer[i].instruction.staticInfo->opcodeAddress +
             this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
 
-        // "Redirect" the fetch only if the predictor has an address, otherwise
-        // expect the instruction to be at the next logical PC.
+        /*
+         * "Redirect" the fetch only if the predictor has an address, otherwise
+         */
+        /* expect the instruction to be at the next logical PC. */
         if (response.type == PredictorPacketTypeResponseTakeToAddress) {
             target = response.data.response.target;
         }
 
-        // If a missprediction happened.
+        /* If a missprediction happened. */
         if (target != this->fetchBuffer[i].instruction.nextInstruction) {
             return 1;
         }
@@ -305,6 +338,8 @@ int BoomFetch::ClockCheckRas() {
     unsigned long target;
     PredictorPacket response;
 
+    this->ras->Clock();
+
     while (this->ras->ReceiveResponse(this->rasID, &response) == 0) {
         target = response.data.response.target;
 
@@ -317,7 +352,93 @@ int BoomFetch::ClockCheckRas() {
     return 0;
 }
 
-int BoomFetch::ClockCheckBTB() { return 0; }
+int BoomFetch::ClockCheckBTB() {
+    if (this->btb == NULL) return 0;
+
+    BTBPacket response;
+    bool validResponse, isNext;
+    unsigned int i, index, nextInstruction, targetBlock, miss;
+
+    this->btb->Clock();
+
+    miss = 0;
+    if (this->btb->ReceiveResponse(this->btbID, &response) == 0) {
+        i = 0;
+        while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSendInst) ++i;
+        assert(this->fetchBuffer[i].instruction.staticInfo ==
+               response.data.response.instruction);
+
+        index = i;
+
+        /* Checks whether the instructions actually executed as intended */
+        for (i = 1; i < response.data.response.numberOfInstructions; ++i) {
+            validResponse = response.data.response.validBits[i];
+
+            nextInstruction = this->fetchBuffer[index + (i - 1)]
+                                  .instruction.staticInfo->opcodeAddress +
+                              this->fetchBuffer[index + (i - 1)]
+                                  .instruction.staticInfo->opcodeSize;
+
+            isNext =
+                nextInstruction == this->fetchBuffer[index + i]
+                                       .instruction.staticInfo->opcodeAddress;
+
+            if (validResponse != isNext) {
+                /* In this case, the prediction was wrong. */
+                miss = 1;
+                if (validResponse) {
+                    /*
+                     * If it was valid, the previous instruction (branch) was
+                     * executed and the current instruction contains the jump
+                     * destination address.
+                     */
+                    targetBlock = this->fetchBuffer[index + i]
+                                      .instruction.staticInfo->opcodeAddress;
+                } else {
+                    /*
+                     * If it was not valid, the previous instruction (branch)
+                     * was considered to have been taken, and the address of the
+                     * next block is given by the base address + the number of
+                     * instructions per block.
+                     */
+                    targetBlock =
+                        ((this->fetchBuffer[index]
+                              .instruction.staticInfo->opcodeAddress >>
+                          response.data.response.interleavingBits)
+                         << response.data.response.interleavingBits) +
+                        response.data.response.numberOfInstructions;
+                }
+
+                BTBPacket updateRequest;
+
+                if (response.data.response.isInBTB) {
+                    updateRequest.data.requestUpdate.instruction =
+                        this->fetchBuffer[index + (i - 1)]
+                            .instruction.staticInfo;
+
+                    updateRequest.data.requestUpdate.branchState =
+                        validResponse;
+
+                    updateRequest.type = BTBPacketTypeRequestUpdate;
+                } else {
+                    updateRequest.data.requestAddEntry.instruction =
+                        this->fetchBuffer[index + (i - 1)]
+                            .instruction.staticInfo;
+
+                    updateRequest.data.requestAddEntry.target = targetBlock;
+
+                    updateRequest.type = BTBPacketTypeRequestAddEntry;
+                }
+
+                if (this->btb->SendRequest(this->btbID, &updateRequest) != 0) {
+                    break;
+                }
+            }
+        }
+    }
+
+    return miss;
+}
 
 void BoomFetch::ClockUnbuffer() {
     unsigned long i = 0;
@@ -358,7 +479,7 @@ void BoomFetch::ClockFetch() {
 }
 
 void BoomFetch::Clock() {
-    // If paying a misspredict penalty
+    /* If paying a misspredict penalty */
     if (this->currentPenalty > 0) {
         --this->currentPenalty;
         return;
@@ -367,9 +488,10 @@ void BoomFetch::Clock() {
     this->ClockSendBuffered();
     const int predictionResult = this->ClockCheckPredictor();
     const int rasResult = this->ClockCheckRas();
+    const int btbResult = this->ClockCheckBTB();
     this->ClockUnbuffer();
 
-    if ((predictionResult != 0) || (rasResult != 0)) {
+    if ((predictionResult != 0) || (rasResult != 0) || (btbResult != 0)) {
         ++this->misspredictions;
         this->currentPenalty = this->misspredictPenalty;
         this->fetchClock = 0;
