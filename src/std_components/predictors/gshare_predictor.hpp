@@ -38,6 +38,8 @@
 #include <utils/bimodal_counter.hpp>
 #include <utils/circular_buffer.hpp>
 
+#include "engine/default_packets.hpp"
+
 /** @brief Refer to gshare_predictor.hpp documentation for details */
 class GsharePredictor : public Component<PredictorPacket> {
   private:
@@ -50,8 +52,8 @@ class GsharePredictor : public Component<PredictorPacket> {
     unsigned long currentIndex;
     unsigned int indexQueueSize; /**<Queue size. Default is unlimited size> */
     unsigned int indexBitsSize;  /**<Number of bits used to address table> */
-    bool directionPredicted;
-    bool directionTaken;
+    bool wasPredictedToBeTaken;
+    bool wasBranchTaken;
 
     Component<PredictorPacket>* sendTo;
     int sendToId;
@@ -68,13 +70,18 @@ class GsharePredictor : public Component<PredictorPacket> {
      */
     void PreparePacket(PredictorPacket* pkt);
     /**
-     * @brief Read from incoming packet the actual direction of execution.
+     * @brief Update the predictor table and gbhr.
      */
-    void ReadPacket(PredictorPacket* pkt);
+    void Update();
     void UpdateGlobBranchHistReg();
     void UpdateEntry();
     /**
-     * @brief Since this predictor does not have a tag in each entry, when
+     * @brief Calculate index of access, save it and fill packet with prediction
+     * from table.
+     */
+    void Query(PredictorPacket* pkt, unsigned long addr);
+    /**
+     * @note Since this predictor does not have a tag in each entry, when
      * queried, it will always output a valid answer.
      */
     void QueryEntry();
