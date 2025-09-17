@@ -162,7 +162,6 @@ class BoomFetch : public Component<FetchPacket> {
     virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual int FinishSetup();
     virtual void Clock();
-    virtual void Flush();
     virtual void PrintStatistics();
     virtual ~BoomFetch();
 };
