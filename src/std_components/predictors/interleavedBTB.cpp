@@ -257,7 +257,7 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
             if (!(branchTaken)) {
                 if ((currentEntry->GetBranchType(i) ==
                      BranchTypeUnconditional) ||
-                    (currentEntry->GetPrediction(i) == TAKEN)) {
+                    (currentEntry->GetPrediction(i))) {
                     response.data.response.target =
                         currentEntry->GetTargetAddress(i);
                     branchTaken = true;

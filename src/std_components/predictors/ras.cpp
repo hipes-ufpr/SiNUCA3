@@ -87,8 +87,8 @@ inline void Ras::RequestQuery(InstructionPacket instruction, int connectionID) {
 
     PredictorPacket response;
     response.type = PredictorPacketTypeResponseTakeToAddress;
-    response.data.response.instruction = instruction;
-    response.data.response.target = prediction;
+    response.data.targetResponse.instruction = instruction;
+    response.data.targetResponse.target = prediction;
 
     if (this->sendTo == NULL) {
         this->SendResponseToConnection(connectionID, &response);
@@ -116,7 +116,7 @@ void Ras::Clock() {
                     break;
                 case PredictorPacketTypeRequestUpdate:
                     ++this->numUpdates;
-                    this->RequestUpdate(packet.data.requestUpdate.target);
+                    this->RequestUpdate(packet.data.targetUpdate.target);
                     break;
                 default:
                     SINUCA3_WARNING_PRINTF(
@@ -152,7 +152,7 @@ int TestRas() {
     msg.type = PredictorPacketTypeRequestUpdate;
 
     ras.Clock();
-    msg.data.requestUpdate.target = 0xcafebabe;
+    msg.data.targetUpdate.target = 0xcafebabe;
     ras.SendRequest(id, &msg);
     ras.PosClock();
 
@@ -160,7 +160,7 @@ int TestRas() {
     ras.PosClock();
 
     ras.Clock();
-    msg.data.requestUpdate.target = 0xdeadbeef;
+    msg.data.targetUpdate.target = 0xdeadbeef;
     ras.SendRequest(id, &msg);
     ras.PosClock();
 
@@ -180,10 +180,10 @@ int TestRas() {
         SINUCA3_LOG_PRINTF("Ras did not respond first query!\n");
         return 1;
     }
-    if (msg.data.response.target != 0xdeadbeef) {
+    if (msg.data.targetResponse.target != 0xdeadbeef) {
         SINUCA3_LOG_PRINTF(
             "Ras responded first query with wrong address %ld!\n",
-            msg.data.response.target);
+            msg.data.targetResponse.target);
         return 1;
     }
     ras.PosClock();
@@ -193,7 +193,7 @@ int TestRas() {
 
     ras.Clock();
     msg.type = PredictorPacketTypeRequestUpdate;
-    msg.data.requestUpdate.target = 0xb16b00b5;
+    msg.data.targetUpdate.target = 0xb16b00b5;
     ras.SendRequest(id, &msg);
     ras.PosClock();
 
@@ -212,10 +212,10 @@ int TestRas() {
         SINUCA3_LOG_PRINTF("Ras did not respond second query!\n");
         return 1;
     }
-    if (msg.data.response.target != 0xb16b00b5) {
+    if (msg.data.targetResponse.target != 0xb16b00b5) {
         SINUCA3_LOG_PRINTF(
             "Ras responded second query with wrong address %ld!\n",
-            msg.data.response.target);
+            msg.data.targetResponse.target);
         return 1;
     }
 
@@ -234,10 +234,10 @@ int TestRas() {
         SINUCA3_LOG_PRINTF("Ras did not respond third query!\n");
         return 1;
     }
-    if (msg.data.response.target != 0xcafebabe) {
+    if (msg.data.targetResponse.target != 0xcafebabe) {
         SINUCA3_LOG_PRINTF(
             "Ras responded third query with wrong address %ld!\n",
-            msg.data.response.target);
+            msg.data.targetResponse.target);
         return 1;
     }
 
