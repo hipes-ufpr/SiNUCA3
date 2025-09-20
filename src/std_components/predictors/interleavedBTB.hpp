@@ -101,6 +101,7 @@ struct BTBPacket {
 };
 
 struct BTBEntry {
+    bool valid;                        /**<The entry is valid. */
     unsigned int numBanks;             /**<The number of banks. */
     unsigned long entryTag;            /**<The entry tag. */
     unsigned long* targetArray;        /**<The target address array. */
@@ -136,6 +137,11 @@ struct BTBEntry {
      * @return 0 if successfuly, 1 otherwise.
      */
     int UpdateEntry(unsigned long bank, bool branchState);
+
+    /**
+     * @brief Gets the valid bit of entry.
+     */
+    inline bool GetValid() { return this->valid; };
 
     /**
      * @brief Gets the tag of the entry
@@ -179,8 +185,7 @@ struct BTBEntry {
 
 class BranchTargetBuffer : public Component<struct BTBPacket> {
   private:
-    BTBEntry** btb;           /**<The pointer to BTB struct. */
-    unsigned long numQueries; /**<Number of queries executed. */
+    BTBEntry** btb; /**<The pointer to BTB struct. */
 
     Component<BTBPacket>* sendTo; /**<Component to which forward responses.> */
 
@@ -193,6 +198,14 @@ class BranchTargetBuffer : public Component<struct BTBPacket> {
     unsigned int numEntries;       /**<The number of BTB entries. */
     unsigned int interleavingBits; /**< InterleavingFactor in bits. */
     unsigned int entriesBits;      /**<Number of entries in bits. */
+
+    /* Statistics */
+    unsigned long btbHits; /**<The number of BTB hits. */
+    unsigned long
+        totalBranch;       /**<The total number of branch instructions added. */
+    unsigned long queries; /**<The number of BTB queries. */
+    unsigned long occupation;   /**<The total occupancy of BTB. */
+    unsigned long replacements; /**<The number of entries replaced. */
 
     /**
      * @brief Calculate the bank based on address.

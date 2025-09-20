@@ -21,7 +21,8 @@
 #include <sinuca3.hpp>
 
 BTBEntry::BTBEntry()
-    : numBanks(0),
+    : valid(false),
+      numBanks(0),
       entryTag(0),
       targetArray(NULL),
       branchTypes(NULL),
@@ -63,6 +64,7 @@ int BTBEntry::NewEntry(unsigned long tag, unsigned int bank,
                        const StaticInstructionInfo* instruction) {
     if (bank >= this->numBanks) return 1;
 
+    this->valid = true;
     this->entryTag = tag;
     this->targetArray[bank] = target;
     this->branchTypes[bank] =
@@ -94,11 +96,15 @@ BTBEntry::~BTBEntry() {
 
 BranchTargetBuffer::BranchTargetBuffer()
     : btb(NULL),
-      numQueries(0),
       interleavingFactor(0),
       numEntries(0),
       interleavingBits(0),
-      entriesBits(0){};
+      entriesBits(0),
+      btbHits(0),
+      totalBranch(0),
+      queries(0),
+      occupation(0),
+      replacements(0){};
 
 int BranchTargetBuffer::SetConfigParameter(const char* parameter,
                                            ConfigValue value) {
@@ -222,6 +228,10 @@ int BranchTargetBuffer::RegisterNewBranch(
     unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
     unsigned int bank = this->CalculateBank(instruction->opcodeAddress);
 
+    if (this->btb[index]->GetValid()) {
+        this->replacements++;
+    }
+
     return this->btb[index]->NewEntry(tag, bank, target, instruction);
 }
 
@@ -235,6 +245,7 @@ int BranchTargetBuffer::UpdateBranch(const StaticInstructionInfo* instruction,
 
 inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
                                       int connectionID) {
+    this->queries++;
     unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
     unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
     BTBPacket response;
@@ -247,6 +258,7 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
 
     BTBEntry* currentEntry = btb[index];
     if (currentEntry->GetTag() == tag) {
+        this->btbHits++;
         // BTB Hit
         /*
          * In a BTB hit, searches for a taken branch instruction and fills in
@@ -293,6 +305,7 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
 
 inline int BranchTargetBuffer::AddEntry(
     const StaticInstructionInfo* instruction, unsigned long targetAddress) {
+    this->totalBranch++;
     return this->RegisterNewBranch(instruction, targetAddress);
 }
 
@@ -308,7 +321,6 @@ void BranchTargetBuffer::Clock() {
         if (this->ReceiveRequestFromConnection(i, &packet) == 0) {
             switch (packet.type) {
                 case BTBPacketTypeRequestQuery:
-                    ++this->numQueries;
                     this->Query(packet.data.requestQuery, i);
                     break;
                 case BTBPacketTypeRequestAddEntry:
@@ -334,8 +346,21 @@ void BranchTargetBuffer::Clock() {
 }
 
 void BranchTargetBuffer::PrintStatistics() {
-    SINUCA3_LOG_PRINTF("BranchTargetBuffer %p: %lu queries", this,
-                       this->numQueries);
+    for (unsigned int i = 0; i < this->numEntries; ++i) {
+        if (this->btb[i]->GetValid()) this->occupation++;
+    }
+
+    SINUCA3_LOG_PRINTF("Branch Target Buffer: [%p]", this);
+    SINUCA3_LOG_PRINTF("Total Branches: %lu", this->totalBranch);
+    SINUCA3_LOG_PRINTF("BTB Hits: %lu", this->btbHits);
+    SINUCA3_LOG_PRINTF("BTB Occupation: %lu", this->occupation);
+    SINUCA3_LOG_PRINTF("Entry Replacements: %lu", this->replacements);
+    SINUCA3_LOG_PRINTF(
+        "Hit Ratio: %lf%%",
+        ((double)this->btbHits / (double)this->totalBranch) * 100);
+    SINUCA3_LOG_PRINTF(
+        "Occupation Ratio: %lf%%",
+        ((double)this->occupation / (double)this->numEntries) * 100);
 }
 
 BranchTargetBuffer::~BranchTargetBuffer() {

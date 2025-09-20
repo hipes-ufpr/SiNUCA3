@@ -433,6 +433,23 @@ int BoomFetch::ClockCheckBTB() {
                 if (this->btb->SendRequest(this->btbID, &updateRequest) != 0) {
                     break;
                 }
+            } else {
+                /* The prediction was correct. */
+                BTBPacket updateRequest;
+
+                updateRequest.data.requestUpdate.instruction =
+                    this->fetchBuffer[index + (i - 1)].instruction.staticInfo;
+                /*
+                 * If it was taken, the validity bit of the next sequential
+                 * instruction is 0. If it was not taken, the validity bit of
+                 * the next sequential instruction is 1.
+                 */
+                updateRequest.data.requestUpdate.branchState = (!validResponse);
+                updateRequest.type = BTBPacketTypeRequestUpdate;
+
+                if (this->btb->SendRequest(this->btbID, &updateRequest) != 0) {
+                    break;
+                }
             }
         }
     }
@@ -508,7 +525,9 @@ void BoomFetch::Clock() {
 }
 
 void BoomFetch::PrintStatistics() {
-    // Implementation of PrintStatistics
+    SINUCA3_LOG_PRINTF("Boom Fetch [%p]", this);
+    this->btb->PrintStatistics();
+    this->ras->PrintStatistics();
 }
 
 BoomFetch::~BoomFetch() {
