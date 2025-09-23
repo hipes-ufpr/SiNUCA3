@@ -21,8 +21,12 @@
  */
 
 #include <cassert>  // assert
+#include <cstring>
 
 #include "pin.H"
+#include "types_base.PH"
+#include "types_core.PH"
+#include "types_vmapi.PH"
 
 extern "C" {
 #include <sys/stat.h>  // mkdir
@@ -33,27 +37,6 @@ extern "C" {
 #include <utils/dynamic_trace_writer.hpp>
 #include <utils/memory_trace_writer.hpp>
 #include <utils/static_trace_writer.hpp>
-
-/* Prototypes */
-int Usage();
-bool StrStartsWithGomp(const char* s);
-void InitGompHandling();
-void DebugPrintRtnName(const char* s, THREADID tid);
-VOID InitInstrumentation();
-VOID StopInstrumentation();
-VOID EnableInstrumentationInThread(THREADID tid);
-VOID DisableInstrumentationInThread(THREADID tid);
-VOID InsertInstrumentionOnMemoryOperations(const INS* ins);
-
-VOID AppendToDynamicTrace(UINT32 bblId, UINT32 numInst);
-VOID AppendToMemTraceStd(ADDRINT addr, UINT32 size);
-VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* accessInfo);
-
-VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v);
-VOID OnThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v);
-VOID OnTrace(TRACE trace, VOID* ptr);
-VOID OnImageLoad(IMG img, VOID* ptr);
-VOID OnFini(INT32 code, VOID* ptr);
 
 const int MEMREAD_EA = IARG_MEMORYREAD_EA;
 const int MEMREAD_SIZE = IARG_MEMORYREAD_SIZE;
@@ -263,6 +246,30 @@ VOID InsertInstrumentionOnMemoryOperations(const INS* ins) {
     }
 }
 
+BOOL IsIntrinsic(const INS* ins) {
+    if (!INS_IsDirectControlFlow(*ins)) {
+        return false;
+    }
+
+    ADDRINT targetAddr = INS_DirectControlFlowTargetAddress(*ins);
+    RTN targetRtn = RTN_FindByAddress(targetAddr);
+    if (RTN_Valid(targetRtn)) {
+        const char* targetName = RTN_Name(targetRtn).c_str();
+        if (strcmp(targetName, "MemsetImpl") == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+VOID AppendIntrinsic(const INS* originalCall) {
+    staticTrace->PrepareDataIntrinsic(originalCall, "MemsetImpl",
+                                      strlen("MemsetImpl"), REG_INVALID(),
+                                      REG_INVALID());
+    staticTrace->AppendToBufferDataINS();
+    staticTrace->IncInstCount();
+}
+
 VOID OnTrace(TRACE trace, VOID* ptr) {
     if (!isInstrumentating) return;
 
@@ -301,6 +308,10 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
         staticTrace->IncBBlCount();
         staticTrace->AppendToBufferNumIns(numberInstBBl);
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
+            if (IsIntrinsic(&ins)) {
+                AppendIntrinsic(&ins);
+                continue;
+            }
             staticTrace->PrepareDataINS(&ins);
             staticTrace->AppendToBufferDataINS();
             InsertInstrumentionOnMemoryOperations(&ins);
@@ -341,22 +352,23 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
             if (strcmp(name, "BeginInstrumentationBlock") == 0) {
                 RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)InitInstrumentation,
                                IARG_END);
-            }
-
-            if (strcmp(name, "EndInstrumentationBlock") == 0) {
+            } else if (strcmp(name, "EndInstrumentationBlock") == 0) {
                 RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)StopInstrumentation,
                                IARG_END);
-            }
-
-            if (strcmp(name, "EnableThreadInstrumentation") == 0) {
+            } else if (strcmp(name, "EnableThreadInstrumentation") == 0) {
                 RTN_InsertCall(rtn, IPOINT_BEFORE,
                                (AFUNPTR)EnableInstrumentationInThread,
                                IARG_THREAD_ID, IARG_END);
-            }
-
-            if (strcmp(name, "DisableThreadInstrumentation") == 0) {
+            } else if (strcmp(name, "DisableThreadInstrumentation") == 0) {
                 RTN_InsertCall(rtn, IPOINT_BEFORE,
                                (AFUNPTR)DisableInstrumentationInThread,
+                               IARG_THREAD_ID, IARG_END);
+            } else if (strcmp(name, "MemsetImpl") == 0) {
+                RTN_InsertCall(rtn, IPOINT_BEFORE,
+                               (AFUNPTR)DisableInstrumentationInThread,
+                               IARG_THREAD_ID, IARG_END);
+                RTN_InsertCall(rtn, IPOINT_AFTER,
+                               (AFUNPTR)EnableInstrumentationInThread,
                                IARG_THREAD_ID, IARG_END);
             }
 

@@ -55,17 +55,20 @@ int main(void) {
     volatile unsigned char buffer[size];
 
     BeginInstrumentationBlock();
+    EnableThreadInstrumentation();
 
     __asm__ volatile("call MemsetImpl" : : "D"(buffer), "S"(size) :);
 
-    EndInstrumentationBlock();
-
-    // Cause a side-effect to force the compilation of memset.
-    for (int i = 0; i < size; ++i) {
+    // More instructions to fill the bottom of the trace, so we guarantee
+    // simulation of the intrinsic.
+    for (int i = 0; i < 2; ++i) {
         if (buffer[i] != 0xfe) {
             return 1;
         }
     }
+
+    DisableThreadInstrumentation();
+    EndInstrumentationBlock();
 
     return 0;
 }

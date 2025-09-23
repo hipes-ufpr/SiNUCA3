@@ -51,6 +51,9 @@ class StaticTraceFile : public TraceFileWriter {
     StaticTraceFile(const char *source, const char *img);
     ~StaticTraceFile();
     void PrepareDataINS(const INS *pinInstruction);
+    void PrepareDataIntrinsic(const INS *originalCall, const char *name,
+                              unsigned long nameSize, REG baseReg,
+                              REG indexReg);
     void AppendToBufferDataINS();
     void AppendToBufferNumIns(unsigned int numIns);
     inline void IncBBlCount() { this->bblCount++; }
