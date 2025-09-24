@@ -20,105 +20,30 @@
  * @brief Implementation of the SiNUCA3 x86_64 tracer based on Intel Pin.
  */
 
-#include <cassert>  // assert
+#include "sinuca3_pintool.hpp"
 
-#include "pin.H"
-
-extern "C" {
-#include <sys/stat.h>  // mkdir
-#include <unistd.h>    // access
-}
-
-#include <sinuca3.hpp>
-#include <utils/dynamic_trace_writer.hpp>
-#include <utils/memory_trace_writer.hpp>
-#include <utils/static_trace_writer.hpp>
-
-/* Prototypes */
-int Usage();
-bool StrStartsWithGomp(const char* s);
-void InitGompHandling();
-void DebugPrintRtnName(const char* s, THREADID tid);
-VOID InitInstrumentation();
-VOID StopInstrumentation();
-VOID EnableInstrumentationInThread(THREADID tid);
-VOID DisableInstrumentationInThread(THREADID tid);
-VOID InsertInstrumentionOnMemoryOperations(const INS* ins);
-
-VOID AppendToDynamicTrace(UINT32 bblId, UINT32 numInst);
-VOID AppendToMemTraceStd(ADDRINT addr, UINT32 size);
-VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* accessInfo);
-
-VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v);
-VOID OnThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v);
-VOID OnTrace(TRACE trace, VOID* ptr);
-VOID OnImageLoad(IMG img, VOID* ptr);
-VOID OnFini(INT32 code, VOID* ptr);
-
-const int MEMREAD_EA = IARG_MEMORYREAD_EA;
-const int MEMREAD_SIZE = IARG_MEMORYREAD_SIZE;
-const int MEMWRITE_EA = IARG_MEMORYWRITE_EA;
-const int MEMWRITE_SIZE = IARG_MEMORYWRITE_SIZE;
-const int MEMREAD2_EA = IARG_MEMORYREAD2_EA;
-
-/**
- * @brief Set this to 1 to print all rotines that name begins with "gomp",
- * case insensitive (Statically linking GOMP is recommended).
- */
 const int DEBUG_PRINT_GOMP_RNT = 0;
-
-/**
- * @note Instrumentation is the process of deciding where and what code should
- * be inserted into the target program, while analysis refers to the code that
- * is actually executed at those insertion points to gather information about
- * the program’s behavior.
- *
- * @brief When enabled, this flag allows the pintool to record all instructions
- * static info into a static trace file, and allows the instrumentation phase
- * (e.g., in OnTrace) to insert analysis code into the target program. However,
- * the inserted analysis code will only execute at runtime if the corresponding
- * thread has its threadInstrumentationEnabled flag set to true.
- */
-static bool isInstrumentating;
-/**
- * @note Instrumentation is the process of deciding where and what code should
- * be inserted into the target program, while analysis refers to the code that
- * is actually executed at those insertion points to gather information about
- * the program’s behavior.
- *
- * @brief Indicates, for each thread, whether it is allowed to execute
- * previously inserted analysis code.
- *
- * This flag does not control the instrumentation process itself (i.e., whether
- * code is inserted into the target program), but rather whether a specific
- * thread is permitted to execute that analysis code at runtime.
- *
- * The insertion of analysis code occurs only when the global
- * `isInstrumentating` flag is enabled. Later, during program execution, the
- * inserted code will only be executed by a thread if its corresponding entry in
- * this vector is set to true.
- *
- * When executed, the analysis code records dynamic and memory trace information
- * into files associated with the executing thread.
- */
-static std::vector<bool> isThreadAnalysisEnabled;
+const char* folderPath;
 
 char* imageName = NULL;
-const char* folderPath;
-bool wasInstrumented =
-    false;  // true, if program was been instrumented once at least.
+bool isInstrumentating;
+bool wasInitInstrumentationCalled = false;
 
 sinucaTracer::StaticTraceFile* staticTrace;
 std::vector<sinucaTracer::DynamicTraceFile*> dynamicTraces;
 std::vector<sinucaTracer::MemoryTraceFile*> memoryTraces;
+std::vector<bool> isThreadAnalysisEnabled;
 
-PIN_LOCK pinLock;
+PIN_LOCK printLock;
+PIN_LOCK threadStartLock;
+PIN_LOCK onTraceLock;
+
 std::vector<const char*> OMP_ignore;
 
-KNOB<INT> KnobNumberIns(KNOB_MODE_WRITEONCE, "pintool", "number_max_inst", "-1",
-                        "Maximum number of instructions to be traced");
+/** @brief Set directory to save trace with '-o'. Default is current dir. */
 KNOB<std::string> KnobFolder(KNOB_MODE_WRITEONCE, "pintool", "o", "./",
                              "Path to store the trace files");
+/** @brief Allows one to force full instrumentation with '-f'. Default is 0. */
 KNOB<BOOL> KnobForceInstrumentation(
     KNOB_MODE_WRITEONCE, "pintool", "f", "0",
     "Force instrumentation for the entire execution for all created threads");
@@ -140,7 +65,7 @@ bool StrStartsWithGomp(const char* s) {
 }
 
 void InitGompHandling() {
-    // All these functions have a PAUSE instruction (Spin-lock hint)
+    /* All these functions have a PAUSE instruction (Spin-lock hint) */
     OMP_ignore.push_back("gomp_barrier_wait_end");
     OMP_ignore.push_back("gomp_team_barrier_wait_end");
     OMP_ignore.push_back("gomp_team_barrier_wait_cancel_end");
@@ -152,43 +77,43 @@ void InitGompHandling() {
 }
 
 void DebugPrintRtnName(const char* s, THREADID tid) {
-    PIN_GetLock(&pinLock, tid);
+    PIN_GetLock(&printLock, tid);
     SINUCA3_DEBUG_PRINTF("RNT called: %s\n", s);
-    PIN_ReleaseLock(&pinLock);
+    PIN_ReleaseLock(&printLock);
 }
 
 VOID InitInstrumentation() {
     if (isInstrumentating) return;
-    PIN_GetLock(&pinLock, PIN_ThreadId());
+    PIN_GetLock(&printLock, PIN_ThreadId());
     SINUCA3_LOG_PRINTF("Start of tool instrumentation block\n");
     isInstrumentating = true;
-    wasInstrumented = true;
-    PIN_ReleaseLock(&pinLock);
+    wasInitInstrumentationCalled = true;
+    PIN_ReleaseLock(&printLock);
 }
 
 VOID StopInstrumentation() {
     if (!isInstrumentating || KnobForceInstrumentation.Value()) return;
-    PIN_GetLock(&pinLock, PIN_ThreadId());
+    PIN_GetLock(&printLock, PIN_ThreadId());
     SINUCA3_LOG_PRINTF("End of tool instrumentation block\n");
     isInstrumentating = false;
-    PIN_ReleaseLock(&pinLock);
+    PIN_ReleaseLock(&printLock);
 }
 
 VOID EnableInstrumentationInThread(THREADID tid) {
     if (isThreadAnalysisEnabled[tid]) return;
-    PIN_GetLock(&pinLock, tid);
+    PIN_GetLock(&printLock, tid);
     SINUCA3_LOG_PRINTF("Enabling tool instrumentation in thread [%d]\n", tid);
     isThreadAnalysisEnabled[tid] = true;
-    PIN_ReleaseLock(&pinLock);
+    PIN_ReleaseLock(&printLock);
 }
 
 VOID DisableInstrumentationInThread(THREADID tid) {
     if (!isThreadAnalysisEnabled[tid] || KnobForceInstrumentation.Value())
         return;
-    PIN_GetLock(&pinLock, tid);
+    PIN_GetLock(&printLock, tid);
     SINUCA3_LOG_PRINTF("Disabling tool instrumentation in thread [%d]\n", tid);
     isThreadAnalysisEnabled[tid] = false;
-    PIN_ReleaseLock(&pinLock);
+    PIN_ReleaseLock(&printLock);
 }
 
 VOID AppendToDynamicTrace(UINT32 bblId, UINT32 numInst) {
@@ -214,31 +139,27 @@ VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
 }
 
 VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
-    PIN_GetLock(&pinLock, tid);
-    SINUCA3_DEBUG_PRINTF("New thread created! N => %d (%s)\n", tid, imageName);
+    PIN_GetLock(&threadStartLock, tid);
+    SINUCA3_DEBUG_PRINTF("New thread created! tid [%d] (%s)\n", tid, imageName);
     staticTrace->IncThreadCount();
-    isThreadAnalysisEnabled.push_back(
-        KnobForceInstrumentation.Value());  // Init with instru. disabled (or
-                                            // enabled if forced with "-f")
+    isThreadAnalysisEnabled.push_back(KnobForceInstrumentation.Value());
+
     dynamicTraces.push_back(
         new sinucaTracer::DynamicTraceFile(folderPath, imageName, tid));
     memoryTraces.push_back(
         new sinucaTracer::MemoryTraceFile(folderPath, imageName, tid));
-    PIN_ReleaseLock(&pinLock);
+    PIN_ReleaseLock(&threadStartLock);
 }
 
 VOID OnThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
-    PIN_GetLock(&pinLock, tid);
+    /* delete is thread safe for distinct objetcs in modern implementation */
     delete dynamicTraces[tid];
     delete memoryTraces[tid];
-    PIN_ReleaseLock(&pinLock);
 }
 
 VOID InsertInstrumentionOnMemoryOperations(const INS* ins) {
-    /*
-     * INS_IsStandardMemop() returns false if this instruction has a memory
-     * operand which has unconventional meaning; returns true otherwise
-     */
+    /* INS_IsStandardMemop() returns false if this instruction has a memory
+     * operand which has unconventional meaning; returns true otherwise */
     if (!INS_IsStandardMemop(*ins)) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTraceNonStd,
                        IARG_MULTI_MEMORYACCESS_EA, IARG_END);
@@ -251,15 +172,15 @@ VOID InsertInstrumentionOnMemoryOperations(const INS* ins) {
 
     if (isRead) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTraceStd,
-                       MEMREAD_EA, MEMREAD_SIZE, IARG_END);
+                       IARG_MEMORYREAD_EA, IARG_MEMORYREAD_SIZE, IARG_END);
     }
     if (hasRead2) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTraceStd,
-                       MEMREAD2_EA, MEMREAD_SIZE, IARG_END);
+                       IARG_MEMORYREAD2_EA, IARG_MEMORYREAD_SIZE, IARG_END);
     }
     if (isWrite) {
         INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTraceStd,
-                       MEMWRITE_EA, MEMWRITE_SIZE, IARG_END);
+                       IARG_MEMORYWRITE_EA, IARG_MEMORYWRITE_SIZE, IARG_END);
     }
 }
 
@@ -290,8 +211,7 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
         }
     }
 
-    PIN_GetLock(&pinLock, tid);
-
+    PIN_GetLock(&onTraceLock, tid);
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         unsigned int numberInstBBl = BBL_NumIns(bbl);
         BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)AppendToDynamicTrace,
@@ -307,30 +227,20 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
             staticTrace->IncInstCount();
         }
     }
+    PIN_ReleaseLock(&onTraceLock);
 
-    PIN_ReleaseLock(&pinLock);
     return;
 }
 
 VOID OnImageLoad(IMG img, VOID* ptr) {
     if (IMG_IsMainExecutable(img) == false) return;
 
-    std::string completeImgPath = IMG_Name(img);
-    unsigned long imgPathLen = completeImgPath.size();
-    const char* completeImgPathPtr = completeImgPath.c_str();
-    // As Pin gives us the absolute path for the executable, it always have at
-    // least a '/' (the root of the filesystem).
-    // We need to find the word after the last '/'.
-    int idx = 0;
-    for (int i = imgPathLen - 1; i >= 0; --i) {
-        if (completeImgPathPtr[i] == '/') {
-            idx = i + 1;
-            break;
-        }
-    }
-    unsigned long imageNameLen = imgPathLen - idx + sizeof('\0');
-    imageName = (char*)malloc(imageNameLen);  // freed in Fini()
-    memcpy(imageName, completeImgPathPtr + idx, imageNameLen);
+    std::string absoluteImgPath = IMG_Name(img);
+    long size = absoluteImgPath.length() + sizeof('\0');
+    imageName = (char*)malloc(size);
+    long idx = absoluteImgPath.find_last_of('/') + 1;
+    std::string sub = absoluteImgPath.substr(idx);
+    strcpy(imageName, sub.c_str());
 
     staticTrace = new sinucaTracer::StaticTraceFile(folderPath, imageName);
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
@@ -367,14 +277,13 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
 
 VOID OnFini(INT32 code, VOID* ptr) {
     SINUCA3_LOG_PRINTF("End of tool execution\n");
-    SINUCA3_DEBUG_PRINTF("Number of BBLs [%u]\n", staticTrace->GetBBlCount());
+    SINUCA3_LOG_PRINTF("Number of BBLs [%u]\n", staticTrace->GetBBlCount());
 
     if (imageName != NULL) free(imageName);
 
-    // Close static trace file
     delete staticTrace;
 
-    if (!wasInstrumented) {
+    if (!wasInitInstrumentationCalled) {
         SINUCA3_WARNING_PRINTF(
             "No instrumentation blocks were found in the target program.\n"
             "As result, no instruction data was recorded in the trace files.\n"
@@ -402,13 +311,12 @@ int main(int argc, char* argv[]) {
         mkdir(folderPath, S_IRWXU | S_IRWXG | S_IROTH);
     }
 
-    PIN_InitLock(&pinLock);
+    PIN_InitLock(&printLock);
+    PIN_InitLock(&threadStartLock);
+    PIN_InitLock(&onTraceLock);
 
-    // Init with instru. disabled (or enabled if forced with "-f");
     if (KnobForceInstrumentation.Value()) {
-        SINUCA3_WARNING_PRINTF(
-            "Force flag (\"-f\") enabled: Instrumentating entire program for "
-            "all created threads.\n");
+        SINUCA3_WARNING_PRINTF("Instrumentating entire program\n");
         InitInstrumentation();
     } else {
         isInstrumentating = false;
@@ -423,7 +331,6 @@ int main(int argc, char* argv[]) {
     PIN_AddThreadStartFunction(OnThreadStart, NULL);
     PIN_AddThreadFiniFunction(OnThreadFini, NULL);
 
-    // Never returns
     PIN_StartProgram();
 
     return 0;
