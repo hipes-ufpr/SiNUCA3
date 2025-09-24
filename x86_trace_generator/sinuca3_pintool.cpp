@@ -569,7 +569,6 @@ static inline void SetRegistersInIntrinsicsInfo(REG* arr, unsigned char* num,
     *num = SeparateStringInSections(str, ',', sections,
                                     sinucaTracer::MAX_REG_OPERANDS);
     for (unsigned char i = 0; i < *num; ++i) {
-        SINUCA3_DEBUG_PRINTF("Uses register: %s\n", sections[i]);
         arr[i] = RegisterNameToREG(sections[i]);
     }
 }

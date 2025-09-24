@@ -11,9 +11,9 @@ ifndef CC
   endif
 endif
 
-CFLAGS = -Wall -Wextra -std=c99 -O3 -I../x86_trace_generator/
+CFLAGS = -Wall -Wextra -std=c11 -O3 -g -I../x86_trace_generator/ -no-pie -fno-omit-frame-pointer
 
 all: factorials intrinsics
 
-%: %.c
+%: ../x86_trace_generator/instrumentation_control.c %.c
 	$(CC) $(CFLAGS) -o $@ $^
