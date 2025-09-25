@@ -25,10 +25,10 @@
  * predictions on the direction the flow of execution will take. The table is
  * indexed by hashing the instruction address and the value stored in the
  * globalBranchHistReg attribute. The latter can store information of the
- * direction taken by up to 64 instructions. When instantiating the gshare, it
- * will round the number of entries to the greatest power of 2 less than the
- * number requested, in such a way that bitwise operations can be used to
- * calculate the index.
+ * direction taken by up to sizeof(unsigned long) instructions. When
+ * instantiating the gshare, it will round the number of entries to the greatest
+ * power of 2 less than the number requested, in such a way that bitwise
+ * operations can be used to calculate the index.
  *
  * Note that when queried, this component stores the calculated index in a
  * queue to later update the right positions in the bimodal counter table.
@@ -58,8 +58,6 @@ class GsharePredictor : public Component<PredictorPacket> {
     Component<PredictorPacket>* sendTo;
     int sendToId;
 
-    int Allocate();
-    void Deallocate();
     /**
      * @brief Round the number of entries to the greatest power of 2 less than
      * the value in requestedSize.
@@ -73,8 +71,6 @@ class GsharePredictor : public Component<PredictorPacket> {
      * @brief Update the predictor table and gbhr.
      */
     void Update();
-    void UpdateGlobBranchHistReg();
-    void UpdateEntry();
     /**
      * @brief Calculate index of access, save it and fill packet with prediction
      * from table.
@@ -85,7 +81,6 @@ class GsharePredictor : public Component<PredictorPacket> {
      * queried, it will always output a valid answer.
      */
     void QueryEntry();
-    void CalculateIndex(unsigned long addr);
     /**
      * @return 0 if successfuly, 1 otherwise.
      */
@@ -94,6 +89,12 @@ class GsharePredictor : public Component<PredictorPacket> {
      * @return 0 if successfuly, 1 otherwise.
      */
     int DequeueIndex();
+
+    int Allocate();
+    void Deallocate();
+    void CalculateIndex(unsigned long addr);
+    void UpdateGlobBranchHistReg();
+    void UpdateEntry();
 
   public:
     GsharePredictor();

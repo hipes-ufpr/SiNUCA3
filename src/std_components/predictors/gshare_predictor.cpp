@@ -51,6 +51,10 @@ void GsharePredictor::Deallocate() {
         delete[] this->entries;
         this->entries = NULL;
     }
+    if (!this->indexQueue.IsEmpty()) {
+        SINUCA3_WARNING_PRINTF(
+            "Gshare index queue not empty when it was expected to be\n");
+    }
     this->indexQueue.Deallocate();
 }
 
@@ -275,8 +279,8 @@ int TestGshare() {
     for (int i = 0; i < testSize; ++i) {
         assert(predictor.ReceiveResponse(id, &recvPackets[i]) == 0);
         SINUCA3_DEBUG_PRINTF("Gshare Predicted [%d] for [%ld] ins addr\n",
-                         recvPackets[i].type, ins[i].opcodeAddress);
-        predictor.SendRequest(id, &sendPackets[i + testSize]); // send update
+                             recvPackets[i].type, ins[i].opcodeAddress);
+        predictor.SendRequest(id, &sendPackets[i + testSize]);  // send update
     }
     predictor.Clock();
     predictor.PosClock();
@@ -297,8 +301,8 @@ int TestGshare() {
     for (int i = 0; i < testSize; ++i) {
         assert(predictor.ReceiveResponse(id, &recvPackets[i]) == 0);
         SINUCA3_DEBUG_PRINTF("Gshare Predicted [%d] for [%ld] ins addr\n",
-                         recvPackets[i].type, ins[i].opcodeAddress);
-        predictor.SendRequest(id, &sendPackets[i + testSize]); // send update
+                             recvPackets[i].type, ins[i].opcodeAddress);
+        predictor.SendRequest(id, &sendPackets[i + testSize]);  // send update
     }
     predictor.Clock();
     predictor.PosClock();
