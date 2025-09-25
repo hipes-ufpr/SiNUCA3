@@ -37,7 +37,6 @@ namespace sinucaTracer {
 class DynamicTraceFile : public TraceFileWriter {
   private:
     BBLID bblId;                 /**<Basic block identifier. */
-    unsigned long totalExecInst; /**<Total instructions executed per thread. */
 
     void DynamicAppendToBuffer(void *ptr, unsigned long len);
 

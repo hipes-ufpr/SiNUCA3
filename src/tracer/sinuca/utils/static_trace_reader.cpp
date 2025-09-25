@@ -24,6 +24,10 @@
 
 #include <cstring>
 
+#include "engine/default_packets.hpp"
+#include "tracer/sinuca/file_handler.hpp"
+#include "utils/logging.hpp"
+
 extern "C" {
 #include <alloca.h>
 #include <fcntl.h>     // open
@@ -31,121 +35,117 @@ extern "C" {
 #include <unistd.h>    // lseek
 }
 
-sinucaTracer::StaticTraceFile::StaticTraceFile(const char *folderPath,
-                                               const char *img) {
-    unsigned long bufferLen = GetPathTidOutSize(folderPath, "static", img);
-    char *staticPath = (char *)alloca(bufferLen);
-    FormatPathTidOut(staticPath, folderPath, "static", img, bufferLen);
+int sinucaTracer::StaticTraceFile::OpenFile(const char *sourceDir,
+                                            const char *imgName) {
+    unsigned long bufferLen;
+    char *staticPath;
 
-    this->fd = open(staticPath, O_RDONLY);
-    if (fd == -1) {
+    bufferLen = GetPathTidOutSize(sourceDir, "static", imgName);
+    staticPath = (char *)alloca(bufferLen);
+    FormatPathTidOut(staticPath, sourceDir, "static", imgName, bufferLen);
+
+    /* get file descriptor */
+    this->fileDescriptor = open(staticPath, O_RDONLY);
+    if (fileDescriptor == -1) {
         printFileErrorLog(staticPath, "O_RDONLY");
-        this->isValid = false;
-        return;
+        return 1;
     }
-    this->mmapSize = lseek(fd, 0, SEEK_END);
+    /* get file size */
+    this->mmapSize = lseek(this->fileDescriptor, 0, SEEK_END);
     SINUCA3_DEBUG_PRINTF("Mmap Size [%lu]\n", this->mmapSize);
-    this->mmapPtr =
-        (char *)mmap(0, this->mmapSize, PROT_READ, MAP_PRIVATE, fd, 0);
+    /* map file to virtual memory */
+    this->mmapPtr = (char *)mmap(0, this->mmapSize, PROT_READ, MAP_PRIVATE,
+                                 this->fileDescriptor, 0);
     if (this->mmapPtr == MAP_FAILED) {
         printFileErrorLog(staticPath, "PROT_READ MAP_PRIVATE");
-        this->isValid = false;
-        return;
+        return 1;
     }
 
-    /* Skip static trace header information */
-    this->mmapOffset = 3 * sizeof(unsigned int);
-
-    this->totalThreads = *(unsigned int *)(this->mmapPtr + 0);
-    SINUCA3_DEBUG_PRINTF("Number of Threads [%u]\n", this->totalThreads);
-    this->totalBBLs = *(unsigned int *)(this->mmapPtr + sizeof(unsigned int));
-    SINUCA3_DEBUG_PRINTF("Number of BBLs [%u]\n", this->totalBBLs);
-    this->totalIns =
-        *(unsigned int *)(this->mmapPtr + 2 * sizeof(unsigned int));
-    SINUCA3_DEBUG_PRINTF("Number of Instructions [%u]\n", this->totalIns);
-
-    this->isValid = true;
-    this->instLeftInBBL = 0;
-}
-
-void sinucaTracer::StaticTraceFile::ReadNextInstruction(InstructionInfo *info) {
-    DataINS *data = (DataINS *)(this->GetData(sizeof(DataINS)));
-
-    unsigned long len = strlen(data->name);
-    memcpy(info->staticInfo.opcodeAssembly, data->name, len + 1);
-
-    info->staticInfo.opcodeSize = data->size;
-    info->staticInfo.baseReg = data->baseReg;
-    info->staticInfo.indexReg = data->indexReg;
-    info->staticInfo.opcodeAddress = data->addr;
-
-    this->GetBooleanValues(&info->staticInfo, data);
-    this->GetBranchType(&info->staticInfo, data);
-    this->GetRegisters(&info->staticInfo, data);
-
-    if (!info->staticInfo.isNonStdMemOp) {
-        info->staticNumReadings = data->isRead + data->isRead2;
-        info->staticNumWritings = data->isWrite;
-    }
-
-    this->instLeftInBBL--;
-}
-
-int sinucaTracer::StaticTraceFile::GetNewBBLSize(unsigned int *size) {
-    if (this->instLeftInBBL > 0) return 1;
-    *size = *(unsigned int *)(this->GetData(SIZE_NUM_BBL_INS));
-    this->instLeftInBBL = *size;
     return 0;
 }
 
-void *sinucaTracer::StaticTraceFile::GetData(unsigned long len) {
+sinucaTracer::StaticTraceFile::~StaticTraceFile() {
+    if (this->mmapPtr == NULL) return;
+    munmap(this->mmapPtr, this->mmapSize);
+    if (this->fileDescriptor == -1) return;
+    close(this->fileDescriptor);
+}
+
+void *sinucaTracer::StaticTraceFile::ReadData(unsigned long len) {
+    if (this->mmapOffset >= this->mmapSize) return NULL;
     void *ptr = (void *)(this->mmapPtr + this->mmapOffset);
     this->mmapOffset += len;
     return ptr;
 }
 
-void sinucaTracer::StaticTraceFile::GetBooleanValues(
-    StaticInstructionInfo *info, DataINS *data) {
-    info->isNonStdMemOp = static_cast<bool>(data->isNonStandardMemOp);
-    info->isControlFlow = static_cast<bool>(data->isControlFlow);
-    info->isPredicated = static_cast<bool>(data->isPredicated);
-    info->isPrefetch = static_cast<bool>(data->isPrefetch);
-    info->isIndirect = static_cast<bool>(data->isIndirectControlFlow);
+int sinucaTracer::StaticTraceFile::ReadFileHeader() {
+    if (this->fileDescriptor == -1) return 1;
+    void *readData = this->ReadData(sizeof(FileHeader));
+    if (readData == NULL) return 1;
+    this->header = *(FileHeader *)(readData);
+    return 0;
 }
 
-void sinucaTracer::StaticTraceFile::GetBranchType(StaticInstructionInfo *info,
-                                                  DataINS *data) {
-    switch (data->branchType) {
+int sinucaTracer::StaticTraceFile::ReadBasicBlock() {
+    if (this->fileDescriptor == -1) return 1;
+    void *readData;
+    readData = this->ReadData(sizeof(BasicBlock));
+    if (readData == NULL) return 1;
+    this->basicBlock = (BasicBlock *)readData;
+    this->instructionIndex = 0;
+    /* necessary to adjust offset */
+    this->ReadData(sizeof(Instruction) * this->basicBlock->basicBlockSize);
+    return 0;
+}
+
+int sinucaTracer::StaticTraceFile::GetInstruction(InstructionInfo *inst) {
+    if (this->instructionIndex >= this->basicBlock->basicBlockSize) return 1;
+    this->ConvertInstructionFormat(&inst->staticInfo);
+    this->instructionIndex++;
+    return 0;
+}
+
+void sinucaTracer::StaticTraceFile::ConvertInstructionFormat(
+    StaticInstructionInfo *inst) {
+    Instruction *instInRawFormat;
+
+    instInRawFormat = &this->basicBlock->instructions[this->instructionIndex];
+    strncpy(inst->opcodeAssembly, instInRawFormat->name, TRACE_LINE_SIZE - 1);
+    inst->numReadRegs = instInRawFormat->numReadRegs;
+    inst->numWriteRegs = instInRawFormat->numWriteRegs;
+    /* copy registers used */
+    memcpy(inst->readRegs, instInRawFormat->readRegs,
+           sizeof(instInRawFormat->readRegs));
+    memcpy(inst->writeRegs, instInRawFormat->writeRegs,
+           sizeof(instInRawFormat->writeRegs));
+    inst->opcodeSize = instInRawFormat->size;
+    inst->baseReg = instInRawFormat->baseReg;
+    inst->indexReg = instInRawFormat->indexReg;
+    inst->opcodeAddress = instInRawFormat->addr;
+    /* single bit fields */
+    inst->isNonStdMemOp =
+        static_cast<bool>(instInRawFormat->isNonStandardMemOp);
+    inst->isControlFlow = static_cast<bool>(instInRawFormat->isControlFlow);
+    inst->isPredicated = static_cast<bool>(instInRawFormat->isPredicated);
+    inst->isPrefetch = static_cast<bool>(instInRawFormat->isPrefetch);
+    inst->isIndirect =
+        static_cast<bool>(instInRawFormat->isIndirectControlFlow);
+    /* convert branch type to enum Branch */
+    switch (instInRawFormat->branchType) {
         case BRANCH_CALL:
-            info->branchType = BranchCall;
+            inst->branchType = BranchCall;
             break;
         case BRANCH_SYSCALL:
-            info->branchType = BranchSyscall;
+            inst->branchType = BranchSyscall;
             break;
         case BRANCH_RETURN:
-            info->branchType = BranchReturn;
+            inst->branchType = BranchReturn;
             break;
         case BRANCH_COND:
-            info->branchType = BranchCond;
+            inst->branchType = BranchCond;
             break;
         case BRANCH_UNCOND:
-            info->branchType = BranchUncond;
+            inst->branchType = BranchUncond;
             break;
     }
-}
-
-void sinucaTracer::StaticTraceFile::GetRegisters(StaticInstructionInfo *info,
-                                                 struct DataINS *data) {
-    info->numReadRegs = data->numReadRegs;
-    memcpy(info->readRegs, data->readRegs,
-           data->numReadRegs * sizeof(*data->readRegs));
-
-    info->numWriteRegs = data->numWriteRegs;
-    memcpy(info->writeRegs, data->writeRegs,
-           data->numWriteRegs * sizeof(*data->writeRegs));
-}
-
-sinucaTracer::StaticTraceFile::~StaticTraceFile() {
-    munmap(this->mmapPtr, this->mmapSize);
-    close(this->fd);
 }

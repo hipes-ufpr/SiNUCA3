@@ -37,9 +37,6 @@ namespace sinucaTracer {
 class StaticTraceFile : public TraceFileWriter {
   private:
     struct DataINS data;
-    unsigned int threadCount;
-    unsigned int bblCount;
-    unsigned int instCount;
 
     void ResetFlags();
     void SetFlags(const INS *pinInstruction);

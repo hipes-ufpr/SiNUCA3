@@ -38,8 +38,7 @@
  * The StaticTraceFile does not use a buffer, unlike the classes that manipulate
  * the Dynamic and Memory files, and uses mmap for file manipulation instead.
  * This is possible because the static trace tends to be small and mmap may be
- * slightly faster for the matter (it's just the dev trying to justify why he
- * did it this way).
+ * slightly faster for the matter.
  */
 
 #include <sinuca3.hpp>
@@ -49,47 +48,55 @@ namespace sinucaTracer {
 
 class StaticTraceFile {
   private:
-    bool isValid; /**<False if constructor fails to build object. */
-
-    unsigned int totalThreads;
-    unsigned int totalBBLs;     /**<Number of basic blocks in static trace. */
-    unsigned int totalIns;      /**<Number of instructions in static trace. */
-    unsigned int instLeftInBBL; /**<Used to detect when GetNewBBlSize was called
-                                    earlier than expected. */
-
+    int fileDescriptor;
     char *mmapPtr;
     unsigned long mmapOffset;
     unsigned long mmapSize;
-    int fd; /**<File descriptor .*/
+    unsigned int instructionIndex; /**<Index of instruction in basic block.> */
+    FileHeader header;
+    BasicBlock* basicBlock;
 
+    void ConvertInstructionFormat(StaticInstructionInfo *inst);
     /**
      * @brief Returns pointer to generic data and updates mmapOffset value.
      * @param len Number of bytes read.
      */
-    void *GetData(unsigned long len);
-
-    void GetBooleanValues(StaticInstructionInfo *instInfo, DataINS *data);
-    void GetBranchType(StaticInstructionInfo *instInfo, DataINS *data);
-    void GetRegisters(StaticInstructionInfo *instInfo, DataINS *data);
+    void *ReadData(unsigned long len);
 
   public:
-    StaticTraceFile(const char *folderPath, const char *img);
+    inline StaticTraceFile() : mmapPtr(NULL), mmapOffset(0) {};
+    ~StaticTraceFile();
     /**
-     * @brief Fills struct with static info about the instruction.
-     */
-    void ReadNextInstruction(InstructionInfo *instInfo);
-    /**
-     * @brief Retrieves number of instructions of new basic block.
      * @return 1 on failure, 0 otherwise.
      */
-    int GetNewBBLSize(unsigned int *size);
+    int OpenFile(const char *folderPath, const char *img);
+    /**
+     * @return 1 on failure, 0 otherwise.
+     */
+    int ReadFileHeader();
+    /**
+     * @brief Retrieves new basic block.
+     * @return 1 on failure, 0 otherwise.
+     */
+    int ReadBasicBlock();
+    /**
+     * @brief Fills struct with static info about the instruction.
+     * @return 1 if needs to read new basic block, 0 otherwise.
+     */
+    int GetInstruction(InstructionInfo *instInfo);
 
-    inline unsigned int GetTotalBBLs() { return this->totalBBLs; }
-    inline unsigned int GetTotalIns() { return this->totalIns; }
-    inline unsigned int GetNumThreads() { return this->totalThreads; }
-    inline bool Valid() { return this->isValid; }
-
-    ~StaticTraceFile();
+    inline int GetBasicBlockSize() {
+        return this->basicBlock->basicBlockSize;
+    }
+    inline unsigned int GetTotalBasicBlocks() {
+        return this->header.data.staticHeader.bblCount;
+    }
+    inline unsigned int GetTotalInstructionsInStaticTrace() {
+        return this->header.data.staticHeader.instCount;
+    }
+    inline unsigned int GetNumThreads() {
+        return this->header.data.staticHeader.threadCount;
+    }
 };
 
 }  // namespace sinucaTracer

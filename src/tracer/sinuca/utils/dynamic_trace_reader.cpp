@@ -30,40 +30,28 @@ extern "C" {
 #include <alloca.h>
 }
 
-sinucaTracer::DynamicTraceFile::DynamicTraceFile(const char *folderPath,
-                                                 const char *imageName,
-                                                 THREADID tid) {
-    unsigned long bufferSize =
-        GetPathTidInSize(folderPath, "dynamic", imageName);
-    char *path = (char *)alloca(bufferSize);
+int sinucaTracer::DynamicTraceFile::OpenFile(const char *sourceDir,
+                                             const char *imgName,
+                                             THREADID tid) {
+    unsigned long bufferSize;
+    char *path;
 
-    FormatPathTidIn(path, folderPath, "dynamic", imageName, tid, bufferSize);
-    if (this->UseFile(path) == NULL) {
-        this->isValid = false;
-        return;
-    }
+    bufferSize = GetPathTidInSize(sourceDir, "dynamic", imgName);
+    path = (char *)alloca(bufferSize);
+    FormatPathTidIn(path, sourceDir, "dynamic", imgName, tid, bufferSize);
+    this->file = fopen(path, "rb");
 
-    /*
-     * The number of executed instructions is placed at the top of the dynamic
-     * file.
-     */
-    fread(&this->totalExecInst, sizeof(this->totalExecInst), 1, this->tf.file);
-    SINUCA3_DEBUG_PRINTF("totalExecInst [%lu]\n", this->totalExecInst);
-
-    this->bufActiveSize =
-        (unsigned int)(BUFFER_SIZE / sizeof(BBLID)) * sizeof(BBLID);
-    this->RetrieveBuffer(); /* First buffer read */
-    this->isValid = true;
+    return !this->file;
 }
 
-int sinucaTracer::DynamicTraceFile::ReadNextBBl(BBLID *bbl) {
-    if (this->eofFound && this->tf.offsetInBytes == this->eofLocation) {
-        return 1;
-    }
-    if (this->tf.offsetInBytes >= this->bufActiveSize) {
-        this->RetrieveBuffer();
-    }
-    *bbl = *(BBLID *)(this->GetData(sizeof(BBLID)));
+int sinucaTracer::DynamicTraceFile::ReadHeaderFromFile() {
+    if (this->file == NULL) return 1;
+    unsigned long size = fread(&header, sizeof(header), 1, this->file);
+    return size != sizeof(header);
+}
 
-    return 0;
+int sinucaTracer::DynamicTraceFile::ReadRecordFromFile() {
+    if (this->file == NULL) return 1;
+    unsigned long size = fread(&record, sizeof(record), 1, this->file);
+    return size != sizeof(record);
 }

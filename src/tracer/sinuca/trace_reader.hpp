@@ -37,11 +37,16 @@ struct ThrInfo {
     unsigned int currentOpcode; /**<Index of instruction inside basic block. */
     unsigned long fetchedInst;  /**<Number of instructions fetched */
     bool isInsideBBL;
-
-  public:
-    ThrInfo();
     int Allocate(const char *sourceDir, const char *imageName, int tid);
-    ~ThrInfo();
+
+    inline ThrInfo() : dynFile(NULL), memFile(NULL) {
+        this->isInsideBBL = false;
+        this->fetchedInst = 0;
+    }
+    inline ~ThrInfo() {
+        if (this->memFile != NULL) delete this->memFile;
+        if (this->dynFile != NULL) delete this->dynFile;
+    }
 };
 
 class SinucaTraceReader : public TraceReader {
@@ -66,6 +71,8 @@ class SinucaTraceReader : public TraceReader {
      * @return 1 on failure, 0 otherwise.
      */
     int GenerateBinaryDict(StaticTraceFile *stFile);
+    void CopyMemoryOperations(InstructionPacket *instPkt,
+                              InstructionInfo *instInfo, ThrInfo *thrInfo);
 
   public:
     virtual int OpenTrace(const char *imageName, const char *sourceDir);

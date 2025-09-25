@@ -26,24 +26,35 @@
  * is stored as a BBLID, a type defined in x86_file_handler header.
  */
 
+#include <cstdio>
 #include <tracer/sinuca/file_handler.hpp>
 
 namespace sinucaTracer {
 
-class DynamicTraceFile : public TraceFileReader {
+class DynamicTraceFile {
   private:
-    unsigned long totalExecInst; /**<Total instructions executed per thread. */
-  public:
-    DynamicTraceFile(const char *sourceDir, const char *imgName, THREADID tid);
-    /**
-     * @brief Reads new bbl index from buffer. It retrieves a new buffer when
-     * necessary.
-     * @param bbl Pointer where index is copied to.
-     * @return 1 if end of file reached, 0 otherwise.
-     */
-    int ReadNextBBl(BBLID *bbl);
+    FILE* file;
+    FileHeader header;
+    ExecutionRecord record;
 
-    inline unsigned long GetTotalExecInst() { return this->totalExecInst; }
+  public:
+    inline DynamicTraceFile() : file(NULL){};
+    inline ~DynamicTraceFile() {
+        if (file) fclose(this->file);
+    }
+    int OpenFile(const char* sourceDir, const char* imgName, THREADID tid);
+    int ReadHeaderFromFile();
+    int ReadRecordFromFile();
+    inline int GetRecordType() { return this->record.recordType; }
+    inline unsigned int GetBasicBlockIdentifier() {
+        return this->record.data.basicBlockIdentifier;
+    }
+    inline const char* GetRoutineName() {
+        return this->record.data.routineName;
+    }
+    inline unsigned long GetTotalExecutedInstructions() {
+        return this->header.data.dynamicHeader.totalExecutedInstructions;
+    }
 };
 
 }  // namespace sinucaTracer

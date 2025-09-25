@@ -32,33 +32,45 @@
 
 namespace sinucaTracer {
 
-class MemoryTraceFile : public TraceFileReader {
+class MemoryTraceFile {
   private:
-    /**
-     * @brief Reads number of operations from file.
-     */
-    unsigned short GetNumOps();
-    /**
-     * @brief Reads DataMEM array from file.
-     * @param len Array size.
-     */
-    DataMEM *GetDataMemArr(unsigned short len);
+    FILE* file;
+    StandardMemoryAccess stdAccess;
+    NonStandardMemoryAccess nonStdAccess;
 
   public:
-    MemoryTraceFile(const char *folderPath, const char *img, THREADID tid);
-    /**
-     * @brief First reads buffer size, then the buffer itself.
-     */
-    void MemRetrieveBuffer();
-    /**
-     * @brief Reads vector of DataMEM struct from trace and number of operations
-     * in case of a non standard memory access.
-     * @note Read operations are always written before write ones.
-     * @param insInfo Used to get static number of readings and writings.
-     * @param dynInfo Where the information is copied to.
-     */
-    void ReadNextMemAccess(InstructionInfo *insInfo,
-                           DynamicInstructionInfo *dynInfo);
+    inline MemoryTraceFile() : file(NULL){};
+    inline ~MemoryTraceFile() {
+        if (file) fclose(this->file);
+    }
+    int OpenFile(const char* sourceDir, const char* imgName, THREADID tid);
+    int ReadStandardMemoryAccess();
+    int ReadNonStandardMemoryAccess();
+    inline unsigned long GetAddressStdAccess() { return this->stdAccess.addr; }
+    inline unsigned int GetSizeStdAccess() { return this->stdAccess.size; }
+    inline int GetTypeStdAccess() { return this->stdAccess.type; }
+    inline unsigned int GetReadOpsNonStdAcc() {
+        return this->nonStdAccess.readOps;
+    }
+    inline unsigned int GetWriteOpsNonStdAcc() {
+        return this->nonStdAccess.writeOps;
+    }
+    inline const unsigned long* GetReadAddrArrayNonStdAcc(unsigned long *s) {
+        *s = sizeof(this->nonStdAccess.readAddrs);
+        return this->nonStdAccess.readAddrs;
+    }
+    inline const unsigned long* GetWriteAddrArrayNonStdAcc(unsigned long *s) {
+        *s = sizeof(this->nonStdAccess.writeAddrs);
+        return this->nonStdAccess.writeAddrs;
+    }
+    inline const unsigned int* GetReadSizeArrayNonStdAcc(unsigned long *s) {
+        *s = sizeof(this->nonStdAccess.readSize);
+        return this->nonStdAccess.readSize;
+    }
+    inline const unsigned int* GetWriteSizeArrayNonStdAcc(unsigned long *s) {
+        *s = sizeof(this->nonStdAccess.writeSize);
+        return this->nonStdAccess.writeSize;
+    }
 };
 
 }  // namespace sinucaTracer

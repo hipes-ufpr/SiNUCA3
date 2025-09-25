@@ -28,76 +28,29 @@ extern "C" {
 #include <alloca.h>
 }
 
-sinucaTracer::MemoryTraceFile::MemoryTraceFile(const char *folderPath,
-                                               const char *img, THREADID tid) {
-    unsigned long bufferSize = GetPathTidInSize(folderPath, "memory", img);
-    char *path = (char *)alloca(bufferSize);
-    FormatPathTidIn(path, folderPath, "memory", img, tid, bufferSize);
+int sinucaTracer::MemoryTraceFile::OpenFile(const char *sourceDir,
+                                            const char *imgName, THREADID tid) {
+    unsigned long bufferSize;
+    char *path;
 
-    if (this->UseFile(path) == NULL) {
-        this->isValid = false;
-        return;
-    }
+    bufferSize = GetPathTidInSize(sourceDir, "memory", imgName);
+    path = (char *)alloca(bufferSize);
+    FormatPathTidIn(path, sourceDir, "memory", imgName, tid, bufferSize);
+    this->file = fopen(path, "rb");
 
-    this->RetrieveLenBytes((void *)&this->bufActiveSize, sizeof(unsigned long));
-    this->RetrieveBuffer();
-    this->isValid = true;
+    return !this->file;
 }
 
-void sinucaTracer::MemoryTraceFile::MemRetrieveBuffer() {
-    this->RetrieveLenBytes(&this->bufActiveSize, sizeof(unsigned long));
-    this->RetrieveBuffer();
+int sinucaTracer::MemoryTraceFile::ReadStandardMemoryAccess() {
+    if (this->file == NULL) return 1;
+    unsigned long size =
+        fread(&this->stdAccess, sizeof(this->stdAccess), 1, this->file);
+    return size != sizeof(this->stdAccess);
 }
 
-unsigned short sinucaTracer::MemoryTraceFile::GetNumOps() {
-    unsigned short numOps;
-
-    numOps = *(unsigned short *)this->GetData(SIZE_NUM_MEM_R_W);
-    if (this->tf.offsetInBytes >= this->bufActiveSize) {
-        this->MemRetrieveBuffer();
-    }
-    return numOps;
-}
-
-sinucaTracer::DataMEM *sinucaTracer::MemoryTraceFile::GetDataMemArr(
-    unsigned short len) {
-    DataMEM *arrPtr;
-
-    arrPtr = (DataMEM *)(this->GetData(len * sizeof(DataMEM)));
-    if (this->tf.offsetInBytes >= this->bufActiveSize) {
-        this->MemRetrieveBuffer();
-    }
-    return arrPtr;
-}
-
-void sinucaTracer::MemoryTraceFile::ReadNextMemAccess(
-    InstructionInfo *insInfo, DynamicInstructionInfo *dynInfo) {
-    DataMEM *writeOps;
-    DataMEM *readOps;
-
-    /*
-     * In case the instruction performs non standard memory operations
-     * with variable number of operands, the number of readings/writings
-     * is written directly to the memory trace file
-     *
-     * Otherwise, it was written in the static trace file.
-     */
-    if (insInfo->staticInfo.isNonStdMemOp) {
-        dynInfo->numReadings = this->GetNumOps();
-        dynInfo->numWritings = this->GetNumOps();
-    } else {
-        dynInfo->numReadings = insInfo->staticNumReadings;
-        dynInfo->numWritings = insInfo->staticNumWritings;
-    }
-
-    readOps = this->GetDataMemArr(dynInfo->numReadings);
-    writeOps = this->GetDataMemArr(dynInfo->numWritings);
-    for (unsigned short it = 0; it < dynInfo->numReadings; it++) {
-        dynInfo->readsAddr[it] = readOps[it].addr;
-        dynInfo->readsSize[it] = readOps[it].size;
-    }
-    for (unsigned short it = 0; it < dynInfo->numWritings; it++) {
-        dynInfo->writesAddr[it] = writeOps[it].addr;
-        dynInfo->writesSize[it] = writeOps[it].size;
-    }
+int sinucaTracer::MemoryTraceFile::ReadNonStandardMemoryAccess() {
+    if (this->file == NULL) return 1;
+    unsigned long size =
+        fread(&this->nonStdAccess, sizeof(this->nonStdAccess), 1, this->file);
+    return size != sizeof(this->nonStdAccess);
 }

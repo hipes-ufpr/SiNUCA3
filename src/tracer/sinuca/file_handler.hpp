@@ -34,6 +34,7 @@
 #include <cstdio>
 #include <cstring>
 #include <sinuca3.hpp>
+#include "engine/default_packets.hpp"
 
 extern "C" {
 #include <errno.h>
@@ -41,48 +42,25 @@ extern "C" {
 
 namespace sinucaTracer {
 
-typedef unsigned int BBLID;
 typedef unsigned int THREADID;
 
 const int CACHE_LINE_SIZE = 64;  // Used in alignas to avoid false sharing
 const int MAX_INSTRUCTION_NAME_LENGTH = 32;
-const unsigned long BUFFER_SIZE = 1 << 20;
+const int MAX_ROUTINE_NAME_LENGTH = 16;
 const unsigned long MAX_IMAGE_NAME_SIZE = 255;
 const unsigned long MAX_REG_OPERANDS = 8;
-/*
- * In case of a non standard memory access, the numbers of read and write
- * operations are stored first, hence the following constant exist, and then
- * memory accesses itself. It is done that way to save storage space. It
- * represents the size in bytes designated in the file for the purpose of
- * storing these numbers.
- */
-const unsigned long SIZE_NUM_MEM_R_W = sizeof(unsigned short);
-/*
- * Before each new BBL (basic block) is stored in the static trace, the number
- * of instructions that make up the block is stored. Thus, the following
- * constant is the size in bytes designated to store it in the file.
- */
-const unsigned long SIZE_NUM_BBL_INS = sizeof(unsigned int);
 
-/*
- * One may propably think that an enumerator would be more appropriate here.
- * The issue is that the files are binary and there is no guarantee that an
- * enum will occupy the same size accross different machines, or it is less
- * probable at the very least, which may cause bugs while reading traces
- * generated elsewhere.
- */
+const int STD_ACCESS_WRITE = 1;
+const int STD_ACCESS_READ = 2;
+
 const unsigned char BRANCH_CALL = 1;
 const unsigned char BRANCH_COND = 2;
 const unsigned char BRANCH_UNCOND = 3;
 const unsigned char BRANCH_SYSCALL = 4;
 const unsigned char BRANCH_RETURN = 5;
 
-/**
- * @details DataINS is a packed struct since it is written directly to the
- * static trace (binary file). It is designed to take as little space as
- * possible while storing instruction data.
- */
-struct DataINS {
+/** @brief Written to static trace file. */
+struct Instruction {
     char name[MAX_INSTRUCTION_NAME_LENGTH];
     unsigned short int readRegs[MAX_REG_OPERANDS];
     unsigned short int writeRegs[MAX_REG_OPERANDS];
@@ -103,14 +81,50 @@ struct DataINS {
     unsigned char isWrite : 1;
 } __attribute__((packed));
 
-/**
- * @details DataMEM is a packed struct since it is written directly to the
- * memory trace (binary file). It is designed to take as little space as
- * possible while storing memory access data.
- */
-struct DataMEM {
+/** @brief Written to static trace file. */
+struct BasicBlock {
+    unsigned int basicBlockSize;
+    struct Instruction instructions[];
+};
+
+/** @brief Written to dynamic trace file. */
+struct ExecutionRecord {
+    int recordType;
+    union {
+        unsigned int basicBlockIdentifier;
+        char routineName[MAX_ROUTINE_NAME_LENGTH];
+    } data;
+} __attribute__((packed));
+
+/** @brief Written to memory trace file. */
+struct StandardMemoryAccess {
     unsigned long addr; /**<Virtual address accessed. */
     unsigned int size;  /**<Size in bytes of memory read or written. */
+    unsigned int type;
+} __attribute__((packed));
+
+/** @brief Written to memory trace file. */
+struct NonStandardMemoryAccess {
+    unsigned int readOps;
+    unsigned long readAddrs[MAX_MEM_OPERATIONS];
+    unsigned int readSize[MAX_MEM_OPERATIONS];
+    unsigned int writeOps;
+    unsigned long writeAddrs[MAX_MEM_OPERATIONS];
+    unsigned int writeSize[MAX_MEM_OPERATIONS];
+} __attribute__((packed));
+
+/** @brief General usage. */
+struct FileHeader {
+    union {
+        struct {
+            unsigned int threadCount;
+            unsigned int bblCount;
+            unsigned int instCount;
+        } staticHeader;
+        struct {
+            unsigned long totalExecutedInstructions;
+        } dynamicHeader;
+    } data;
 } __attribute__((packed));
 
 /**
@@ -126,91 +140,6 @@ struct InstructionInfo {
     unsigned short staticNumReadings;
     unsigned short staticNumWritings;
     StaticInstructionInfo staticInfo;
-};
-
-struct TraceFile {
-    FILE *file;
-    unsigned char *buf;
-    unsigned long offsetInBytes;
-
-    inline TraceFile() : offsetInBytes(0) {
-        this->buf = new unsigned char[BUFFER_SIZE];
-    }
-    inline ~TraceFile() {
-        delete[] this->buf;
-        fclose(file);
-    }
-};
-
-class TraceFileReader {
-  protected:
-    TraceFile tf;
-    bool isValid; /**<False if UseFile fails>.*/
-    bool eofFound;
-    unsigned long eofLocation;   /**<Stores bytes left to end of file.*/
-    unsigned long bufActiveSize; /**<Closest value to BUFFER_SIZE that is a
-                                    multiple of the struct size (e.g. struct
-                                    DataINS). The memory trace stores this value
-                                    after every buffer write, an exception.*/
-
-    /**
-     * @brief Opens trace file and initializes attributes.
-     * @param path Indicates the complete path to trace file.
-     */
-    FILE *UseFile(const char *path);
-    /**
-     * @brief Wrapper to fread.
-     * @param ptr Where to write bytes read from file.
-     * @param len Number of bytes to read from file.
-     */
-    unsigned long RetrieveLenBytes(void *ptr, unsigned long len);
-    /**
-     * @brief Used to modify bufActiveSize
-     */
-    int SetBufActiveSize(unsigned long size);
-    /**
-     * @brief Wrapper to RetrieveLenBytes having the buffer as pointer. It also
-     * detects end of file and resets the offsetInBytes variable.
-     */
-    void RetrieveBuffer();
-    /**
-     * @brief Obtains data from the buffer
-     * @param len Number of bytes to add to the buffer offset
-     * @return Pointer to data (needs to be cast)
-     */
-    void *GetData(unsigned long len);
-
-  public:
-    inline bool Valid() { return this->isValid; }
-};
-
-class TraceFileWriter {
-  protected:
-    TraceFile tf;
-
-    /**
-     * @brief Opens trace file and initializes attributes.
-     * @param path Indicates the complete path to trace file.
-     */
-    FILE *UseFile(const char *path);
-    /**
-     * @brief Appends data to the buffer.
-     * @param ptr Pointer to data to be written.
-     * @param len Number of bytes to copy into buffer.
-     * @return 1 if there is not enough space in buffer, 0 otherwise.
-     */
-    int AppendToBuffer(void *ptr, unsigned long len);
-    /**
-     * @brief Wrapper to fwrite.
-     * @param ptr Where to read bytes from to be written to file.
-     * @param len Number of bytes to be written to file.
-     */
-    void FlushLenBytes(void *ptr, unsigned long len);
-    /**
-     * @brief Wrapper to FlushLenBytes having the buffer as pointer. It also
-     * resets the offsetInBytes variable.
-     */
-    void FlushBuffer();
 };
 
 inline void printFileErrorLog(const char *path, const char *mode) {
