@@ -20,25 +20,77 @@
  * @brief Implementation of the SiNUCA3 x86_64 tracer based on Intel Pin.
  */
 
-#include "sinuca3_pintool.hpp"
+#include <cassert>  // assert
 
+#include "pin.H"
+
+extern "C" {
+#include <sys/stat.h>  // mkdir
+#include <unistd.h>    // access
+}
+
+#include <sinuca3.hpp>
+#include <utils/dynamic_trace_writer.hpp>
+#include <utils/memory_trace_writer.hpp>
+#include <utils/static_trace_writer.hpp>
+
+/**
+ * @brief Set this to 1 to print all rotines that name begins with "gomp",
+ * case insensitive (Statically linking GOMP is recommended).
+ */
 const int DEBUG_PRINT_GOMP_RNT = 0;
+
+/**
+ * @note Instrumentation is the process of deciding where and what code should
+ * be inserted into the target program, while analysis refers to the code that
+ * is actually executed at those insertion points to gather information about
+ * the program’s behavior.
+ *
+ * @brief When enabled, this flag allows the pintool to record all instructions
+ * static info into a static trace file, and allows the instrumentation phase
+ * (e.g., in OnTrace) to insert analysis code into the target program. However,
+ * the inserted analysis code will only execute at runtime if the corresponding
+ * thread has its threadInstrumentationEnabled flag set to true.
+ */
+bool isInstrumentating;
+/**
+ * @note Instrumentation is the process of deciding where and what code should
+ * be inserted into the target program, while analysis refers to the code that
+ * is actually executed at those insertion points to gather information about
+ * the program’s behavior.
+ *
+ * @brief Indicates, for each thread, whether it is allowed to execute
+ * previously inserted analysis code.
+ *
+ * This flag does not control the instrumentation process itself (i.e., whether
+ * code is inserted into the target program), but rather whether a specific
+ * thread is permitted to execute that analysis code at runtime.
+ *
+ * The insertion of analysis code occurs only when the global
+ * `isInstrumentating` flag is enabled. Later, during program execution, the
+ * inserted code will only be executed by a thread if its corresponding entry in
+ * this vector is set to true.
+ *
+ * When executed, the analysis code records dynamic and memory trace information
+ * into files associated with the executing thread.
+ */
+std::vector<bool> isThreadAnalysisEnabled;
+
+/** @brief Used to block two threads from trying to print simultaneously. */
+PIN_LOCK printLock;
+/** @brief OnThreadStart writes in global structures. */
+PIN_LOCK threadStartLock;
+/** @brief OnTrace writes in global structures. */
+PIN_LOCK onTraceLock;
+
 const char* folderPath;
 
 char* imageName = NULL;
-bool isInstrumentating;
 bool wasInitInstrumentationCalled = false;
 
 sinucaTracer::StaticTraceFile* staticTrace;
 std::vector<sinucaTracer::DynamicTraceFile*> dynamicTraces;
 std::vector<sinucaTracer::MemoryTraceFile*> memoryTraces;
-std::vector<bool> isThreadAnalysisEnabled;
-
-PIN_LOCK printLock;
-PIN_LOCK threadStartLock;
-PIN_LOCK onTraceLock;
-
-std::vector<const char*> OMP_ignore;
 
 /** @brief Set directory to save trace with '-o'. Default is current dir. */
 KNOB<std::string> KnobFolder(KNOB_MODE_WRITEONCE, "pintool", "o", "./",
@@ -64,24 +116,13 @@ bool StrStartsWithGomp(const char* s) {
     return true;
 }
 
-void InitGompHandling() {
-    /* All these functions have a PAUSE instruction (Spin-lock hint) */
-    OMP_ignore.push_back("gomp_barrier_wait_end");
-    OMP_ignore.push_back("gomp_team_barrier_wait_end");
-    OMP_ignore.push_back("gomp_team_barrier_wait_cancel_end");
-    OMP_ignore.push_back("gomp_mutex_lock_slow");
-    OMP_ignore.push_back("GOMP_doacross_wait");
-    OMP_ignore.push_back("GOMP_doacross_ull_wait");
-    OMP_ignore.push_back("gomp_ptrlock_get_slow");
-    OMP_ignore.push_back("gomp_sem_wait_slow");
-}
-
 void DebugPrintRtnName(const char* s, THREADID tid) {
     PIN_GetLock(&printLock, tid);
     SINUCA3_DEBUG_PRINTF("RNT called: %s\n", s);
     PIN_ReleaseLock(&printLock);
 }
 
+/** @brief */
 VOID InitInstrumentation() {
     if (isInstrumentating) return;
     PIN_GetLock(&printLock, PIN_ThreadId());
@@ -91,6 +132,7 @@ VOID InitInstrumentation() {
     PIN_ReleaseLock(&printLock);
 }
 
+/** @brief */
 VOID StopInstrumentation() {
     if (!isInstrumentating || KnobForceInstrumentation.Value()) return;
     PIN_GetLock(&printLock, PIN_ThreadId());
@@ -99,6 +141,7 @@ VOID StopInstrumentation() {
     PIN_ReleaseLock(&printLock);
 }
 
+/** @brief */
 VOID EnableInstrumentationInThread(THREADID tid) {
     if (isThreadAnalysisEnabled[tid]) return;
     PIN_GetLock(&printLock, tid);
@@ -107,6 +150,7 @@ VOID EnableInstrumentationInThread(THREADID tid) {
     PIN_ReleaseLock(&printLock);
 }
 
+/** @brief */
 VOID DisableInstrumentationInThread(THREADID tid) {
     if (!isThreadAnalysisEnabled[tid] || KnobForceInstrumentation.Value())
         return;
@@ -116,6 +160,7 @@ VOID DisableInstrumentationInThread(THREADID tid) {
     PIN_ReleaseLock(&printLock);
 }
 
+/** @brief */
 VOID AppendToDynamicTrace(UINT32 bblId, UINT32 numInst) {
     THREADID tid = PIN_ThreadId();
     if (!isThreadAnalysisEnabled[tid]) return;
@@ -124,6 +169,7 @@ VOID AppendToDynamicTrace(UINT32 bblId, UINT32 numInst) {
     dynamicTraces[tid]->IncTotalExecInst(numInst);
 }
 
+/** @brief */
 VOID AppendToMemTraceStd(ADDRINT addr, UINT32 size) {
     THREADID tid = PIN_ThreadId();
     if (!isThreadAnalysisEnabled[tid]) return;
@@ -131,6 +177,7 @@ VOID AppendToMemTraceStd(ADDRINT addr, UINT32 size) {
     memoryTraces[tid]->AppendToBufferLastMemoryAccess();
 }
 
+/** @brief */
 VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
     THREADID tid = PIN_ThreadId();
     if (!isThreadAnalysisEnabled[tid]) return;
@@ -138,6 +185,7 @@ VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
     memoryTraces[tid]->AppendToBufferLastMemoryAccess();
 }
 
+/** @brief */
 VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
     PIN_GetLock(&threadStartLock, tid);
     SINUCA3_DEBUG_PRINTF("New thread created! tid [%d] (%s)\n", tid, imageName);
@@ -151,12 +199,14 @@ VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
     PIN_ReleaseLock(&threadStartLock);
 }
 
+/** @brief */
 VOID OnThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
     /* delete is thread safe for distinct objetcs in modern implementation */
     delete dynamicTraces[tid];
     delete memoryTraces[tid];
 }
 
+/** @brief */
 VOID InsertInstrumentionOnMemoryOperations(const INS* ins) {
     /* INS_IsStandardMemop() returns false if this instruction has a memory
      * operand which has unconventional meaning; returns true otherwise */
@@ -184,6 +234,7 @@ VOID InsertInstrumentionOnMemoryOperations(const INS* ins) {
     }
 }
 
+/** @brief */
 VOID OnTrace(TRACE trace, VOID* ptr) {
     if (!isInstrumentating) return;
 
@@ -191,24 +242,13 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
     RTN traceRtn = TRACE_Rtn(trace);
 
     if (RTN_Valid(traceRtn)) {
-        const char* traceRtnName = RTN_Name(traceRtn).c_str();
 #if DEBUG_PRINT_GOMP_RNT == 1
+        const char* traceRtnName = RTN_Name(traceRtn).c_str();
         if (StrStartsWithGomp(traceRtnName)) {
             TRACE_InsertCall(trace, IPOINT_BEFORE, (AFUNPTR)DebugPrintRtnName,
                              IARG_PTR, traceRtnName, IARG_THREAD_ID, IARG_END);
         }
 #endif
-        /*
-         * This will make every function call from libgomp that have a
-         * PAUSE instruction to be ignored
-         * Still not sure if this is fully correct
-         */
-        for (unsigned int i = 0; i < OMP_ignore.size(); ++i) {
-            if (strcmp(traceRtnName, OMP_ignore[i]) == 0) {
-                // has SPIN_LOCK
-                return;
-            }
-        }
     }
 
     PIN_GetLock(&onTraceLock, tid);
@@ -232,6 +272,7 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
     return;
 }
 
+/** @brief */
 VOID OnImageLoad(IMG img, VOID* ptr) {
     if (IMG_IsMainExecutable(img) == false) return;
 
@@ -275,6 +316,7 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
     }
 }
 
+/** @brief */
 VOID OnFini(INT32 code, VOID* ptr) {
     SINUCA3_LOG_PRINTF("End of tool execution\n");
     SINUCA3_LOG_PRINTF("Number of BBLs [%u]\n", staticTrace->GetBBlCount());
@@ -299,6 +341,7 @@ VOID OnFini(INT32 code, VOID* ptr) {
     }
 }
 
+/** @brief */
 int main(int argc, char* argv[]) {
     PIN_InitSymbols();
 
@@ -321,8 +364,6 @@ int main(int argc, char* argv[]) {
     } else {
         isInstrumentating = false;
     }
-
-    InitGompHandling();
 
     IMG_AddInstrumentFunction(OnImageLoad, NULL);
     TRACE_AddInstrumentFunction(OnTrace, NULL);
