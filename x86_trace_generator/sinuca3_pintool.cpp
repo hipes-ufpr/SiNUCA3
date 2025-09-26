@@ -34,6 +34,27 @@ extern "C" {
 #include <utils/memory_trace_writer.hpp>
 #include <utils/static_trace_writer.hpp>
 
+const char* GOMP_RTNS_FORCE_LOCK[] = {
+    "GOMP_critical_start",
+    "omp_set_lock",
+    "omp_set_nest_lock"
+};
+
+const char* GOMP_RTNS_ATTEMPT_LOCK[] = {
+    "omp_test_lock",
+    "omp_test_nest_lock"
+};
+
+const char* GOMP_RTNS_UNLOCK[] = {
+    "GOMP_critical_end",
+    "omp_unset_lock",
+    "omp_unset_nest_lock"
+}
+
+const char* GOMP_RTNS_BARRIER[] = {
+    "GOMP_barrier"
+}
+
 /**
  * @brief Set this to 1 to print all rotines that name begins with "gomp",
  * case insensitive (Statically linking GOMP is recommended).
@@ -101,6 +122,13 @@ KNOB<BOOL> KnobForceInstrumentation(
     "Force instrumentation for the entire execution for all created threads");
 
 int Usage() {
+    SINUCA3_LOG_PRINTF("To enable instrumentation, wrap the target code with "
+            "BeginInstrumentationBlock() and EndInstrumentationBlock().\n"
+            "Instrumentation code is only inserted within these blocks, and "
+            "analysis is only executed if the thread has\n"
+            "called EnableThreadInstrumentation().\n"
+            "Use the -f flag to force instrumentation even when no blocks are "
+            "defined.\n\n");
     SINUCA3_LOG_PRINTF("Tool knob summary: %s\n",
                        KNOB_BASE::StringKnobSummary().c_str());
     return 1;
@@ -329,15 +357,8 @@ VOID OnFini(INT32 code, VOID* ptr) {
         SINUCA3_WARNING_PRINTF(
             "No instrumentation blocks were found in the target program.\n"
             "As result, no instruction data was recorded in the trace files.\n"
-            "To enable instrumentation, wrap the target code with "
-            "BeginInstrumentationBlock() and EndInstrumentationBlock().\n"
-            "Instrumentation code is only inserted within these blocks, and "
-            "analysis is only executed if the thread has\n"
-            "called EnableThreadInstrumentation().\n"
-            "Use the -f flag to force instrumentation even when no blocks are "
-            "defined.\n"
-            "Use the -f flag to force instrumentation even when no blocks are "
-            "defined.\n");
+        );
+        Usage();
     }
 }
 
