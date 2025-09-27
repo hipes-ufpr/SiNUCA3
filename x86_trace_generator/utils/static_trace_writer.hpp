@@ -42,24 +42,32 @@ class StaticTraceFile {
   private:
     FILE* file;
     FileHeader header;
-    BasicBlock* basicBlock;
-    unsigned int instIndex;
-    unsigned int basicBlockSize;
-    unsigned long basicBlockInstCapacity;
+    StaticRecord record;
 
-    int AllocBasicBlock();
-    int ReallocBasicBlock(unsigned long cap);
-
+    void ConvertPinInstToRawInstFormat(const INS* pinInstruction, Instruction* rawInst);
   public:
-    inline StaticTraceFile() : file(NULL), instIndex(0), basicBlockSize(0) {};
+    inline StaticTraceFile() : file(NULL) {};
     inline ~StaticTraceFile() {
         if (file == NULL) fclose(this->file);
     }
     int OpenFile(const char* sourceDir, const char* imgName);
-    void InitializeHeader();
-    int WriteBasicBlockToFile();
     int WriteHeaderToFile();
-    void AddInstructionToBasicBlock(const INS* pinInstruction);
+    int WriteStaticRecordToFile();
+
+    inline void InitializeFileHeader() {
+        this->header.data.staticHeader.bblCount = 0;
+        this->header.data.staticHeader.instCount = 0;
+        this->header.data.staticHeader.threadCount = 0;
+    }
+    inline void SetStaticRecordInstruction(const INS* pinInstruction) {
+        this->ConvertPinInstToRawInstFormat(pinInstruction, &this->record.data.instruction);
+    }
+    inline void SetStaticRecordType(short type) {
+        this->record.recordType = type;
+    }
+    inline void SetStaticRecordBasicBlockSize(unsigned int size) {
+        this->record.data.basicBlockSize = size;
+    }
     inline void IncBasicBlockCount() {
         this->header.data.staticHeader.bblCount++;
     }

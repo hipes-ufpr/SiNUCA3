@@ -24,13 +24,8 @@
 
 #include <cassert>
 
-#include <logging.hpp>
 extern "C" {
 #include <alloca.h>
-}
-
-void sinucaTracer::DynamicTraceFile::InitializeFileHeader() {
-    this->header.data.dynamicHeader.totalExecutedInstructions = 0;
 }
 
 int sinucaTracer::DynamicTraceFile::OpenFile(const char *sourceDir, const char *imgName, THREADID tid) {

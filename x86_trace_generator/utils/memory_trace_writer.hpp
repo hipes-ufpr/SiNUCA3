@@ -47,10 +47,18 @@ class MemoryTraceFile {
     };
     int OpenFile(const char* sourceDir, const char* imgName, THREADID tid);
     int WriteMemoryRecordToFile();
-    void SetMemoryRecordOperation(unsigned long addr, unsigned int size,
-                                  short type);
-    void SetMemoryRecordNonStdHeader(unsigned short nonStdReadOps,
-                                     unsigned short nonStdWriteOps);
+
+    inline void SetMemoryRecordOperation(unsigned long addr, unsigned int size,
+                                  short type) {
+        this->record.data.operation.addr = addr;
+        this->record.data.operation.size = size;
+        this->record.data.operation.type = type;
+    }
+    inline void SetMemoryRecordNonStdHeader(unsigned short nonStdReadOps,
+                                     unsigned short nonStdWriteOps) {
+        this->record.data.nonStdHeader.nonStdReadOps = nonStdReadOps;
+        this->record.data.nonStdHeader.nonStdWriteOps = nonStdWriteOps;
+    }
     inline void SetMemoryRecordType(short type) {
         this->record.recordType = type;
     }

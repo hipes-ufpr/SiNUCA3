@@ -25,7 +25,6 @@
 #include <cassert>
 #include <cstddef>
 
-#include <logging.hpp>
 extern "C" {
 #include <alloca.h>
 }
@@ -47,18 +46,4 @@ int sinucaTracer::MemoryTraceFile::WriteMemoryRecordToFile() {
     unsigned long written =
         fwrite(&this->record, sizeof(this->record), 1, this->file);
     return written != sizeof(this->record);
-}
-
-void sinucaTracer::MemoryTraceFile::SetMemoryRecordOperation(unsigned long addr,
-                                                             unsigned int size,
-                                                             short type) {
-    this->record.data.operation.addr = addr;
-    this->record.data.operation.size = size;
-    this->record.data.operation.type = type;
-}
-
-void sinucaTracer::MemoryTraceFile::SetMemoryRecordNonStdHeader(
-    unsigned short nonStdReadOps, unsigned short nonStdWriteOps) {
-    this->record.data.nonStdHeader.nonStdReadOps = nonStdReadOps;
-    this->record.data.nonStdHeader.nonStdWriteOps = nonStdWriteOps;
 }

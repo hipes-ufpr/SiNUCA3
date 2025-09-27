@@ -55,6 +55,8 @@ const short MEM_READ_TYPE = 3;
 const short MEM_WRITE_TYPE = 4;
 const short BBL_IDENTIFIER_TYPE = 5;
 const short RTN_NAME_TYPE = 6;
+const short BBL_SIZE_TYPE = 7;
+const short INSTRUCTION_TYPE = 8;
 
 const unsigned char BRANCH_CALL = 1;
 const unsigned char BRANCH_COND = 2;
@@ -84,10 +86,13 @@ struct Instruction {
 } __attribute__((packed));
 
 /** @brief Written to static trace file. */
-struct BasicBlock {
-    unsigned int basicBlockSize;
-    struct Instruction instructions[];
-};
+struct StaticRecord {
+    short recordType;
+    union {
+        unsigned int basicBlockSize;
+        struct Instruction instruction;
+    } data;
+} __attribute__((packed));
 
 /** @brief Written to dynamic trace file. */
 struct ExecutionRecord {

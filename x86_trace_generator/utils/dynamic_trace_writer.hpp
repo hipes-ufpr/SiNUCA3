@@ -45,9 +45,12 @@ class DynamicTraceFile {
     DynamicTraceFile() : file(NULL) {};
     inline ~DynamicTraceFile() { if (file) fclose(file); }
     int OpenFile(const char *source, const char *img, THREADID tid);
-    void InitializeFileHeader();
     int WriteHeaderToFile();
     int WriteDynamicRecordToFile();
+
+    inline void InitializeFileHeader() {
+        this->header.data.dynamicHeader.totalExecutedInstructions = 0;
+    }
     inline void SetDynamicRecordType(short type) {
         this->record.recordType = type;
     }
