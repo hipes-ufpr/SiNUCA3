@@ -1,0 +1,22 @@
+instantiate:
+  class: BoomFetch
+  fetch: *ENGINE
+  fetchSize: 16
+  fetchInterval: 8
+  misspredictPenalty: 12
+  interleavingFactor: 4
+  numberOfEntries: 1024
+  size: 1024
+  instructionMemory:
+    class: SimpleInstructionMemory
+    sendTo:
+      class: SimpleExecutionUnit
+  predictor:
+    class: HardwiredPredictor
+    syscall: false
+    call: false
+    return: false
+    uncond: false
+    cond: false
+    noBranch: false
+  

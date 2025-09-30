@@ -25,21 +25,17 @@
 #include <sinuca3.hpp>
 
 #include "cores/simple_core.hpp"
-#include "engine_debug_component.hpp"
 #include "execute/simple_execution_unit.hpp"
 #include "fetch/fetcher.hpp"
-#include "misc/queues.hpp"
 #include "memory/simple_instruction_memory.hpp"
 #include "memory/simple_memory.hpp"
+#include "misc/queues.hpp"
 #include "predictors/hardwired_predictor.hpp"
 #include "predictors/interleavedBTB.hpp"
 #include "predictors/ras.hpp"
+#include "std_components/fetch/boom_fetch.hpp"
 
 Linkable* CreateDefaultComponentByClass(const char* name) {
-#ifndef NDEBUG
-    COMPONENT(EngineDebugComponent);
-#endif
-
     COMPONENT(SimpleMemory);
     COMPONENT(SimpleInstructionMemory);
     COMPONENT(SimpleCore);
@@ -49,6 +45,7 @@ Linkable* CreateDefaultComponentByClass(const char* name) {
     COMPONENT(PredictorQueue);
     COMPONENT(InstructionQueue);
     COMPONENT(Fetcher);
+    COMPONENT(BoomFetch);
     COMPONENT(SimpleExecutionUnit);
     COMPONENT(HardwiredPredictor);
 

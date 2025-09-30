@@ -33,23 +33,28 @@
  * would make anything occupy more space in the struct anyways so let's use the
  * type that enables us to operate faster on the registers.
  */
-typedef int FetchBufferEntryFlags;
+typedef int BoomFetchBufferEntryFlags;
 
 /** @brief This instruction was send to memory. */
-const FetchBufferEntryFlags FetchBufferEntryFlagsSendMemory = (1 << 0);
+const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSendMemory = (1 << 0);
 /** @brief This instruction was send to predictor. */
-const FetchBufferEntryFlags FetchBufferEntryFlagsSendPredictor = (1 << 1);
+const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSendPredictor =
+    (1 << 1);
 /** @brief This instruction was send to ras. */
-const FetchBufferEntryFlags FetchBufferEntryFlagsSendRas = (1 << 2);
-/** @brief This instruction was processed by fetch. */
-const FetchBufferEntryFlags FetchBufferEntryFlagsSendInst = (1 << 3);
+const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSendRas = (1 << 2);
 /** @brief This instruction was send to btb. */
-const FetchBufferEntryFlags FetchBufferEntryFlagsSendBTB = (1 << 4);
-struct FetchBufferEntry {
-    InstructionPacket instruction; /**< Fetched instruction >*/
-    FetchBufferEntryFlags flags;   /**< Flags for the entry >*/
+const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSendBTB = (1 << 3);
 
-    inline FetchBufferEntry() : flags((FetchBufferEntryFlags)0) {}
+/** @brief This instruction was checked for predictor. */
+const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsPredictorCheck =
+    (1 << 4);
+/** @brief This instruction was processed by fetch. */
+const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSendInst = (1 << 5);
+struct BoomFetchBufferEntry {
+    InstructionPacket instruction;   /**< Fetched instruction >*/
+    BoomFetchBufferEntryFlags flags; /**< Flags for the entry >*/
+
+    inline BoomFetchBufferEntry() : flags((BoomFetchBufferEntryFlags)0) {}
 };
 
 /**
@@ -79,7 +84,7 @@ class BoomFetch : public Component<FetchPacket> {
         btb;  /**< Branch Target Buffer for storing branch targets >*/
     Ras* ras; /**< Return Address Stack for storing return addresses >*/
     Component<PredictorPacket>* predictor;
-    FetchBufferEntry*
+    BoomFetchBufferEntry*
         fetchBuffer; /**< Fetch Buffer for storing fetched instructions >*/
 
     unsigned long
@@ -102,7 +107,7 @@ class BoomFetch : public Component<FetchPacket> {
     int predictorID;         /**< ID of the predictor component */
     int btbID;               /**< ID of the BTB component */
     int rasID;               /**< ID of the RAS component */
-    FetchBufferEntryFlags
+    BoomFetchBufferEntryFlags
         flagsToCheck; /**<Flags to check when removing entries from the buffer.
                          If there's a predictor, we need to check wether the
                          instruction was predicted. If there's no predictor, we
@@ -157,7 +162,7 @@ class BoomFetch : public Component<FetchPacket> {
           predictorID(-1),
           btbID(-1),
           rasID(-1),
-          flagsToCheck(FetchBufferEntryFlagsSendInst) {}
+          flagsToCheck((BoomFetchBufferEntryFlagsSendInst << 1) - 1) {}
 
     virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual int FinishSetup();

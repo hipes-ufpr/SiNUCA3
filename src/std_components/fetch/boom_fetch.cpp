@@ -178,7 +178,7 @@ int BoomFetch::FinishSetup() {
     this->btbID = this->btb->Connect(this->fetchSize);
     this->rasID = this->ras->Connect(this->fetchSize);
 
-    this->fetchBuffer = new FetchBufferEntry[this->fetchSize];
+    this->fetchBuffer = new BoomFetchBufferEntry[this->fetchSize];
 
     if (this->btb->FinishSetup()) {
         return 1;
@@ -199,7 +199,7 @@ void BoomFetch::ClockSendBuffered() {
 
     /* Skip instructions we already sent. */
     i = 0;
-    while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSendInst) ++i;
+    while (this->fetchBuffer[i].flags & BoomFetchBufferEntryFlagsSendInst) ++i;
 
     BTBPacket btbPacket;
     btbPacket.data.requestQuery = this->fetchBuffer[i].instruction.staticInfo;
@@ -209,11 +209,16 @@ void BoomFetch::ClockSendBuffered() {
     if (sendBTBReturn) {
         successfulySend = 0;
     } else {
-        this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSendBTB;
+        this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendBTB;
     }
 
     while (i < this->fetchBufferUsage) {
         rasUsed = 0;
+
+        SINUCA3_DEBUG_PRINTF(
+            "%s %ld\n",
+            this->fetchBuffer[i].instruction.staticInfo->opcodeAssembly,
+            this->fetchBuffer[i].instruction.staticInfo->opcodeAddress);
 
         /* Send to Memory */
         sendMemoryReturn = this->instructionMemory->SendRequest(
@@ -221,7 +226,7 @@ void BoomFetch::ClockSendBuffered() {
         if (sendMemoryReturn) {
             successfulySend = 0;
         } else {
-            this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSendMemory;
+            this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendMemory;
         }
 
         /* Send to Predictor */
@@ -234,7 +239,8 @@ void BoomFetch::ClockSendBuffered() {
         if (sendPredictorReturn) {
             successfulySend = 0;
         } else {
-            this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSendPredictor;
+            this->fetchBuffer[i].flags |=
+                BoomFetchBufferEntryFlagsSendPredictor;
         }
 
         /* Send to Ras */
@@ -259,7 +265,7 @@ void BoomFetch::ClockSendBuffered() {
             if (sendRasReturn) {
                 successfulySend = 0;
             } else {
-                this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSendRas;
+                this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendRas;
             }
 
         } else if (this->fetchBuffer[i].instruction.staticInfo->branchType ==
@@ -280,12 +286,12 @@ void BoomFetch::ClockSendBuffered() {
             if (sendRasReturn) {
                 successfulySend = 0;
             } else {
-                this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSendRas;
+                this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendRas;
             }
         }
 
         if (successfulySend)
-            this->fetchBuffer[i].flags |= FetchBufferEntryFlagsSendInst;
+            this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendInst;
 
         if (sendMemoryReturn || sendPredictorReturn ||
             (rasUsed && sendRasReturn)) {
@@ -302,6 +308,8 @@ int BoomFetch::ClockCheckPredictor() {
     PredictorPacket response;
     unsigned long i = 0;
 
+    while (this->fetchBuffer[i].flags & BoomFetchBufferEntryFlagsPredictorCheck)
+        ++i;
     /*
      * We depend on the predictor sending the responses in order and, of course,
      * sending only what we actually asked for.
@@ -326,6 +334,7 @@ int BoomFetch::ClockCheckPredictor() {
         if (target != this->fetchBuffer[i].instruction.nextInstruction) {
             return 1;
         }
+        this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsPredictorCheck;
         ++i;
     }
 
@@ -364,7 +373,8 @@ int BoomFetch::ClockCheckBTB() {
     miss = 0;
     if (this->btb->ReceiveResponse(this->btbID, &response) == 0) {
         i = 0;
-        while (this->fetchBuffer[i].flags & FetchBufferEntryFlagsSendInst) ++i;
+        while (this->fetchBuffer[i].flags & BoomFetchBufferEntryFlagsSendInst)
+            ++i;
         assert(this->fetchBuffer[i].instruction.staticInfo ==
                response.data.response.instruction);
 
