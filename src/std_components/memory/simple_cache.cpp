@@ -23,6 +23,7 @@
 #include "simple_cache.hpp"
 
 #include <sinuca3.hpp>
+#include "utils/logging.hpp"
 
 int SimpleCache::FinishSetup() {
     if (this->cache.FinishSetup()) return 1;
@@ -59,9 +60,13 @@ void SimpleCache::Clock() {
                 this->cache.Write(packet);
             }
 
+
             this->SendResponseToConnection(i, &packet);
         }
     }
 }
 
-void SimpleCache::PrintStatistics() {}
+void SimpleCache::PrintStatistics() {
+            SINUCA3_DEBUG_PRINTF("%p: SimpleCache Stats:\n\tMiss: %lu\n\tHit: %lu\n\tAcces: %lu\n\tEvaction: %lu\n\tValidProp: %.3f\n",
+                this, this->cache.getStatMiss(), this->cache.getStatHit(), this->cache.getStatAcess(), this->cache.getStatEvaction(), this->cache.getStatValidProp());
+}

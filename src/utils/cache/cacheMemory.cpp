@@ -53,28 +53,33 @@ bool CacheMemory::Read(MemoryPacket addr) {
     CacheLine *result;
 
     exist = this->GetEntry(addr, &result);
-    if (exist) this->policy->Acess(result);
+    if (exist){
+        this->policy->Acess(result);
+    }
+
+    this->statAcess += 1;
+    if(exist)
+        this->statHit += 1;
+    else
+        this->statMiss += 1;
 
     return exist;
 }
 
 void CacheMemory::Write(MemoryPacket addr) {
-    CacheLine *victim;
+    CacheLine *victim = NULL;
     unsigned long tag = GetTag(addr);
     unsigned long index = GetIndex(addr);
 
-    if (FindEmptyEntry(addr, &victim)) {
-        *victim = CacheLine(victim, tag, index);
-        this->policy->Acess(victim);
-        return;
+    if(!FindEmptyEntry(addr, &victim)){
+        int set, way;
+        this->policy->SelectVictim(tag, index, &set, &way);
+        victim = &this->entries[set][way];
     }
-
-    int set, way;
-    this->policy->SelectVictim(tag, index, &set, &way);
-    victim = &this->entries[set][way];
 
     *victim = CacheLine(victim, tag, index);
     this->policy->Acess(victim);
+    this->statEvaction += 1;
     return;
 }
 
@@ -295,4 +300,37 @@ bool CacheMemory::SetReplacementPolicy(ReplacementPoliciesID id) {
         default:
             return 1;
     }
+}
+
+void CacheMemory::resetStatistics(){
+    this->statMiss = 0;
+    this->statHit = 0;
+    this->statAcess = 0;
+    this->statEvaction = 0;
+}
+
+unsigned long CacheMemory::getStatMiss() const{
+    return this->statMiss;
+}
+
+unsigned long CacheMemory::getStatHit() const{
+    return this->statHit;
+}
+
+unsigned long CacheMemory::getStatAcess() const{
+    return this->statAcess;
+}
+
+unsigned long CacheMemory::getStatEvaction() const{
+    return this->statEvaction;
+}
+
+float CacheMemory::getStatValidProp() const{
+    int n = this->numSets * this->numWays;
+    int count = 0;
+    for(int i=0; i<n; ++i){
+        if(this->entries[0][i].isValid)
+            count += 1;
+    }
+    return (float)count/(float)n;
 }

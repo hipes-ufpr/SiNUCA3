@@ -62,7 +62,11 @@ class CacheMemory {
           numWays(-1),
           entries(NULL),
           policy(NULL),
-          policyID(Unset) {};
+          policyID(Unset),
+          statMiss(0),
+          statHit(0),
+          statAcess(0),
+          statEvaction(0) {};
     virtual ~CacheMemory();
 
     int FinishSetup();
@@ -111,6 +115,13 @@ class CacheMemory {
 
     void setAddrSizeBits(unsigned int addrSizeBits);
 
+    void resetStatistics();
+    unsigned long getStatMiss() const;
+    unsigned long getStatHit() const;
+    unsigned long getStatAcess() const;
+    unsigned long getStatEvaction() const;
+    float getStatValidProp() const;
+
   protected:
     /**
      * @brief Number of bits in a address.
@@ -138,6 +149,12 @@ class CacheMemory {
 
     ReplacementPolicy *policy;
     ReplacementPoliciesID policyID;
+
+    // Statistics
+    unsigned long statMiss;
+    unsigned long statHit;
+    unsigned long statAcess;
+    unsigned long statEvaction;
 };
 
 #endif
