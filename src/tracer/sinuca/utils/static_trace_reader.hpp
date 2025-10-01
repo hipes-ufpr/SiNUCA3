@@ -46,7 +46,7 @@
 
 namespace sinucaTracer {
 
-class StaticTraceFile {
+class StaticTraceReader {
   private:
     int fileDescriptor;
     char *mmapPtr;

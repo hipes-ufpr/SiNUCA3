@@ -25,9 +25,9 @@
 
 #include <cstring>
 
-const unsigned int MAX_REGISTERS = 32;
-const unsigned int MAX_MEM_OPERATIONS = 16;
-const unsigned int TRACE_LINE_SIZE = 256;
+const int MAX_REGISTERS = 16;
+const int MAX_MEM_OPERATIONS = 16;
+const int TRACE_LINE_SIZE = 256;
 
 /** @brief Enumerates the types of branches. */
 enum Branch {
@@ -43,7 +43,7 @@ enum Branch {
  * These details are static and cannot be changed during program execution.
  */
 struct StaticInstructionInfo {
-    char opcodeAssembly[TRACE_LINE_SIZE];
+    char* opcodeAssembly;
 
     long opcodeAddress;
     unsigned char opcodeSize;

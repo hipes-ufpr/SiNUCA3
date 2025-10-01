@@ -38,7 +38,7 @@ extern "C" {
 
 namespace sinucaTracer {
 
-class StaticTraceFile {
+class StaticTraceWriter {
   private:
     FILE* file;
     FileHeader header;

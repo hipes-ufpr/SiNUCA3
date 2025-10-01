@@ -35,7 +35,7 @@
 
 namespace sinucaTracer {
 
-class MemoryTraceFile {
+class MemoryTraceWriter {
   private:
     FILE* file;
     MemoryRecord record;

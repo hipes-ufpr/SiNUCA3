@@ -31,7 +31,7 @@
 
 namespace sinucaTracer {
 
-class DynamicTraceFile {
+class DynamicTraceReader {
   private:
     FILE* file;
     FileHeader header;
