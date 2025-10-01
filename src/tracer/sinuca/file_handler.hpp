@@ -31,11 +31,13 @@
  * coexist.
  */
 
+#include <cstdint>
 #include <cstring>
 #include <sinuca3.hpp>
 
 extern "C" {
 #include <errno.h>
+#include <stdint.h>
 }
 
 namespace sinucaTracer {
@@ -48,6 +50,18 @@ const int MAX_ROUTINE_NAME_LENGTH = 16;
 const unsigned long MAX_IMAGE_NAME_SIZE = 255;
 const unsigned long MAX_REG_OPERANDS = 8;
 
+enum StaticFileRecordType : uint8_t {
+    StaticRecordNewInstruction
+};
+
+enum DynamicFileRecordType : uint8_t {
+
+};
+
+enum MemoryRecordType : uint8_t {
+    /* reserved for future use */
+};
+
 const short NON_STD_HEADER_TYPE = 1;
 const short MEM_OPERATION_TYPE = 2;
 const short MEM_READ_TYPE = 3;
@@ -57,53 +71,67 @@ const short RTN_NAME_TYPE = 6;
 const short BBL_SIZE_TYPE = 7;
 const short INSTRUCTION_TYPE = 8;
 
-const unsigned char BRANCH_CALL = 1;
-const unsigned char BRANCH_COND = 2;
-const unsigned char BRANCH_UNCOND = 3;
-const unsigned char BRANCH_SYSCALL = 4;
-const unsigned char BRANCH_RETURN = 5;
+enum BranchType : uint8_t {
+    BranchCall,
+    BranchConditional,
+    BranchUncondition,
+    BRANCH_SYSCALL,
+    BRANCH_RETURN
+};
 
-/** @brief Written to static trace file. Condensed instruction info. */
+/** @brief Written to static trace file. Compile dependant instruction info. */
 struct Instruction {
+    uint16_t instructionKey;
+    uint16_t loadRegs[MAX_REG_OPERANDS];
+    uint16_t storeRegs[MAX_REG_OPERANDS];
+    uint64_t address;
+    uint8_t numLoadRegisters;
+    uint8_t numStoreRegisters;
+    uint16_t baseRegister;
+    uint16_t indexRegister;
+} __attribute__((packed));
+
+/** @brief Written to static trace file. . */
+struct StaticFileDictionaryEntry {
     char name[MAX_INSTRUCTION_NAME_LENGTH];
-    unsigned short int readRegs[MAX_REG_OPERANDS];
-    unsigned short int writeRegs[MAX_REG_OPERANDS];
-    unsigned long addr;
-    unsigned short int baseReg;
-    unsigned short int indexReg;
-    unsigned char size;
-    unsigned char numReadRegs;
-    unsigned char numWriteRegs;
-    unsigned char numStdMemReadOps; /**<Field ignored if non std.>*/
-    unsigned char numStdMemWriteOps; /**<Field ignored if non std.>*/
-    unsigned char branchType;
-    unsigned char isPredicated : 1;
-    unsigned char isPrefetch : 1;
-    unsigned char isControlFlow : 1;
-    unsigned char isIndirectControlFlow : 1;
-    unsigned char isNonStandardMemOp : 1;
+    uint8_t size;
+    uint8_t branchType;
+    uint8_t isPredicated;
+    uint8_t isPrefetch;
+    uint8_t isControlFlow;
+    uint8_t isIndirectControlFlow;
+    uint8_t isNonStandardMemOp;
+    uint8_t numStdMemReadOps; /**<Field ignored if non std.>*/
+    uint8_t numStdMemWriteOps; /**<Field ignored if non std.>*/
 } __attribute__((packed));
 
 /** @brief Written to static trace file. */
-struct StaticRecord {
+struct StaticFileRecord {
     short recordType;
     union {
         unsigned int basicBlockSize;
         struct Instruction instruction;
+        struct StaticFileDictionaryEntry entry;
     } data;
 } __attribute__((packed));
 
 /** @brief Written to dynamic trace file. */
-struct ExecutionRecord {
+struct DynamicFileRecord {
     short recordType;
     union {
-        unsigned long basicBlockIdentifier;
-        char routineName[MAX_ROUTINE_NAME_LENGTH];
+        struct {
+            uint32_t basicBlockIdentifier;
+        } bbl;
+        struct {
+            uint8_t threadId;
+            uint8_t action;
+            uint8_t ticksUntilNextAction;
+        } thr;
     } data;
 } __attribute__((packed));
 
 /** @brief Written to memory trace file. */
-struct MemoryRecord {
+struct MemoryFileRecord {
     short recordType;
     union {
         struct {
