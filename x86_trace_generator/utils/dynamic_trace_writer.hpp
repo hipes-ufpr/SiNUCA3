@@ -42,9 +42,9 @@ class DynamicTraceWriter {
     DynamicTraceRecord record;
 
   public:
-    DynamicTraceFile() : file(NULL) {};
-    inline ~DynamicTraceFile() { if (file) fclose(file); }
-    int OpenFile(const char *source, const char *img, THREADID tid);
+    inline DynamicTraceWriter() : file(NULL) {};
+    inline ~DynamicTraceWriter() { if (file) fclose(file); }
+    int OpenFile(const char *source, const char *img, int tid);
     int WriteHeaderToFile();
     int WriteDynamicRecordToFile();
 

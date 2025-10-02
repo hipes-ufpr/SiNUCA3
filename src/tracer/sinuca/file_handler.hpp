@@ -31,7 +31,6 @@
  * coexist.
  */
 
-#include <cstdint>
 #include <cstring>
 #include <sinuca3.hpp>
 #include "engine/default_packets.hpp"
@@ -43,11 +42,12 @@ extern "C" {
 
 namespace sinucaTracer {
 
+const char TRACE_VERSION[] = "1.0.0"; /**<Used to detect incompatibility.> */
 const int MAX_INSTRUCTION_NAME_LENGTH = 32;
 const int MAX_IMAGE_NAME_SIZE = 255;
 const int STDE_PAD = 7;
 
-enum FileType : uint8_t {
+enum FileType : uint16_t {
     StaticTrace,
     DynamicTrace,
     MemoryTrace
@@ -119,24 +119,23 @@ struct StaticTraceDictionaryEntry {
 
 /** @brief Written to static trace file. */
 struct StaticTraceDictionaryRecord {
-    uint8_t recordType;
     union {
         struct StaticTraceDictionaryEntry newInstruction;
     } data;
+    uint8_t recordType;
 } __attribute__((packed));
 
 /** @brief Written to static trace file. */
 struct StaticTraceBasicBlockRecord {
-    uint8_t recordType;
     union {
         uint16_t basicBlockSize;
         uint16_t instructionIdentifier;
     } data;
+    uint8_t recordType;
 } __attribute__((packed));
 
 /** @brief Written to dynamic trace file. */
 struct DynamicTraceRecord {
-    uint8_t recordType;
     union {
         struct {
             uint32_t basicBlockIdentifier;
@@ -146,52 +145,44 @@ struct DynamicTraceRecord {
             uint8_t event;
         } thr;
     } data;
+    uint8_t recordType;
 } __attribute__((packed));
 
 /** @brief Written to memory trace file. */
 struct MemoryTraceRecord {
-    uint8_t recordType;
     union {
         struct {
-            uint64_t addr; /**<Virtual address accessed. */
-            uint16_t size;  /**<Size in bytes of memory read or written. */
-            uint8_t type;
+            uint64_t address; /**<Virtual address accessed. */
+            uint16_t size;    /**<Size in bytes of memory read or written. */
+            uint8_t type;     /**<Load or Store. */
         } operation;
         struct {
             uint16_t nonStdReadOps;
             uint16_t nonStdWriteOps;
         } nonStdHeader;
     } data;
+    uint8_t recordType;
 } __attribute__((packed));
 
 /** @brief General usage. */
 struct FileHeader {
-    uint8_t fileType;
     union {
         struct {
-            uint16_t threadCount;
             uint64_t bblCount;
             uint64_t instCount;
+            uint16_t threadCount;
         } staticHeader;
         struct {
             uint64_t totalExecutedInstructions;
         } dynamicHeader;
     } data;
-} __attribute__((packed));
+    uint16_t fileType;
+    char traceVersion[sizeof(TRACE_VERSION)];
 
-/**
- * @details This struct is only used internally by the x86 reader. It turns out
- * that more than one instance of the same instruction might be in the processor
- * pipeline at once. Since the number of memory loads and stores might change
- * between them, these values are not kept in the StaticInstructionInfo. When
- * the number of memory operations is indeed fixed, they are written to the
- * numStdMemLoadOps and numStdMemStoreOps variables.
- */
-struct TraceReaderInstruction {
-    unsigned short numStdMemLoadOps;
-    unsigned short numStdMemStoreOps;
-    StaticInstructionInfo staticInfo;
-};
+    inline FileHeader() {
+        memcpy(this->traceVersion, TRACE_VERSION, sizeof(this->traceVersion));
+    }
+} __attribute__((packed));
 
 inline void printFileErrorLog(const char *path, const char *mode) {
     SINUCA3_ERROR_PRINTF("Could not open [%s] in [%s] mode: ", path, mode);

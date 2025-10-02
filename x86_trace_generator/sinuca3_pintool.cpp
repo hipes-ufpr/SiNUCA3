@@ -72,7 +72,7 @@ bool isInstrumentating;
 
 static TLS_KEY tlsKey = INVALID_TLS_KEY;
 
-struct Thread {
+struct ThreadData {
     sinucaTracer::DynamicTraceWriter dynamicTrace;
     sinucaTracer::MemoryTraceWriter memoryTrace;
     bool isThreadAnalysisEnabled;
@@ -245,34 +245,15 @@ VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
 
     unsigned int numberLoadOps = 0;
     unsigned int numberStoreOps = 0;
+
     for (unsigned int i = 0; i < accessInfo->numberOfMemops; ++i) {
         if (accessInfo->memop[i].maskOn == false) continue;
+
         if (accessInfo->memop[i].memopType == PIN_MEMOP_LOAD) {
-            ++numberLoadOps;
+
         } else {
-            ++numberStoreOps;
+
         }
-    }
-    memoryTraces[tid]->SetMemoryRecordType(sinucaTracer::NON_STD_HEADER_TYPE);
-    memoryTraces[tid]->SetMemoryRecordNonStdHeader(numberLoadOps,
-                                                   numberStoreOps);
-    memoryTraces[tid]->WriteMemoryRecordToFile();
-    for (unsigned int i = 0; i < accessInfo->numberOfMemops; ++i) {
-        if (accessInfo->memop[i].maskOn == false) continue;
-        memoryTraces[tid]->SetMemoryRecordType(
-            sinucaTracer::MEM_OPERATION_TYPE);
-        if (accessInfo->memop[i].memopType == PIN_MEMOP_LOAD) {
-            memoryTraces[tid]->SetMemoryRecordOperation(
-                accessInfo->memop[i].memoryAddress,
-                accessInfo->memop[i].bytesAccessed,
-                sinucaTracer::MEM_READ_TYPE);
-        } else {
-            memoryTraces[tid]->SetMemoryRecordOperation(
-                accessInfo->memop[i].memoryAddress,
-                accessInfo->memop[i].bytesAccessed,
-                sinucaTracer::MEM_WRITE_TYPE);
-        }
-        memoryTraces[tid]->WriteMemoryRecordToFile();
     }
 }
 

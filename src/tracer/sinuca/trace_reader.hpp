@@ -30,6 +30,20 @@
 
 namespace sinucaTracer {
 
+/**
+ * @details This struct is only used internally by the x86 reader. It turns out
+ * that more than one instance of the same instruction might be in the processor
+ * pipeline at once. Since the number of memory loads and stores might change
+ * between them, these values are not kept in the StaticInstructionInfo. When
+ * the number of memory operations is indeed fixed, they are written to the
+ * numStdMemLoadOps and numStdMemStoreOps variables.
+ */
+struct TraceReaderInstruction {
+    unsigned short numStdMemLoadOps;
+    unsigned short numStdMemStoreOps;
+    StaticInstructionInfo staticInfo;
+};
+
 struct ThrInfo {
     DynamicTraceFile* dynFile;
     MemoryTraceFile* memFile;
