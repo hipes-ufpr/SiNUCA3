@@ -88,12 +88,14 @@ bool isInstrumentating;
  */
 std::vector<bool> isThreadAnalysisEnabled;
 
+static TLS_KEY tlsKey = INVALID_TLS_KEY;
+
 /** @brief Used to block two threads from trying to print simultaneously. */
-PIN_LOCK printLock;
+PIN_LOCK printLock; /* change to TLS */
 /** @brief OnThreadStart writes in global structures. */
-PIN_LOCK threadStartLock;
+PIN_LOCK threadStartLock; /* change to TLS */
 /** @brief OnTrace writes in global structures. */
-PIN_LOCK onTraceLock;
+PIN_LOCK onTraceLock; /* change to TLS */
 
 const char* traceDir;
 
@@ -183,6 +185,9 @@ VOID DisableInstrumentationInThread(THREADID tid) {
 /** @brief */
 VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
     PIN_GetLock(&threadStartLock, tid);
+
+    PIN_GetParentTid();
+
     SINUCA3_DEBUG_PRINTF("New thread created! tid [%d] (%s)\n", tid, imageName);
     staticTrace->IncThreadCount();
     isThreadAnalysisEnabled.push_back(KnobForceInstrumentation.Value());
@@ -293,7 +298,10 @@ VOID InsertInstrumentionOnMemoryOperations(const INS* ins) {
     }
 }
 
-/** @brief */
+/**
+ * @brief
+ * @note pin already holds VM Lock before calling any instrumentation routine.
+ */
 VOID OnTrace(TRACE trace, VOID* ptr) {
     if (!isInstrumentating) return;
 
@@ -310,7 +318,6 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
 #endif
     }
 
-    PIN_GetLock(&onTraceLock, tid);
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         unsigned int numberInstInBasicBlock = BBL_NumIns(bbl);
         BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)AppendToDynamicTrace,
@@ -329,7 +336,6 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
             InsertInstrumentionOnMemoryOperations(&ins);
         }
     }
-    PIN_ReleaseLock(&onTraceLock);
 
     return;
 }

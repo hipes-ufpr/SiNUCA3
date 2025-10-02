@@ -36,7 +36,7 @@ extern "C" {
 #include <stdlib.h>
 }
 
-namespace sinucaTracer {
+namespace sinucaTracer { /* investigate update functionality */
 
 class StaticTraceWriter {
   private:

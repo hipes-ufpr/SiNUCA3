@@ -31,6 +31,7 @@
  * coexist.
  */
 
+#include <cstdint>
 #include <cstring>
 #include <sinuca3.hpp>
 #include "engine/default_packets.hpp"
@@ -44,15 +45,34 @@ namespace sinucaTracer {
 
 const int MAX_INSTRUCTION_NAME_LENGTH = 32;
 const int MAX_IMAGE_NAME_SIZE = 255;
+const int STDE_PAD = 7;
 
-enum StaticTraceRecordType : uint8_t {
-    StaticRecordNewInstruction,
-    StaticRecordBasicBlockSize
+enum FileType : uint8_t {
+    StaticTrace,
+    DynamicTrace,
+    MemoryTrace
+};
+
+enum StaticTraceDictionaryRecordType : uint8_t {
+    StaticTraceDictionaryNewInstruction,
+    StaticTraceDictionaryEndOfDictionary
+};
+
+enum StaticTraceBasicBlockRecordType : uint8_t {
+    StaticTraceBasicBlockInstruction,
+    StaticTraceBasicBlockSizeBlock
 };
 
 enum DynamicTraceRecordType : uint8_t {
     DynamicRecordBasicBlockIdentifier,
-    DynamicRecordThreadAction
+    DynamicRecordThreadEvent
+};
+
+enum ThreadEvent : uint8_t {
+    ThreadEventCreateThread,
+    ThreadEventDestroyThread,
+    ThreadEventLockRequest,
+    ThreadEventBarrier
 };
 
 enum MemoryRecordType : uint8_t {
@@ -75,38 +95,42 @@ enum BranchType : uint8_t {
 };
 
 /** @brief Written to static trace file. */
-struct Instruction {
-    uint16_t loadRegs[MAX_REGISTERS];
-    uint16_t storeRegs[MAX_REGISTERS];
-    uint64_t address;
+struct StaticTraceDictionaryEntry {
+    uint64_t instructionAddress;
+    uint16_t loadRegisters[MAX_REGISTERS];
+    uint16_t storeRegisters[MAX_REGISTERS];
     uint16_t baseRegister;
     uint16_t indexRegister;
-    uint16_t instructionKey;
-    uint8_t numLoadRegisters;
-    uint8_t numStoreRegisters;
-} __attribute__((packed));
-
-/** @brief Written to static trace file. */
-struct StaticTraceDictionaryEntry {
-    char name[MAX_INSTRUCTION_NAME_LENGTH];
-    uint8_t size;
+    uint16_t instructionIdentifier;
+    uint8_t numberLoadRegisters;
+    uint8_t numberStoreRegisters;
+    uint8_t instructionSize;
     uint8_t branchType;
     uint8_t isPredicated;
     uint8_t isPrefetch;
     uint8_t isControlFlow;
     uint8_t isIndirectControlFlow;
     uint8_t isNonStandardMemOp;
-    uint8_t numStdMemLoadOps; /**<Field ignored if non std.>*/
+    uint8_t numStdMemLoadOps;  /**<Field ignored if non std.>*/
     uint8_t numStdMemStoreOps; /**<Field ignored if non std.>*/
+    uint8_t padding[STDE_PAD]; /**<Manual padding. Reserved for future use.> */
+    char instructionMnemonic[MAX_INSTRUCTION_NAME_LENGTH];
 } __attribute__((packed));
 
 /** @brief Written to static trace file. */
-struct StaticTraceRecord {
+struct StaticTraceDictionaryRecord {
+    uint8_t recordType;
+    union {
+        struct StaticTraceDictionaryEntry newInstruction;
+    } data;
+} __attribute__((packed));
+
+/** @brief Written to static trace file. */
+struct StaticTraceBasicBlockRecord {
     uint8_t recordType;
     union {
         uint16_t basicBlockSize;
-        struct Instruction instruction;
-        struct StaticTraceDictionaryEntry newInstruction;
+        uint16_t instructionIdentifier;
     } data;
 } __attribute__((packed));
 
@@ -119,7 +143,7 @@ struct DynamicTraceRecord {
         } bbl;
         struct {
             uint8_t threadId;
-            uint8_t action;
+            uint8_t event;
         } thr;
     } data;
 } __attribute__((packed));
@@ -142,6 +166,7 @@ struct MemoryTraceRecord {
 
 /** @brief General usage. */
 struct FileHeader {
+    uint8_t fileType;
     union {
         struct {
             uint16_t threadCount;

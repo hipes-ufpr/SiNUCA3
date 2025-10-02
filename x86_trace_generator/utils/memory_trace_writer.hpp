@@ -33,12 +33,15 @@
 
 #include "pin.H"
 
+const int MEM_PAD = 32;
+
 namespace sinucaTracer {
 
 class MemoryTraceWriter {
   private:
     FILE* file;
-    MemoryRecord record;
+    MemoryTraceRecord record;
+    char padding[MEM_PAD]; /**<Manual padding to avoid false sharing.> */
 
   public:
     MemoryTraceFile() : file(NULL) {}

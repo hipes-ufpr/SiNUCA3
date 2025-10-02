@@ -33,13 +33,16 @@
 #include <cstdio>
 #include <tracer/sinuca/file_handler.hpp>
 
+const int DYN_PAD = 24;
+
 namespace sinucaTracer {
 
 class DynamicTraceWriter {
   private:
     FILE* file;
     FileHeader header;
-    ExecutionRecord record;
+    DynamicTraceRecord record;
+    char padding[DYN_PAD]; /**<Manual padding to avoid false sharing.> */
 
   public:
     DynamicTraceFile() : file(NULL) {};
