@@ -23,7 +23,6 @@
 #include <cassert>  // assert
 
 #include "pin.H"
-#include "tracer/sinuca/file_handler.hpp"
 #include "utils/logging.hpp"
 
 extern "C" {
@@ -35,22 +34,6 @@ extern "C" {
 #include <utils/dynamic_trace_writer.hpp>
 #include <utils/memory_trace_writer.hpp>
 #include <utils/static_trace_writer.hpp>
-
-const char* GOMP_RTNS_FORCE_LOCK[] = {"GOMP_critical_start", "omp_set_lock",
-                                      "omp_set_nest_lock"};
-
-const char* GOMP_RTNS_ATTEMPT_LOCK[] = {"omp_test_lock", "omp_test_nest_lock"};
-
-const char* GOMP_RTNS_UNLOCK[] = {"GOMP_critical_end", "omp_unset_lock",
-                                  "omp_unset_nest_lock"};
-
-const char* GOMP_RTNS_BARRIER[] = {"GOMP_barrier"};
-
-/**
- * @brief Set this to 1 to print all rotines that name begins with "gomp",
- * case insensitive (Statically linking GOMP is recommended).
- */
-const int DEBUG_PRINT_GOMP_RNT = 0;
 
 /**
  * @note Instrumentation is the process of deciding where and what code should
@@ -86,33 +69,59 @@ bool isInstrumentating;
  * When executed, the analysis code records dynamic and memory trace information
  * into files associated with the executing thread.
  */
-std::vector<bool> isThreadAnalysisEnabled;
 
 static TLS_KEY tlsKey = INVALID_TLS_KEY;
 
+struct Thread {
+    sinucaTracer::DynamicTraceWriter dynamicTrace;
+    sinucaTracer::MemoryTraceWriter memoryTrace;
+    bool isThreadAnalysisEnabled;
+};
+
+sinucaTracer::StaticTraceFile* staticTrace;
+
 /** @brief Used to block two threads from trying to print simultaneously. */
-PIN_LOCK printLock; /* change to TLS */
+PIN_LOCK debugPrintLock;
 /** @brief OnThreadStart writes in global structures. */
-PIN_LOCK threadStartLock; /* change to TLS */
+PIN_LOCK threadStartLock;
 /** @brief OnTrace writes in global structures. */
-PIN_LOCK onTraceLock; /* change to TLS */
+PIN_LOCK onTraceLock;
 
 const char* traceDir;
-
 char* imageName = NULL;
 bool wasInitInstrumentationCalled = false;
 
-sinucaTracer::StaticTraceFile* staticTrace;
-std::vector<sinucaTracer::DynamicTraceFile*> dynamicTraces;
-std::vector<sinucaTracer::MemoryTraceFile*> memoryTraces;
 
 /** @brief Set directory to save trace with '-o'. Default is current dir. */
-KNOB<std::string> KnobFolder(KNOB_MODE_WRITEONCE, "pintool", "o", "./",
-                             "Path to store the trace files");
+KNOB<std::string> knobFolder(KNOB_MODE_WRITEONCE, "pintool", "o", "./",
+                             "Path to store the trace files.");
 /** @brief Allows one to force full instrumentation with '-f'. Default is 0. */
-KNOB<BOOL> KnobForceInstrumentation(
+KNOB<BOOL> knobForceInstrumentation(
     KNOB_MODE_WRITEONCE, "pintool", "f", "0",
-    "Force instrumentation for the entire execution for all created threads");
+    "Force instrumentation for the entire execution for all created threads.");
+/** @brief */
+KNOB<BOOL> knobDebugEnable(KNOB_MODE_WRITEONCE, "pintool", "d", "0",
+    "Create pintool debug log.");
+
+const char* GOMP_RTNS_FORCE_LOCK[] = {"GOMP_critical_start", "omp_set_lock",
+                                      "omp_set_nest_lock"};
+
+const char* GOMP_RTNS_ATTEMPT_LOCK[] = {"omp_test_lock", "omp_test_nest_lock"};
+
+const char* GOMP_RTNS_UNLOCK[] = {"GOMP_critical_end", "omp_unset_lock",
+                                  "omp_unset_nest_lock"};
+
+const char* GOMP_RTNS_BARRIER[] = {"GOMP_barrier"};
+
+
+
+void PintoolDebugLog(const char* str) {
+    if (knobDebugEnable.value()) {
+        PIN_GetLock(&debugPrintLock, PIN_ThreadId());
+        if (debugFile) printf("[DEBUG]: %s\n", str);
+        PIN_ReleaseLock(&debugPrintLock, PIN_ThreadId());
+    }
+}
 
 int Usage() {
     SINUCA3_LOG_PRINTF(
@@ -305,35 +314,14 @@ VOID InsertInstrumentionOnMemoryOperations(const INS* ins) {
 VOID OnTrace(TRACE trace, VOID* ptr) {
     if (!isInstrumentating) return;
 
-    THREADID tid = PIN_ThreadId();
-    RTN traceRtn = TRACE_Rtn(trace);
-
-    if (RTN_Valid(traceRtn)) {
-#if DEBUG_PRINT_GOMP_RNT == 1
-        const char* traceRtnName = RTN_Name(traceRtn).c_str();
-        if (StrStartsWithGomp(traceRtnName)) {
-            TRACE_InsertCall(trace, IPOINT_BEFORE, (AFUNPTR)DebugPrintRtnName,
-                             IARG_PTR, traceRtnName, IARG_THREAD_ID, IARG_END);
-        }
-#endif
-    }
-
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         unsigned int numberInstInBasicBlock = BBL_NumIns(bbl);
         BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)AppendToDynamicTrace,
                        IARG_UINT32, staticTrace->GetBBlCount(), IARG_UINT32,
                        numberInstInBasicBlock, IARG_END);
 
-        staticTrace->IncBasicBlockCount();
-        staticTrace->SetStaticRecordType(sinucaTracer::BBL_SIZE_TYPE);
-        staticTrace->SetStaticRecordBasicBlockSize(numberInstInBasicBlock);
-        staticTrace->WriteStaticRecordToFile();
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
-            staticTrace->SetStaticRecordType(sinucaTracer::INSTRUCTION_TYPE);
-            staticTrace->SetStaticRecordInstruction(&ins);
-            staticTrace->WriteStaticRecordToFile();
-            staticTrace->IncStaticInstructionCount();
-            InsertInstrumentionOnMemoryOperations(&ins);
+
         }
     }
 
