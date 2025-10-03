@@ -19,23 +19,21 @@
 //
 
 /**
- * @file bimodal_predictor.hpp
+ * @file bimodal_counter.hpp
  * @brief Public API of a generic bimodal predictor.
  */
 
-const bool NTAKEN = 0;
-const bool TAKEN = 1;
-
-class BimodalPredictor {
+class BimodalCounter {
   private:
     unsigned char prediction; /**< The prediction bits. */
 
   public:
-    BimodalPredictor();
+    BimodalCounter();
 
     /**
-     * @brief get the current prediction.
-     * @return Taken if Taken if the bits are 10+, Not Taken otherwise.
+     * @brief Get the current prediction. Prediction is taken if bits are 10+,
+     * not taken otherwise.
+     * @return True if prediction is taken, false otherwise.
      */
     bool GetPrediction();
 
@@ -43,9 +41,9 @@ class BimodalPredictor {
      * @brief Updates the prediciton with the new information.
      * @param branchTaken Informs whether the branch has been taken or not.
      */
-    void UpdatePrediction(bool branchTaken);
+    void UpdatePrediction(bool wasBranchTaken);
 
-    ~BimodalPredictor();
+    ~BimodalCounter();
 };
 
 #endif

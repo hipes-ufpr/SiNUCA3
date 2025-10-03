@@ -11,9 +11,13 @@ ifndef CC
   endif
 endif
 
-CFLAGS = -Wall -Wextra -std=c99 -O3 -I../x86_trace_generator/
+CFLAGS = -Wall -Wextra -std=c11 -O3 -g -I../x86_trace_generator/
+ADD_FILES = ../x86_trace_generator/instrumentation_control.s
 
-all: factorials
+all: factorials intrinsics
 
-%: %.c
+factorials: factorials.c $(ADD_FILES)
+	$(CC) $(CFLAGS) -o $@ $^
+
+intrinsics: intrinsics.c $(ADD_FILES)
 	$(CC) $(CFLAGS) -o $@ $^

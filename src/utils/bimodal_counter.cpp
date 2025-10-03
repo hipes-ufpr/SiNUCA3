@@ -16,28 +16,28 @@
 //
 
 /**
- * @file bimodal_predictor.cpp
+ * @file bimodal_counter.cpp
  * @details Implementation of a generic bimodal predictor.
  */
 
-#include "bimodal_predictor.hpp"
+#include "bimodal_counter.hpp"
 
-BimodalPredictor::BimodalPredictor() : prediction(2) {}
+BimodalCounter::BimodalCounter() : prediction(2) {}
 
-bool BimodalPredictor::GetPrediction() { return (this->prediction >> 1); }
+bool BimodalCounter::GetPrediction() { return (this->prediction >> 1); }
 
-void BimodalPredictor::UpdatePrediction(bool branchTaken) {
-    if ((branchTaken == TAKEN) && (this->prediction < 3)) {
+void BimodalCounter::UpdatePrediction(bool wasBranchTaken) {
+    if ((wasBranchTaken == true) && (this->prediction < 3)) {
         this->prediction++;
 
         return;
     }
 
-    if ((branchTaken == NTAKEN) && (this->prediction > 0)) {
+    if ((wasBranchTaken == false) && (this->prediction > 0)) {
         this->prediction--;
 
         return;
     }
 }
 
-BimodalPredictor::~BimodalPredictor() {}
+BimodalCounter::~BimodalCounter() {}

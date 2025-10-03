@@ -28,13 +28,14 @@
 #include "engine_debug_component.hpp"
 #include "execute/simple_execution_unit.hpp"
 #include "fetch/fetcher.hpp"
-#include "fetch/queues.hpp"
+#include "misc/queues.hpp"
 #include "memory/simple_instruction_memory.hpp"
 #include "memory/simple_memory.hpp"
 #include "predictors/hardwired_predictor.hpp"
 #include "predictors/interleavedBTB.hpp"
 #include "predictors/ras.hpp"
 #include "std_components/memory/simple_cache.hpp"
+#include "trace_dumper_component.hpp"
 
 Linkable* CreateDefaultComponentByClass(const char* name) {
 #ifndef NDEBUG
@@ -53,6 +54,7 @@ Linkable* CreateDefaultComponentByClass(const char* name) {
     COMPONENT(SimpleExecutionUnit);
     COMPONENT(HardwiredPredictor);
     COMPONENT(SimpleCache);
+    COMPONENT(TraceDumperComponent);
 
     return NULL;
 }

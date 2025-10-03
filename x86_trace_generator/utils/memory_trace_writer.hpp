@@ -28,9 +28,9 @@
  * deals with buffering/flushing the data.
  */
 
-#include <tracer/sinuca/file_handler.hpp>
+#include <pin.H>
 
-#include "pin.H"
+#include <tracer/sinuca/file_handler.hpp>
 
 namespace sinucaTracer {
 

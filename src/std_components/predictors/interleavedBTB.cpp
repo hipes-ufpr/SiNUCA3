@@ -42,7 +42,7 @@ int BTBEntry::Allocate(unsigned int numBanks) {
         return 1;
     }
 
-    this->predictorsArray = new BimodalPredictor[numBanks];
+    this->predictorsArray = new BimodalCounter[numBanks];
     if (!(this->predictorsArray)) {
         delete[] this->targetArray;
         delete[] this->branchTypes;
@@ -257,7 +257,7 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
             if (!(branchTaken)) {
                 if ((currentEntry->GetBranchType(i) ==
                      BranchTypeUnconditional) ||
-                    (currentEntry->GetPrediction(i) == TAKEN)) {
+                    (currentEntry->GetPrediction(i))) {
                     response.data.response.target =
                         currentEntry->GetTargetAddress(i);
                     branchTaken = true;

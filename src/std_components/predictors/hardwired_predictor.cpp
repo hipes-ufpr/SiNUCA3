@@ -114,12 +114,12 @@ void HardwiredPredictor::Respond(int id, PredictorPacket request) {
 
     PredictorPacket response;
     response.type = PredictorPacketTypeResponseTakeToAddress;
-    response.data.response.instruction = instruction;
+    response.data.targetResponse.instruction = instruction;
     if (predict) {
-        response.data.response.target = instruction.nextInstruction;
+        response.data.targetResponse.target = instruction.nextInstruction;
     } else {
         // Fast way to create an address that isn't nextInstruction.
-        response.data.response.target = ~instruction.nextInstruction;
+        response.data.targetResponse.target = ~instruction.nextInstruction;
     }
 
     if (this->sendTo != NULL) {
