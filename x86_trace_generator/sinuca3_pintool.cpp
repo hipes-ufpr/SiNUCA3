@@ -202,7 +202,8 @@ VOID OnThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
 VOID AppendToDynamicTrace(UINT32 bblId, UINT32 numInst) {
     int tid = PIN_ThreadId();
     if (!threadDataVec[tid]->isThreadAnalysisEnabled) return;
-    dynamicTraces[tid]->AddBasicBlockId(bblId);
+    threadDataVec[tid]->dynamicTrace.AddBasicBlockId(bblId);
+    threadDataVec[tid]->dynamicTrace.IncExecutedInstructions(numInst);
 }
 
 /** @brief Append standard memory op to memory trace. */
@@ -274,16 +275,14 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         unsigned int numberInstInBasicBlock = BBL_NumIns(bbl);
+        unsigned int basicBlockIndex = staticTrace->GetBasicBlockCount();
         BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)AppendToDynamicTrace,
-                       IARG_UINT32, staticTrace->GetBBlCount(), IARG_UINT32,
+                       IARG_UINT32, basicBlockIndex, IARG_UINT32,
                        numberInstInBasicBlock, IARG_END);
-
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
-
+            staticTrace->AddInstruction(&ins);
         }
     }
-
-    return;
 }
 
 /** @brief */
