@@ -16,7 +16,7 @@ TOOL_ROOTS := sinuca3_pintool
 # This section contains the build rules for all binaries that have special build rules.
 # See makefile.default.rules for the default build rules.
 
-$(OBJDIR)sinuca3_pintool$(OBJ_SUFFIX): sinuca3_pintool.cpp
+$(OBJDIR)sinuca3_pintool$(OBJ_SUFFIX): sinuca3_pintool.cpp $(OBJDIR)instrumentation_control$(OBJ_SUFFIX)
 	$(CXX) $(TOOL_CXXFLAGS) -I../src -I. $(COMP_OBJ)$@ $<
 
 $(OBJDIR)file_handler$(OBJ_SUFFIX): $(UTILS)/file_handler.cpp $(UTILS)/file_handler.hpp

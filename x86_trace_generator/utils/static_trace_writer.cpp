@@ -23,8 +23,12 @@
 #include "static_trace_writer.hpp"
 
 #include <cassert>
+#include <cstring>
 #include <sinuca3.hpp>
 #include <string>
+
+#include "pin.H"
+#include "tracer/sinuca/file_handler.hpp"
 
 extern "C" {
 #include <alloca.h>
@@ -56,6 +60,34 @@ sinucaTracer::StaticTraceFile::~StaticTraceFile() {
     fwrite(&this->threadCount, sizeof(this->threadCount), 1, this->tf.file);
     fwrite(&this->bblCount, sizeof(this->bblCount), 1, this->tf.file);
     fwrite(&this->instCount, sizeof(this->instCount), 1, this->tf.file);
+}
+
+void sinucaTracer::StaticTraceFile::PrepareDataIntrinsic(
+    const INS* originalCall, const char* name, unsigned long nameSize,
+    bool read, bool read2, bool write, REG* readRegs, unsigned char numReadRegs,
+    REG* writeRegs, unsigned char numWriteRegs) {
+    memset(&this->data, 0, sizeof(this->data));
+
+    // Must record here that I hate doing this silent failure but it is what
+    // it is, I'm just doing whatever PrepareDataINS originally did.
+    if (nameSize >= MAX_INSTRUCTION_NAME_LENGTH) {
+        nameSize = MAX_INSTRUCTION_NAME_LENGTH - 1;
+    }
+    memcpy(this->data.name, name, nameSize);
+    this->data.name[nameSize] = '\0';
+
+    this->data.addr = INS_Address(*originalCall);
+    this->data.size = INS_Size(*originalCall);
+    this->data.baseReg = REG_INVALID();
+    this->data.indexReg = REG_INVALID();
+    this->data.isRead = read;
+    this->data.isRead2 = read2;
+    this->data.isWrite = write;
+
+    memcpy(this->data.readRegs, readRegs, numReadRegs);
+    memcpy(this->data.writeRegs, writeRegs, numWriteRegs);
+    this->data.numReadRegs = numReadRegs;
+    this->data.numWriteRegs = numWriteRegs;
 }
 
 void sinucaTracer::StaticTraceFile::PrepareDataINS(const INS* ins) {

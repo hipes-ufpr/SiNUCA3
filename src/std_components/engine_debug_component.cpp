@@ -1,5 +1,3 @@
-#include <cstddef>
-#include <cstring>
 #ifndef NDEBUG
 
 //
@@ -25,9 +23,9 @@
  * CALLED BY CODE PATHS THAT ONLY COMPILE IN DEBUG MODE.
  */
 
-#include <sinuca3.hpp>
-
 #include "engine_debug_component.hpp"
+
+#include <sinuca3.hpp>
 
 void EngineDebugComponent::PrintConfigValue(const char* parameter,
                                             ConfigValue value,
