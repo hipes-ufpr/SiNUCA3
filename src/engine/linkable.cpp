@@ -50,6 +50,10 @@ inline int Connection::GetBufferSize() const { return this->bufferSize; }
 
 inline int Connection::GetMessageSize() const { return this->messageSize; }
 
+inline bool Connection::IsRequestBufferAvailable(int id) const {
+    return !(this->requestBuffers[id]->IsFull());
+};
+
 void Connection::SwapBuffers() {
     CircularBuffer* aux;
 
@@ -105,6 +109,10 @@ long Linkable::GetNumberOfConnections() { return this->numberOfConnections; }
 void Linkable::PosClock() {
     for (unsigned int i = 0; i < this->connections.size(); ++i)
         this->connections[i]->SwapBuffers();
+}
+
+bool Linkable::IsConnectionAvailable(int connectionID) {
+    return this->connections[connectionID]->IsRequestBufferAvailable(SOURCE_ID);
 }
 
 int Linkable::ConnectUnsafe(int bufferSize) {

@@ -1,8 +1,8 @@
 CC = clang
 CPP = clang++
 
-CFLAGS = -Wall -Wextra -std=c99 -I./src
-CPPFLAGS = -Wall -Wextra -fno-exceptions -std=c++98 -I./src
+CFLAGS = -Wall -Wextra -std=c99 -I./src -g
+CPPFLAGS = -Wall -Wextra -fno-exceptions -std=c++98 -I./src -g
 
 C_RELEASE_FLAGS = -O3 -march=native -DNDEBUG
 CPP_RELEASE_FLAGS = $(C_RELEASE_FLAGS)

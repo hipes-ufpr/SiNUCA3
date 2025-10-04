@@ -53,7 +53,13 @@ class Ras : public Component<PredictorPacket> {
     inline void RequestUpdate(unsigned long targetAddress);
 
   public:
-    inline Ras() : sendTo(NULL), buffer(NULL), size(0), end(0) {}
+    inline Ras()
+        : sendTo(NULL),
+          buffer(NULL),
+          size(0),
+          end(0),
+          numQueries(0),
+          numUpdates(0) {}
     virtual int FinishSetup();
     virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual void Clock();

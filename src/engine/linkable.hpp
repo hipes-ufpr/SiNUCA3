@@ -39,7 +39,7 @@ struct Connection {
                                            swapped each cycle.*/
 
   public:
-    Connection() : bufferSize(0), messageSize(0) {};
+    Connection() : bufferSize(0), messageSize(0){};
 
     /**
      * @brief Allocate the buffers used to channels
@@ -62,6 +62,12 @@ struct Connection {
      * @brief Self-explanatory
      */
     inline int GetMessageSize() const;
+
+    /**
+     * @brief Returns true if the request buffer with id is available and false
+     * if the buffer is full.
+     */
+    inline bool IsRequestBufferAvailable(int id) const;
 
     /**
      * @brief Swap the buffers of the connection.
@@ -211,6 +217,9 @@ class Linkable {
      * buffers and do other pos-clock setup jobs.
      */
     void PosClock();
+
+    bool IsConnectionAvailable(int connectionID);
+
     /**
      * @brief This method should be declared here so the simulator can send the
      * finish setup message.
@@ -222,6 +231,7 @@ class Linkable {
      * @returns Non-zero on error, 0 otherwise.
      */
     virtual int FinishSetup() = 0;
+
     /**
      * @brief This method should be declared here so the simulator can send
      * config parameters.

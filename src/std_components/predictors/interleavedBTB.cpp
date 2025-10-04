@@ -96,6 +96,8 @@ BTBEntry::~BTBEntry() {
 
 BranchTargetBuffer::BranchTargetBuffer()
     : btb(NULL),
+      sendTo(NULL),
+      sendToID(0),
       interleavingFactor(0),
       numEntries(0),
       interleavingBits(0),
@@ -350,16 +352,16 @@ void BranchTargetBuffer::PrintStatistics() {
         if (this->btb[i]->GetValid()) this->occupation++;
     }
 
-    SINUCA3_LOG_PRINTF("Branch Target Buffer: [%p]", this);
-    SINUCA3_LOG_PRINTF("Total Branches: %lu", this->totalBranch);
-    SINUCA3_LOG_PRINTF("BTB Hits: %lu", this->btbHits);
-    SINUCA3_LOG_PRINTF("BTB Occupation: %lu", this->occupation);
-    SINUCA3_LOG_PRINTF("Entry Replacements: %lu", this->replacements);
+    SINUCA3_LOG_PRINTF("Branch Target Buffer [%p]\n", this);
+    SINUCA3_LOG_PRINTF("    Total Branches: %lu\n", this->totalBranch);
+    SINUCA3_LOG_PRINTF("    BTB Hits: %lu\n", this->btbHits);
+    SINUCA3_LOG_PRINTF("    BTB Occupation: %lu\n", this->occupation);
+    SINUCA3_LOG_PRINTF("    Entry Replacements: %lu\n", this->replacements);
     SINUCA3_LOG_PRINTF(
-        "Hit Ratio: %lf%%",
+        "    Hit Ratio: %lf%%\n",
         ((double)this->btbHits / (double)this->totalBranch) * 100);
     SINUCA3_LOG_PRINTF(
-        "Occupation Ratio: %lf%%",
+        "    Occupation Ratio: %lf%%\n",
         ((double)this->occupation / (double)this->numEntries) * 100);
 }
 
