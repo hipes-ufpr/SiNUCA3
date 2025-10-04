@@ -25,6 +25,7 @@
 
 #include <cstdio>
 #include <tracer/sinuca/file_handler.hpp>
+
 #include "utils/logging.hpp"
 
 namespace sinucaTracer {
@@ -33,34 +34,48 @@ class DynamicTraceWriter {
   private:
     FILE *file;
     FileHeader header;
-    DynamicTraceRecord record;
+    DynamicTraceRecord *recordArray;
+    int recordArrayOccupation;
+    int recordArraySize;
 
-    inline void InitFileHeader() {
-        /* reserve space for header */
-        fseek(this->file, sizeof(this->header), SEEK_SET);
-        this->header.fileType = FileTypeDynamicTrace;
-        this->header.data.dynamicHeader.totalExecutedInstructions = 0;
-    }
     inline int WriteHeaderToFile() {
-        rewind(this->file);
+        if (this->file == NULL) return 1;
         return (fwrite(&this->header, sizeof(this->header), 1, this->file) !=
                 sizeof(this->header));
     }
+    inline int WriteArrayToFile(void* array, unsigned long size) {
+        if (this->file == NULL) return 1;
+        return (fwrite(array, size, 1, this->file) != size);
+    }
+
+    int DuplicateRecordArraySize();
 
   public:
-    inline DynamicTraceWriter() : file(NULL) { this->InitFileHeader(); };
+    inline DynamicTraceWriter()
+        : file(0),
+          recordArray(0),
+          recordArrayOccupation(0),
+          recordArraySize(0) {
+        this->header.fileType = FileTypeDynamicTrace;
+        this->header.data.dynamicHeader.totalExecutedInstructions = 0;
+    };
     inline ~DynamicTraceWriter() {
+        unsigned long size = 0;
         if (file) {
             fclose(file);
         }
         if (this->WriteHeaderToFile()) {
             SINUCA3_ERROR_PRINTF("Failed to write dynamic file header!\n");
         }
+        size = sizeof(*this->recordArray) * this->recordArrayOccupation;
+        if (this->WriteArrayToFile(this->recordArray, size)) {
+            SINUCA3_ERROR_PRINTF("Failed to write dynamic record entries!\n");
+        }
     }
 
     int OpenFile(const char *source, const char *img, int tid);
-    int AddBasicBlockId(int id);
     int AddThreadEvent(unsigned char event, int tid);
+    int AddBasicBlockId(int id);
 
     inline void IncTotalExecInst(int ins) {
         this->header.data.dynamicHeader.totalExecutedInstructions += ins;

@@ -22,18 +22,14 @@
 
 #include "static_trace_writer.hpp"
 
-#include <cassert>
 #include <cstdio>
 #include <sinuca3.hpp>
-#include <string>
-
-#include "tracer/sinuca/file_handler.hpp"
 
 extern "C" {
 #include <alloca.h>
 }
 
-int sinucaTracer::StaticTraceFile::OpenFile(const char* sourceDir,
+int sinucaTracer::StaticTraceWriter::OpenFile(const char* sourceDir,
                                             const char* imgName) {
     unsigned long bufferSize;
     char* path;
@@ -43,28 +39,14 @@ int sinucaTracer::StaticTraceFile::OpenFile(const char* sourceDir,
     FormatPathTidOut(path, sourceDir, "static", imgName, bufferSize);
     this->file = fopen(path, "wb");
     if (this->file == NULL) return 1;
-    /* This space will be used to store the file header. */
+    /* reserve space for header */
     fseek(this->file, sizeof(this->header), SEEK_SET);
+
     return 0;
 }
 
-int sinucaTracer::StaticTraceFile::WriteStaticRecordToFile() {
-    if (this->file == NULL) return 1;
-    unsigned long written;
-    written = fwrite(&this->record, sizeof(this->record), 1, this->file);
-    return written != sizeof(this->record);
-}
-
-int sinucaTracer::StaticTraceFile::WriteHeaderToFile() {
-    if (this->file == NULL) return 1;
-    unsigned long written;
-    rewind(this->file);
-    written = fwrite(&this->header, sizeof(this->header), 1, this->file);
-    return written != sizeof(this->header);
-}
-
-void sinucaTracer::StaticTraceFile::ConvertPinInstToRawInstFormat(
-    const INS* pinInst, Instruction* rawInst) {
+void sinucaTracer::StaticTraceWriter::ConvertPinInstToRawInstFormat(
+    const INS* pinInst) {
 
     /* fill instruction name */
     std::string instName = INS_Mnemonic(*pinInst);
@@ -108,7 +90,9 @@ void sinucaTracer::StaticTraceFile::ConvertPinInstToRawInstFormat(
     unsigned int operandCount = INS_OperandCount(*pinInst);
     rawInst->numReadRegs = rawInst->numWriteRegs = 0;
     for (unsigned int i = 0; i < operandCount; ++i) {
-        if (!INS_OperandIsReg(*pinInst, i)) continue;
+        if (!INS_OperandIsReg(*pinInst, i)) {
+            continue;
+        }
         if (INS_OperandWritten(*pinInst, i)) {
             if (rawInst->numWriteRegs > MAX_REG_OPERANDS) return;
             rawInst->writeRegs[rawInst->numWriteRegs++] =

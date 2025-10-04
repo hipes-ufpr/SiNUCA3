@@ -45,7 +45,6 @@ namespace sinucaTracer {
 const char TRACE_VERSION[] = "0.0.1"; /**<Used to detect incompatibility.> */
 const int MAX_INSTRUCTION_NAME_LENGTH = 32;
 const int MAX_IMAGE_NAME_SIZE = 255;
-const int STDE_PAD = 7;
 
 enum FileType : uint16_t {
     FileTypeStaticTrace,
@@ -94,13 +93,17 @@ enum BranchType : uint8_t {
     None
 };
 
-/** @brief Written to static trace file. */
-struct StaticTraceDictionaryEntry {
-    uint64_t instructionAddress;
+/** @brief */
+struct InstructionOperands {
     uint16_t loadRegisters[MAX_REGISTERS];
     uint16_t storeRegisters[MAX_REGISTERS];
     uint16_t baseRegister;
     uint16_t indexRegister;
+} __attribute__((packed));
+
+/** @brief  */
+struct StaticTraceDictionaryEntry {
+    uint64_t instructionAddress;
     uint16_t instructionIdentifier;
     uint8_t numberLoadRegisters;
     uint8_t numberStoreRegisters;
@@ -113,14 +116,13 @@ struct StaticTraceDictionaryEntry {
     uint8_t isNonStandardMemOp;
     uint8_t numStdMemLoadOps;  /**<Field ignored if non std.>*/
     uint8_t numStdMemStoreOps; /**<Field ignored if non std.>*/
-    uint8_t padding[STDE_PAD]; /**<Manual padding. Reserved for future use.> */
     char instructionMnemonic[MAX_INSTRUCTION_NAME_LENGTH];
 } __attribute__((packed));
 
 /** @brief Written to static trace file. */
 struct StaticTraceDictionaryRecord {
     union {
-        struct StaticTraceDictionaryEntry newInstruction;
+        StaticTraceDictionaryEntry newInstruction;
     } data;
     uint8_t recordType;
 } __attribute__((packed));
@@ -129,7 +131,10 @@ struct StaticTraceDictionaryRecord {
 struct StaticTraceBasicBlockRecord {
     union {
         uint16_t basicBlockSize;
-        uint16_t instructionIdentifier;
+        struct {
+            InstructionOperands operands;
+            uint16_t instructionIdentifier;
+        } instruction;
     } data;
     uint8_t recordType;
 } __attribute__((packed));
@@ -157,8 +162,7 @@ struct MemoryTraceRecord {
             uint8_t type;     /**<Load or Store. */
         } operation;
         struct {
-            uint16_t nonStdReadOps;
-            uint16_t nonStdWriteOps;
+            uint32_t nonStdMemOps;
         } nonStdHeader;
     } data;
     uint8_t recordType;

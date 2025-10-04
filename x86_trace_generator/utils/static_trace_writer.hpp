@@ -28,57 +28,96 @@
  * deals with buffering/flushing the data.
  */
 
-#include <pin.H>
-
 #include <tracer/sinuca/file_handler.hpp>
 
+#include "utils/logging.hpp"
+
 extern "C" {
+#include <search.h>
 #include <stdlib.h>
 }
 
-namespace sinucaTracer { /* investigate update functionality */
+namespace sinucaTracer {
+
+const int HASH_MAP_INIT_SIZE = 50000;
 
 class StaticTraceWriter {
   private:
     FILE* file;
     FileHeader header;
-    StaticRecord record;
+    StaticTraceBasicBlockRecord* basicBlocksArray;
+    StaticTraceDictionaryRecord* registeredInstArray;
+    StaticTraceDictionaryEntry newInstruction;
+    int basicBlocksArraySize;
+    int basicBlocksArrayOccupation;
+    int registeredInstArraySize;
+    int registeredInstArrayOccupation;
+    int instHashMapSize;
 
-    void ConvertPinInstToRawInstFormat(const INS* pinInstruction, Instruction* rawInst);
+    inline int WriteHeaderToFile() {
+        if (this->file == NULL) return 1;
+        return (fwrite(&this->header, sizeof(this->header), 1, this->file) !=
+                sizeof(this->header));
+    }
+    inline int WriteArrayToFile(void* array, unsigned long size) {
+        if (this->file == NULL) return 1;
+        return (fwrite(array, size, 1, this->file) != size);
+    }
+
+    void ConvertPinInstToRawInstFormat(const INS* pinInstruction);
+    int DuplicateBasicBlocksArraySize();
+    int DuplicateRegisteredInstArraySize();
+
   public:
-    inline StaticTraceFile() : file(NULL) {};
-    inline ~StaticTraceFile() {
-        if (file == NULL) fclose(this->file);
-    }
-    int OpenFile(const char* sourceDir, const char* imgName);
-    int WriteHeaderToFile();
-    int WriteStaticRecordToFile();
-
-    inline void InitializeFileHeader() {
-        this->header.data.staticHeader.bblCount = 0;
+    inline StaticTraceWriter()
+        : file(0),
+          basicBlocksArray(0),
+          registeredInstArray(0),
+          basicBlocksArraySize(0),
+          basicBlocksArrayOccupation(0),
+          registeredInstArraySize(0),
+          registeredInstArrayOccupation(0) {
+        this->header.fileType = FileTypeStaticTrace;
         this->header.data.staticHeader.instCount = 0;
+        this->header.data.staticHeader.bblCount = 0;
         this->header.data.staticHeader.threadCount = 0;
+    };
+    inline ~StaticTraceWriter() {
+        unsigned long size = 0;
+        if (file == NULL) {
+            fclose(this->file);
+        }
+        if (this->WriteHeaderToFile()) {
+            SINUCA3_ERROR_PRINTF("Failed to write static header!\n")
+        }
+        size = sizeof(*this->registeredInstArray) *
+               this->registeredInstArrayOccupation;
+        if (this->WriteArrayToFile(this->registeredInstArray, size)) {
+            SINUCA3_ERROR_PRINTF("Failed to write static instructions!\n")
+        }
+        size =
+            sizeof(*this->basicBlocksArray) * this->basicBlocksArrayOccupation;
+        if (this->WriteArrayToFile(this->basicBlocksArray, size)) {
+            SINUCA3_ERROR_PRINTF("Failed to write static basic blocks!\n")
+        }
+        hdestroy();
     }
-    inline void SetStaticRecordInstruction(const INS* pinInstruction) {
-        this->ConvertPinInstToRawInstFormat(pinInstruction, &this->record.data.instruction);
-    }
-    inline void SetStaticRecordType(short type) {
-        this->record.recordType = type;
-    }
-    inline void SetStaticRecordBasicBlockSize(unsigned int size) {
-        this->record.data.basicBlockSize = size;
-    }
-    inline void IncBasicBlockCount() {
-        this->header.data.staticHeader.bblCount++;
-    }
+
+    int OpenFile(const char* sourceDir, const char* imgName);
+    int AddInstruction(const INS* pinInst);
+    int AddBasicBlockSize(unsigned int basicBlockSize);
+
     inline void IncStaticInstructionCount() {
         this->header.data.staticHeader.instCount++;
     }
     inline void IncThreadCount() {
         this->header.data.staticHeader.threadCount++;
     }
-    inline unsigned int GetBBlCount() {
-        return this->header.data.staticHeader.bblCount;
+    inline void IncBasicBlockCount() {
+        this->header.data.staticHeader.bblCount++;
+    }
+    inline unsigned int GetBasicBlockCount() {
+        return this->basicBlocksArrayOccupation;
     }
 };
 

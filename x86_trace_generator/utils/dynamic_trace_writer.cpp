@@ -22,33 +22,60 @@
 
 #include "dynamic_trace_writer.hpp"
 
+#include <cstdlib>
+
 extern "C" {
 #include <alloca.h>
 }
 
-int sinucaTracer::DynamicTraceWriter::OpenFile(const char *sourceDir, const char *imgName, int tid) {
+int sinucaTracer::DynamicTraceWriter::OpenFile(const char *sourceDir,
+                                               const char *imgName, int tid) {
     unsigned long bufferSize;
-    char* path;
-    bufferSize = sinucaTracer::GetPathTidInSize(sourceDir, "dynamic", imgName);
+    char *path;
+
+    bufferSize = GetPathTidInSize(sourceDir, "dynamic", imgName);
     path = (char *)alloca(bufferSize);
     FormatPathTidIn(path, sourceDir, "dynamic", imgName, tid, bufferSize);
     this->file = fopen(path, "wb");
-    return this->file == NULL;
+    if (this->file == NULL) return 1;
+
+    return 0;
 }
 
-int sinucaTracer::DynamicTraceWriter::AddThreadEvent(unsigned char event, int tid) {
+int sinucaTracer::DynamicTraceWriter::DuplicateRecordArraySize() {
+    if (this->recordArraySize == 0) this->recordArraySize = 0x10;
+    this->recordArraySize <<= 1;
+    this->recordArray =
+        (DynamicTraceRecord *)realloc(this->recordArray, this->recordArraySize);
+    return (this->recordArray == NULL);
+}
+
+int sinucaTracer::DynamicTraceWriter::AddThreadEvent(unsigned char event,
+                                                     int tid) {
     if (this->file == NULL) return 1;
-    this->record.recordType = DynamicRecordThreadEvent;
-    this->record.data.thr.event = event;
-    this->record.data.thr.threadId = tid;
-    return (fwrite(&this->record, sizeof(this->record), 1, this->file) !=
-            sizeof(this->record));
+    if (this->recordArrayOccupation >= this->recordArraySize) {
+        this->DuplicateRecordArraySize();
+    }
+
+    this->recordArray[this->recordArrayOccupation].recordType =
+        DynamicRecordThreadEvent;
+    this->recordArray[this->recordArrayOccupation].data.thr.event = event;
+    this->recordArray[this->recordArrayOccupation].data.thr.threadId = tid;
+    ++this->recordArrayOccupation;
+
+    return 0;
 }
 
 int sinucaTracer::DynamicTraceWriter::AddBasicBlockId(int id) {
     if (this->file == NULL) return 1;
-    this->record.recordType = DynamicRecordBasicBlockIdentifier;
-    this->record.data.bbl.basicBlockIdentifier = id;
-    return (fwrite(&this->record, sizeof(this->record), 1, this->file) !=
-            sizeof(this->record));
+    if (this->recordArrayOccupation >= this->recordArraySize) {
+        this->DuplicateRecordArraySize();
+    }
+
+    this->recordArray[this->recordArrayOccupation].recordType =
+        DynamicRecordBasicBlockIdentifier;
+    this->recordArray[this->recordArrayOccupation]
+        .data.bbl.basicBlockIdentifier = id;
+
+    return 0;
 }

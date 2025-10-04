@@ -284,6 +284,7 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
         BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)AppendToDynamicTrace,
                        IARG_UINT32, basicBlockIndex, IARG_UINT32,
                        numberInstInBasicBlock, IARG_END);
+        staticTrace->AddBasicBlockSize(numberInstInBasicBlock);
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
             staticTrace->AddInstruction(&ins);
         }

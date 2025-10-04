@@ -29,37 +29,49 @@
  */
 
 #include <cstdio>
+#include <cstring>
 #include <tracer/sinuca/file_handler.hpp>
+
+#include "utils/logging.hpp"
 
 namespace sinucaTracer {
 
 class MemoryTraceWriter {
   private:
     FILE* file;
-    MemoryTraceRecord record;
+    FileHeader header; /**<header currently unused here.> */
+    MemoryTraceRecord* recordArray;
+    int recordArrayOccupation;
+    int recordArraySize;
+
+    inline int WriteArrayToFile(void* array, unsigned long size) {
+        if (this->file == NULL) return 1;
+        return (fwrite(array, size, 1, this->file) != size);
+    }
+
+    int DuplicateRecordArraySize();
 
   public:
-    MemoryTraceFile() : file(NULL) {}
-    inline ~MemoryTraceFile() {
-        if (this->file) fclose(this->file);
-    };
-    int OpenFile(const char* sourceDir, const char* imgName, THREADID tid);
-    int WriteMemoryRecordToFile();
+    inline MemoryTraceWriter()
+        : file(0),
+          recordArray(0),
+          recordArrayOccupation(0),
+          recordArraySize(0) {};
+    inline ~MemoryTraceWriter() {
+        unsigned long size = 0;
+        if (file) {
+            fclose(file);
+        }
+        size = sizeof(*this->recordArray) * this->recordArrayOccupation;
+        if (this->WriteArrayToFile(this->recordArray, size)) {
+            SINUCA3_ERROR_PRINTF("Failed to write mem record entries!\n");
+        }
+    }
 
-    inline void SetMemoryRecordOperation(unsigned long addr, unsigned int size,
-                                  short type) {
-        this->record.data.operation.addr = addr;
-        this->record.data.operation.size = size;
-        this->record.data.operation.type = type;
-    }
-    inline void SetMemoryRecordNonStdHeader(unsigned short nonStdReadOps,
-                                     unsigned short nonStdWriteOps) {
-        this->record.data.nonStdHeader.nonStdReadOps = nonStdReadOps;
-        this->record.data.nonStdHeader.nonStdWriteOps = nonStdWriteOps;
-    }
-    inline void SetMemoryRecordType(short type) {
-        this->record.recordType = type;
-    }
+    int OpenFile(const char* sourceDir, const char* imgName, int tid);
+    int AddNonStdOpHeader(unsigned int memoryOperations);
+    int AddMemoryOperation(unsigned long address, unsigned int size,
+                           unsigned char type);
 };
 
 }  // namespace sinucaTracer
