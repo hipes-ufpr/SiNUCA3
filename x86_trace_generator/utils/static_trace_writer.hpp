@@ -20,93 +20,74 @@
 
 /**
  * @file static_trace_writer.hpp
- * @details All classes defined here inherit from TraceFileWriter and implement
- * the preparation and buffering/flush of data to each file making up a trace
- * (static, dynamic and memory files). All of them implement a PrepareData**
- * method and an AppendToBuffer** one. They should be called in the order:
- * PrepareData**, it fills data structures, and then AppendToBuffer** which
- * deals with buffering/flushing the data.
+ * @details .
  */
 
 #include <tracer/sinuca/file_handler.hpp>
 
-#include "utils/logging.hpp"
-
-extern "C" {
-#include <search.h>
-#include <stdlib.h>
-}
+#include "pin.H"
 
 namespace sinucaTracer {
-
-const int HASH_MAP_INIT_SIZE = 50000;
 
 class StaticTraceWriter {
   private:
     FILE* file;
     FileHeader header;
-    StaticTraceBasicBlockRecord* basicBlocksArray;
-    StaticTraceDictionaryRecord* registeredInstArray;
-    StaticTraceDictionaryEntry newInstruction;
-    int basicBlocksArraySize;
-    int basicBlocksArrayOccupation;
-    int registeredInstArraySize;
-    int registeredInstArrayOccupation;
-    int instHashMapSize;
+    StaticTraceRecord* recordArray;
+    int recordArraySize;
+    int recordArrayOccupation;
 
     inline int WriteHeaderToFile() {
         if (this->file == NULL) return 1;
-        return (fwrite(&this->header, sizeof(this->header), 1, this->file) !=
+        rewind(this->file);
+        return (fwrite(&this->header, 1, sizeof(this->header), this->file) !=
                 sizeof(this->header));
     }
-    inline int WriteArrayToFile(void* array, unsigned long size) {
+    inline int FlushStaticRecords() {
         if (this->file == NULL) return 1;
-        return (fwrite(array, size, 1, this->file) != size);
+        unsigned long occupationInBytes =
+            sizeof(*this->recordArray) * this->recordArrayOccupation;
+        return (fwrite(this->recordArray, 1, occupationInBytes, this->file) !=
+                occupationInBytes);
     }
 
-    void ConvertPinInstToRawInstFormat(const INS* pinInstruction);
-    int DuplicateBasicBlocksArraySize();
-    int DuplicateRegisteredInstArraySize();
+    int DoubleRecordArraySize();
 
   public:
     inline StaticTraceWriter()
         : file(0),
-          basicBlocksArray(0),
-          registeredInstArray(0),
-          basicBlocksArraySize(0),
-          basicBlocksArrayOccupation(0),
-          registeredInstArraySize(0),
-          registeredInstArrayOccupation(0) {
+          recordArray(0),
+          recordArraySize(0),
+          recordArrayOccupation(0) {
         this->header.fileType = FileTypeStaticTrace;
         this->header.data.staticHeader.instCount = 0;
         this->header.data.staticHeader.bblCount = 0;
         this->header.data.staticHeader.threadCount = 0;
     };
     inline ~StaticTraceWriter() {
-        unsigned long size = 0;
-        if (file == NULL) {
-            fclose(this->file);
-        }
         if (this->WriteHeaderToFile()) {
             SINUCA3_ERROR_PRINTF("Failed to write static header!\n")
         }
-        size = sizeof(*this->registeredInstArray) *
-               this->registeredInstArrayOccupation;
-        if (this->WriteArrayToFile(this->registeredInstArray, size)) {
-            SINUCA3_ERROR_PRINTF("Failed to write static instructions!\n")
+        if (this->FlushStaticRecords()) {
+            SINUCA3_ERROR_PRINTF("Failed to flush static records!\n");
         }
-        size =
-            sizeof(*this->basicBlocksArray) * this->basicBlocksArrayOccupation;
-        if (this->WriteArrayToFile(this->basicBlocksArray, size)) {
-            SINUCA3_ERROR_PRINTF("Failed to write static basic blocks!\n")
+        if (this->file) {
+            fclose(this->file);
         }
-        hdestroy();
     }
 
-    int OpenFile(const char* sourceDir, const char* imgName);
+    int OpenFile(const char* sourceDir, const char* imageName);
     int AddInstruction(const INS* pinInst);
     int AddBasicBlockSize(unsigned int basicBlockSize);
 
+    inline int LastInstIsMemoryRead() {
+        return this->recordArray[this->recordArrayOccupation - 1]
+            .data.instruction.instReadsMemory;
+    }
+    inline int LastInstIsMemoryWrite() {
+        return this->recordArray[this->recordArrayOccupation - 1]
+            .data.instruction.instWritesMemory;
+    }
     inline void IncStaticInstructionCount() {
         this->header.data.staticHeader.instCount++;
     }
@@ -117,7 +98,7 @@ class StaticTraceWriter {
         this->header.data.staticHeader.bblCount++;
     }
     inline unsigned int GetBasicBlockCount() {
-        return this->basicBlocksArrayOccupation;
+        return this->header.data.staticHeader.bblCount;
     }
 };
 

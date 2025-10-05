@@ -43,7 +43,7 @@ extern "C" {
 namespace sinucaTracer {
 
 const char TRACE_VERSION[] = "0.0.1"; /**<Used to detect incompatibility.> */
-const int MAX_INSTRUCTION_NAME_LENGTH = 32;
+const int INST_MNEMONIC_LEN = 8 + sizeof('\0');
 const int MAX_IMAGE_NAME_SIZE = 255;
 
 enum FileType : uint16_t {
@@ -52,14 +52,9 @@ enum FileType : uint16_t {
     FileTypeMemoryTrace
 };
 
-enum StaticTraceDictionaryRecordType : uint8_t {
-    StaticTraceDictionaryNewInstruction,
-    StaticTraceDictionaryEndOfDictionary
-};
-
-enum StaticTraceBasicBlockRecordType : uint8_t {
-    StaticTraceBasicBlockInstruction,
-    StaticTraceBasicBlockSizeBlock
+enum StaticTraceRecordType : uint8_t {
+    StaticRecordInstruction,
+    StaticRecordBasicBlockSize
 };
 
 enum DynamicTraceRecordType : uint8_t {
@@ -75,7 +70,7 @@ enum ThreadEvent : uint8_t {
 };
 
 enum MemoryRecordType : uint8_t {
-    MemoryRecordNonStdHeader,
+    MemoryRecordOperationHeader,
     MemoryRecordOperation
 };
 
@@ -84,57 +79,48 @@ enum MemoryOperationType : uint8_t {
     MemoryOperationStore
 };
 
-enum BranchType : uint8_t {
-    BranchCall,
-    BranchSyscall,
-    BranchConditional,
-    BranchUnconditional,
-    BranchReturn,
-    None
+/**
+ * @brief Standard C++ boolean operators may not be 0 or 1 in memory. Thus,
+ * we define our boolean type to maintain cross systems compatibility.
+ */
+enum BoolType : uint8_t {
+    BoolTypeTrue = 0,
+    BoolTypeFalse = 1
 };
 
-/** @brief */
-struct InstructionOperands {
-    uint16_t loadRegisters[MAX_REGISTERS];
-    uint16_t storeRegisters[MAX_REGISTERS];
-    uint16_t baseRegister;
-    uint16_t indexRegister;
-} __attribute__((packed));
-
-/** @brief  */
-struct StaticTraceDictionaryEntry {
+/** @brief Instruction extracted informations */
+struct Instruction {
     uint64_t instructionAddress;
-    uint16_t instructionIdentifier;
-    uint8_t numberLoadRegisters;
-    uint8_t numberStoreRegisters;
-    uint8_t instructionSize;
-    uint8_t branchType;
-    uint8_t isPredicated;
-    uint8_t isPrefetch;
-    uint8_t isControlFlow;
-    uint8_t isIndirectControlFlow;
-    uint8_t isNonStandardMemOp;
-    uint8_t numStdMemLoadOps;  /**<Field ignored if non std.>*/
-    uint8_t numStdMemStoreOps; /**<Field ignored if non std.>*/
-    char instructionMnemonic[MAX_INSTRUCTION_NAME_LENGTH];
+    uint64_t instructionSize;
+    uint32_t instructionOpcode;    /**<Enum defined in xed-iclass-enum.h */
+    uint32_t instructionExtension;
+    uint32_t effectiveAddressWidth;
+    uint32_t instructionPredicate; /**<Used when isPredicatedInst is true */
+    uint16_t readRegsArray[MAX_REGISTERS];    /**<Enum defined in reg_ia32.PH */
+    uint16_t writtenRegsArray[MAX_REGISTERS]; /**<Enum defined in reg_ia32.PH */
+    uint8_t wRegsArrayOccupation;
+    uint8_t rRegsArrayOccupation;
+    uint8_t instHasFallthrough;
+    uint8_t isBranchInstruction;
+    uint8_t isSyscallInstruction;
+    uint8_t isCallInstruction;
+    uint8_t isRetInstruction;
+    uint8_t isSysretInstruction;
+    uint8_t isPrefetchHintInst;
+    uint8_t isPredicatedInst;
+    uint8_t isIndirectControlFlowInst;
+    uint8_t instCausesCacheLineFlush;
+    uint8_t instPerformsAtomicUpdate;
+    uint8_t instReadsMemory;
+    uint8_t instWritesMemory;
+    char instructionMnemonic[INST_MNEMONIC_LEN]; /**<Used for debug. */
 } __attribute__((packed));
 
 /** @brief Written to static trace file. */
-struct StaticTraceDictionaryRecord {
-    union {
-        StaticTraceDictionaryEntry newInstruction;
-    } data;
-    uint8_t recordType;
-} __attribute__((packed));
-
-/** @brief Written to static trace file. */
-struct StaticTraceBasicBlockRecord {
+struct StaticTraceRecord {
     union {
         uint16_t basicBlockSize;
-        struct {
-            InstructionOperands operands;
-            uint16_t instructionIdentifier;
-        } instruction;
+        Instruction instruction;
     } data;
     uint8_t recordType;
 } __attribute__((packed));
@@ -162,8 +148,8 @@ struct MemoryTraceRecord {
             uint8_t type;     /**<Load or Store. */
         } operation;
         struct {
-            uint32_t nonStdMemOps;
-        } nonStdHeader;
+            uint32_t numberOfMemoryOps;
+        } opHeader;
     } data;
     uint8_t recordType;
 } __attribute__((packed));
@@ -172,8 +158,8 @@ struct MemoryTraceRecord {
 struct FileHeader {
     union {
         struct {
-            uint64_t bblCount;
-            uint64_t instCount;
+            uint32_t instCount;
+            uint32_t bblCount;
             uint16_t threadCount;
         } staticHeader;
         struct {

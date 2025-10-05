@@ -20,56 +20,51 @@
 
 /**
  * @file memory_trace_writer.hpp
- * @details All classes defined here inherit from TraceFileWriter and implement
- * the preparation and buffering/flush of data to each file making up a trace
- * (static, dynamic and memory files). All of them implement a PrepareData**
- * method and an AppendToBuffer** one. They should be called in the order:
- * PrepareData**, it fills data structures, and then AppendToBuffer** which
- * deals with buffering/flushing the data.
+ * @details .
  */
 
 #include <cstdio>
-#include <cstring>
 #include <tracer/sinuca/file_handler.hpp>
-
-#include "utils/logging.hpp"
 
 namespace sinucaTracer {
 
 class MemoryTraceWriter {
   private:
     FILE* file;
-    FileHeader header; /**<header currently unused here.> */
+    FileHeader header;
     MemoryTraceRecord* recordArray;
     int recordArrayOccupation;
     int recordArraySize;
 
-    inline int WriteArrayToFile(void* array, unsigned long size) {
+    inline int FlushMemoryRecords() {
         if (this->file == NULL) return 1;
-        return (fwrite(array, size, 1, this->file) != size);
+        unsigned long occupationInBytes =
+            sizeof(*this->recordArray) * this->recordArrayOccupation;
+        return (fwrite(this->recordArray, 1, occupationInBytes, this->file) !=
+                occupationInBytes);
     }
 
-    int DuplicateRecordArraySize();
+    int DoubleRecordArraySize();
 
   public:
     inline MemoryTraceWriter()
         : file(0),
           recordArray(0),
           recordArrayOccupation(0),
-          recordArraySize(0) {};
+          recordArraySize(0) {
+            this->header.fileType = FileTypeMemoryTrace;
+          };
     inline ~MemoryTraceWriter() {
-        unsigned long size = 0;
+        if (this->FlushMemoryRecords()) {
+            SINUCA3_ERROR_PRINTF("Failed to flush memory records!\n");
+        }
         if (file) {
             fclose(file);
         }
-        size = sizeof(*this->recordArray) * this->recordArrayOccupation;
-        if (this->WriteArrayToFile(this->recordArray, size)) {
-            SINUCA3_ERROR_PRINTF("Failed to write mem record entries!\n");
-        }
     }
 
-    int OpenFile(const char* sourceDir, const char* imgName, int tid);
-    int AddNonStdOpHeader(unsigned int memoryOperations);
+    int OpenFile(const char* sourceDir, const char* imageName, int tid);
+    int AddNumberOfMemOperations(unsigned int memoryOperations);
     int AddMemoryOperation(unsigned long address, unsigned int size,
                            unsigned char type);
 };

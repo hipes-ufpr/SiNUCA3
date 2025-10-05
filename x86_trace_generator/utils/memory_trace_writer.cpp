@@ -24,57 +24,60 @@
 
 #include <cstdlib>
 
-#include "tracer/sinuca/file_handler.hpp"
-
 extern "C" {
 #include <alloca.h>
 }
 
-int sinucaTracer::MemoryTraceWriter::OpenFile(const char* sourceDir,
-                                              const char* imgName, int tid) {
+namespace sinucaTracer {
+
+int MemoryTraceWriter::OpenFile(const char* sourceDir, const char* imageName,
+                                int tid) {
     unsigned long bufferSize;
 
-    bufferSize = GetPathTidInSize(sourceDir, "memory", imgName);
+    bufferSize = GetPathTidInSize(sourceDir, "memory", imageName);
     char* path = (char*)alloca(bufferSize);
-    FormatPathTidIn(path, sourceDir, "memory", imgName, tid, bufferSize);
+    FormatPathTidIn(path, sourceDir, "memory", imageName, tid, bufferSize);
     this->file = fopen(path, "wb");
     if (this->file == NULL) return 1;
-    /* help maintain compatibility with future versions of the memory trace
-     * file. */
     fseek(this->file, sizeof(this->header), SEEK_SET);
 
     return 0;
 }
 
-int sinucaTracer::MemoryTraceWriter::DuplicateRecordArraySize() {
-    if (this->recordArraySize == 0) this->recordArraySize = 0x10;
+int MemoryTraceWriter::DoubleRecordArraySize() {
+    if (this->recordArraySize == 0) {
+        this->recordArraySize = 512;
+    }
     this->recordArraySize <<= 1;
     this->recordArray =
         (MemoryTraceRecord*)realloc(this->recordArray, this->recordArraySize);
-    return (this->recordArray == NULL);
+    return this->recordArray == NULL;
 }
 
-int sinucaTracer::MemoryTraceWriter::AddNonStdOpHeader(
-    unsigned int memoryOperations) {
+int MemoryTraceWriter::AddNumberOfMemOperations(unsigned int memOps) {
     if (this->file == NULL) return 1;
     if (this->recordArrayOccupation >= this->recordArraySize) {
-        this->DuplicateRecordArraySize();
+        if (this->DoubleRecordArraySize()) {
+            return 1;
+        }
     }
 
     this->recordArray[this->recordArrayOccupation].recordType =
-        MemoryRecordNonStdHeader;
+        MemoryRecordOperationHeader;
     this->recordArray[this->recordArrayOccupation]
-        .data.nonStdHeader.nonStdMemOps = memoryOperations;
+        .data.opHeader.numberOfMemoryOps = memOps;
 
     return 0;
 }
 
-int sinucaTracer::MemoryTraceWriter::AddMemoryOperation(unsigned long address,
-                                                        unsigned int size,
-                                                        unsigned char type) {
+int MemoryTraceWriter::AddMemoryOperation(unsigned long address,
+                                          unsigned int size,
+                                          unsigned char type) {
     if (this->file == NULL) return 1;
     if (this->recordArrayOccupation >= this->recordArraySize) {
-        this->DuplicateRecordArraySize();
+        if (this->DoubleRecordArraySize()) {
+            return 1;
+        }
     }
 
     this->recordArray[this->recordArrayOccupation].recordType =
@@ -86,3 +89,5 @@ int sinucaTracer::MemoryTraceWriter::AddMemoryOperation(unsigned long address,
 
     return 0;
 }
+
+}  // namespace sinucaTracer

@@ -41,7 +41,7 @@ unsigned long sinucaTracer::GetPathTidInSize(const char *sourceDir,
 
 void sinucaTracer::FormatPathTidIn(char *dest, const char *sourceDir,
                                    const char *prefix, const char *imageName,
-                                   THREADID tid, long destSize) {
+                                   int tid, long destSize) {
     snprintf(dest, destSize, "%s/%s_%s_tid%u.trace", sourceDir, prefix,
              imageName, tid);
 }

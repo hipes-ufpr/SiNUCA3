@@ -22,21 +22,22 @@
 
 #include "static_trace_writer.hpp"
 
-#include <cstdio>
-#include <sinuca3.hpp>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
 #include <alloca.h>
 }
 
-int sinucaTracer::StaticTraceWriter::OpenFile(const char* sourceDir,
-                                            const char* imgName) {
+namespace sinucaTracer {
+
+int StaticTraceWriter::OpenFile(const char* sourceDir, const char* imageName) {
     unsigned long bufferSize;
     char* path;
 
-    bufferSize = sinucaTracer::GetPathTidOutSize(sourceDir, "static", imgName);
+    bufferSize = GetPathTidOutSize(sourceDir, "static", imageName);
     path = (char*)alloca(bufferSize);
-    FormatPathTidOut(path, sourceDir, "static", imgName, bufferSize);
+    FormatPathTidOut(path, sourceDir, "static", imageName, bufferSize);
     this->file = fopen(path, "wb");
     if (this->file == NULL) return 1;
     /* reserve space for header */
@@ -45,63 +46,102 @@ int sinucaTracer::StaticTraceWriter::OpenFile(const char* sourceDir,
     return 0;
 }
 
-void sinucaTracer::StaticTraceWriter::ConvertPinInstToRawInstFormat(
-    const INS* pinInst) {
-
-    /* fill instruction name */
-    std::string instName = INS_Mnemonic(*pinInst);
-    unsigned long instNameSize = instName.length();
-    if (instNameSize >= MAX_INSTRUCTION_NAME_LENGTH) {
-        instNameSize = MAX_INSTRUCTION_NAME_LENGTH - 1;
+int StaticTraceWriter::DoubleRecordArraySize() {
+    if (this->recordArraySize == 0) {
+        this->recordArraySize = 128;
     }
-    memcpy(rawInst->name, instName.c_str(), instNameSize);
-    rawInst->name[instNameSize] = '\0';
-    rawInst->addr = INS_Address(*pinInst);
-    rawInst->size = INS_Size(*pinInst);
-    rawInst->baseReg = INS_MemoryBaseReg(*pinInst);
-    rawInst->indexReg = INS_MemoryIndexReg(*pinInst);
-    /* fill single bit fields */
-    rawInst->isPredicated = (INS_IsPredicated(*pinInst)) ? 1 : 0;
-    rawInst->isPrefetch = (INS_IsPrefetch(*pinInst)) ? 1 : 0;
-    rawInst->isNonStandardMemOp = (!INS_IsStandardMemop(*pinInst)) ? 1 : 0;
-    if (!rawInst->isNonStandardMemOp) {
-        rawInst->numStdMemReadOps = (INS_IsMemoryRead(*pinInst)) ? 1 : 0;
-        rawInst->numStdMemReadOps += (INS_HasMemoryRead2(*pinInst)) ? 1 : 0;
-        rawInst->numStdMemWriteOps = (INS_IsMemoryWrite(*pinInst)) ? 1 : 0;
-    }
-    /* fill branch related fields */
-    bool isSyscall = INS_IsSyscall(*pinInst);
-    rawInst->isControlFlow = (INS_IsControlFlow(*pinInst) || isSyscall) ? 1 : 0;
-    if (rawInst->isControlFlow) {
-        if (isSyscall)
-            rawInst->branchType = BRANCH_SYSCALL;
-        else if (INS_IsCall(*pinInst))
-            rawInst->branchType = BRANCH_CALL;
-        else if (INS_IsRet(*pinInst))
-            rawInst->branchType = BRANCH_RETURN;
-        else if (INS_HasFallThrough(*pinInst))
-            rawInst->branchType = BRANCH_COND;
-        else
-            rawInst->branchType = BRANCH_UNCOND;
-        rawInst->isIndirectControlFlow =
-            INS_IsIndirectControlFlow(*pinInst) ? 1 : 0;
-    }
-    /* fill used register info */
-    unsigned int operandCount = INS_OperandCount(*pinInst);
-    rawInst->numReadRegs = rawInst->numWriteRegs = 0;
-    for (unsigned int i = 0; i < operandCount; ++i) {
-        if (!INS_OperandIsReg(*pinInst, i)) {
-            continue;
-        }
-        if (INS_OperandWritten(*pinInst, i)) {
-            if (rawInst->numWriteRegs > MAX_REG_OPERANDS) return;
-            rawInst->writeRegs[rawInst->numWriteRegs++] =
-                INS_OperandReg(*pinInst, i);
-        }
-        if (INS_OperandRead(*pinInst, i)) {
-            if (rawInst->numReadRegs > MAX_REG_OPERANDS) return;
-            rawInst->readRegs[rawInst->numReadRegs++] =
-                INS_OperandReg(*pinInst, i);
-        }
-    }
+    this->recordArraySize <<= 1;
+    this->recordArray =
+        (StaticTraceRecord*)realloc(this->recordArray, this->recordArraySize);
+    return this->recordArray == NULL;
 }
+
+int StaticTraceWriter::AddBasicBlockSize(unsigned int basicBlockSize) {
+    if (this->recordArrayOccupation >= this->recordArraySize) {
+        if (this->DoubleRecordArraySize()) {
+            return 1;
+        }
+    }
+
+    this->recordArray[this->recordArrayOccupation].recordType =
+        StaticRecordBasicBlockSize;
+    this->recordArray[this->recordArrayOccupation].data.basicBlockSize =
+        basicBlockSize;
+    ++this->recordArrayOccupation;
+
+    return 0;
+}
+
+int StaticTraceWriter::AddInstruction(const INS* pinInst) {
+    if (this->recordArrayOccupation >= this->recordArraySize) {
+        if (this->DoubleRecordArraySize()) {
+            return 1;
+        }
+    }
+
+    this->recordArray[this->recordArrayOccupation].recordType =
+        StaticRecordInstruction;
+    Instruction* inst =
+        &this->recordArray[this->recordArrayOccupation].data.instruction;
+
+    unsigned long writtenSize;
+    const char* mnemonic = INS_Mnemonic(*pinInst).c_str();
+    unsigned long mnemonicSize = strlen(mnemonic);
+    writtenSize = std::min(mnemonicSize, sizeof(inst->instructionMnemonic));
+    memcpy(inst->instructionMnemonic, mnemonic, writtenSize);
+    inst->instructionMnemonic[writtenSize - 1] = '\0';
+
+    inst->instructionOpcode = INS_Opcode(*pinInst);
+    inst->instructionExtension = INS_Extension(*pinInst);
+    inst->effectiveAddressWidth = INS_EffectiveAddressWidth(*pinInst);
+    inst->instCausesCacheLineFlush = INS_IsCacheLineFlush(*pinInst);
+    inst->isCallInstruction = INS_IsCall(*pinInst);
+    inst->isSyscallInstruction = INS_IsSyscall(*pinInst);
+    inst->isRetInstruction = INS_IsRet(*pinInst);
+    inst->isSysretInstruction = INS_IsSysret(*pinInst);
+    inst->instHasFallthrough = INS_HasFallThrough(*pinInst);
+    inst->isBranchInstruction = INS_IsBranch(*pinInst);
+    inst->isIndirectControlFlowInst = INS_IsIndirectControlFlow(*pinInst);
+    inst->instructionSize = INS_Size(*pinInst);
+    inst->instReadsMemory = INS_IsMemoryRead(*pinInst);
+    inst->instWritesMemory = INS_IsMemoryWrite(*pinInst);
+    inst->isPredicatedInst = INS_IsPredicated(*pinInst);
+    if (inst->isPredicatedInst) {
+        inst->instructionPredicate = INS_GetPredicate(*pinInst);
+    }
+
+    inst->wRegsArrayOccupation = 0;
+    inst->rRegsArrayOccupation = 0;
+    int wRegsArraySize = sizeof(inst->writtenRegsArray);
+    int rRegsArraySize = sizeof(inst->readRegsArray);
+    int totalOperands = INS_OperandCount(*pinInst);
+
+    for (int i = 0; i < totalOperands; ++i) {
+        if (INS_OperandIsReg(*pinInst, i)) {
+            unsigned short reg = INS_OperandReg(*pinInst, i);
+            if (INS_OperandRead(*pinInst, i)) {
+                if (inst->rRegsArrayOccupation >= rRegsArraySize) {
+                    SINUCA3_ERROR_PRINTF(
+                        "More registers read than readRegsArray can store\n");
+                    return 1;
+                }
+                inst->readRegsArray[inst->rRegsArrayOccupation] = reg;
+                ++inst->rRegsArrayOccupation;
+            }
+            if (INS_OperandWritten(*pinInst, i)) {
+                if (inst->wRegsArrayOccupation >= wRegsArraySize) {
+                    SINUCA3_ERROR_PRINTF(
+                        "More registers written than writtenRegsArray can "
+                        "store\n");
+                    return 1;
+                }
+                inst->writtenRegsArray[inst->wRegsArrayOccupation] = reg;
+                ++inst->wRegsArrayOccupation;
+            }
+        }
+    }
+
+    return 0;
+}
+
+}  // namespace sinucaTracer

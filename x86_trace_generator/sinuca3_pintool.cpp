@@ -20,21 +20,19 @@
  * @brief Implementation of the SiNUCA3 x86_64 tracer based on Intel Pin.
  */
 
-#include <cassert>  // assert
+#include <sinuca3.hpp>
 
 #include "pin.H"
-#include "tracer/sinuca/file_handler.hpp"
-#include "utils/logging.hpp"
-
-extern "C" {
-#include <sys/stat.h>  // mkdir
-#include <unistd.h>    // access
-}
-
-#include <sinuca3.hpp>
 #include "utils/dynamic_trace_writer.hpp"
 #include "utils/memory_trace_writer.hpp"
 #include "utils/static_trace_writer.hpp"
+
+extern "C" {
+#include <sys/stat.h>
+#include <unistd.h>
+}
+
+using namespace sinucaTracer;
 
 /**
  * @note Instrumentation is the process of deciding where and what code should
@@ -51,8 +49,8 @@ extern "C" {
 bool isInstrumentating;
 
 struct ThreadData {
-    sinucaTracer::DynamicTraceWriter dynamicTrace;
-    sinucaTracer::MemoryTraceWriter memoryTrace;
+    DynamicTraceWriter dynamicTrace;
+    MemoryTraceWriter memoryTrace;
     /**
      * @note Instrumentation is the process of deciding where and what code
      * should be inserted into the target program, while analysis refers to the
@@ -77,18 +75,16 @@ struct ThreadData {
     bool isThreadAnalysisEnabled;
 };
 
-std::vector<struct ThreadData*> threadDataVec;
-sinucaTracer::StaticTraceFile* staticTrace;
+std::vector<ThreadData*> threadDataVec;
+sinucaTracer::StaticTraceWriter* staticTrace;
 
 /** @brief Used to block two threads from trying to print simultaneously. */
 PIN_LOCK debugPrintLock;
 /** @brief OnThreadStart writes in global structures. */
 PIN_LOCK threadStartLock;
-/** @brief OnTrace writes in global structures. */
-PIN_LOCK onTraceLock;
 
-const char* traceDir;
-char* imageName = NULL;
+const char* traceDir = NULL;
+const char* imageName = NULL;
 bool wasInitInstrumentationCalled = false;
 
 /** @brief Set directory to save trace with '-o'. Default is current dir. */
@@ -110,21 +106,15 @@ const char* GOMP_RTNS_UNLOCK[] = {"GOMP_critical_end", "omp_unset_lock",
 
 const char* GOMP_RTNS_BARRIER[] = {"GOMP_barrier", NULL};
 
-const char* GOMP_RTNS_DESTROY[] = {"GOMP_parallel_end", NULL}
+const char* GOMP_RTNS_DESTROY[] = {"GOMP_parallel_end", NULL};
 
-#ifndef NDEBUG
-#define PINTOOL_DEBUG_PRINTF(...)                         \
-    {                                                     \
-        PIN_GetLock(&debugPrintLock, PIN_ThreadId());     \
-        printf("[DEBUG] ");                               \
-        printf(__VA_ARGS__);                              \
-        PIN_ReleaseLock(&debugPrintLock, PIN_ThreadId()); \
+#define PINTOOL_DEBUG_PRINTF(...)                     \
+    {                                                 \
+        PIN_GetLock(&debugPrintLock, PIN_ThreadId()); \
+        printf("[DEBUG] ");                           \
+        printf(__VA_ARGS__);                          \
+        PIN_ReleaseLock(&debugPrintLock);             \
     }
-#else
-#define PINTOOL_DEBUG_PRINTF(...) \
-    do {                          \
-    } while (0)
-#endif
 
 int Usage() {
     SINUCA3_LOG_PRINTF(
@@ -134,7 +124,7 @@ int Usage() {
         "analysis is only executed if the thread has\n"
         "called EnableThreadInstrumentation().\n"
         "Use the -f flag to force instrumentation even when no blocks are "
-        "defined.\n\n");
+        "defined.\n");
     SINUCA3_LOG_PRINTF("Tool knob summary: %s\n",
                        KNOB_BASE::StringKnobSummary().c_str());
     return 1;
@@ -150,7 +140,7 @@ VOID InitInstrumentation() {
 
 /** @brief Disables instrumentation. */
 VOID StopInstrumentation() {
-    if (!isInstrumentating || KnobForceInstrumentation.Value()) return;
+    if (!isInstrumentating || knobForceInstrumentation.Value()) return;
     PINTOOL_DEBUG_PRINTF("End of tool instrumentation block\n")
     isInstrumentating = false;
 }
@@ -165,7 +155,7 @@ VOID EnableInstrumentationInThread(THREADID tid) {
 /** @brief Disables execution of analysis code. */
 VOID DisableInstrumentationInThread(THREADID tid) {
     if (!threadDataVec[tid]->isThreadAnalysisEnabled ||
-        KnobForceInstrumentation.Value()) {
+        knobForceInstrumentation.Value()) {
         return;
     }
     PINTOOL_DEBUG_PRINTF("Disabled tool instrumentation in thread [%d]\n", tid);
@@ -175,99 +165,85 @@ VOID DisableInstrumentationInThread(THREADID tid) {
 /** @brief Set up thread data */
 VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
     PIN_GetLock(&threadStartLock, tid);
-    int parentThreadId = PIN_GetParentTid();
-    SINUCA3_DEBUG_PRINTF("Thread [%d] created! Parent is [%d]\n", tid,
-                         imageName, parentThreadId);
-    staticTrace->IncThreadCount();
+
+    THREADID parentThreadId = PIN_GetParentTid();
+    PINTOOL_DEBUG_PRINTF("Thread [%d] created! Parent is [%d]\n", tid,
+                         parentThreadId);
+
+    /* check if tid is sequential */
     if (tid != threadDataVec.size()) {
         SINUCA3_ERROR_PRINTF("Thread data not created. Tid isnt sequential.\n");
         return;
     }
+
     struct ThreadData* threadData = new ThreadData;
     if (!threadData) {
         SINUCA3_ERROR_PRINTF("Failed to alloc thread data.\n");
         return;
     }
+
+    /* create files */
+    if (threadData->dynamicTrace.OpenFile(traceDir, imageName, tid)) {
+        PINTOOL_DEBUG_PRINTF("Failed to open dynamic trace file\n");
+        return;
+    }
+    if (threadData->memoryTrace.OpenFile(traceDir, imageName, tid)) {
+        PINTOOL_DEBUG_PRINTF("Failed to open memory trace file\n");
+        return;
+    }
+
+    threadData->isThreadAnalysisEnabled = false;
     threadDataVec.push_back(threadData);
-    threadData[parentThreadId]->dynamicTrace.AddThreadCreate(tid);
-    PIN_ReleaseLock(&threadStartLock, tid);
+    if (parentThreadId != tid) {
+        threadDataVec[parentThreadId]->dynamicTrace.AddThreadEvent(
+            ThreadEventCreateThread, tid);
+    }
+
+    staticTrace->IncThreadCount();
+
+    PIN_ReleaseLock(&threadStartLock);
 }
 
 /** @brief Destroy thread data. */
 VOID OnThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
-    /* delete is thread safe */
     delete threadDataVec[tid];
 }
 
 /** @brief Append basic block identifier to dynamic trace. */
-VOID AppendToDynamicTrace(UINT32 bblId, UINT32 numInst) {
-    int tid = PIN_ThreadId();
+VOID AppendToDynamicTrace(THREADID tid, UINT32 bblId, UINT32 numInst) {
     if (!threadDataVec[tid]->isThreadAnalysisEnabled) return;
-    threadDataVec[tid]->dynamicTrace.AddBasicBlockId(bblId);
+    if (threadDataVec[tid]->dynamicTrace.AddBasicBlockId(bblId)) {
+        PINTOOL_DEBUG_PRINTF("Failed to add basic block id to file\n");
+    }
     threadDataVec[tid]->dynamicTrace.IncExecutedInstructions(numInst);
 }
 
-/** @brief Append standard memory op to memory trace. */
-VOID AppendToMemTraceStd(ADDRINT addr, UINT32 size, UINT8 type) {
-    THREADID tid = PIN_ThreadId();
-    if (!isThreadAnalysisEnabled[tid]) return;
-    memoryTraces[tid]->AddMemoryOperation(addr, size, type);
-    PINTOOL_DEBUG_PRINTF(
-        "New memory operation: addr[%lu], size[%u], type[%u], tid[%d]\n", addr,
-        size, type, tid);
-}
-
 /** @brief Append non standard memory op to memory trace. */
-VOID AppendToMemTraceNonStd(PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
-    THREADID tid = PIN_ThreadId();
-    if (!isThreadAnalysisEnabled[tid]) return;
-    unsigned long addr;
+VOID AppendToMemTrace(THREADID tid, PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
+    if (!threadDataVec[tid]->isThreadAnalysisEnabled) return;
+
+    unsigned long address;
     unsigned int size;
     unsigned char type;
 
     int totalOps = accessInfo->numberOfMemops;
-    threadDataVec[tid]->memoryTrace.AddNonStdOpHeader(totalOps);
-    for (int i = 0; i < totalOps; ++i) {
-        if (accessInfo->memop[i].maskOn == false) {
-            continue;
-        }
-        addr = accessInfo->memop[i].address;
-        size = accessInfo->memop[i].size;
-        if (accessInfo->memop[i].memopType == PIN_MEMOP_LOAD) {
-            type = sinucaTracer::MemoryOperationLoad;
-        } else if (accessInfo->memop[i].memopType == PIN_MEMOP_STORE) {
-            type = sinucaTracer::MemoryOperationStore;
-        }
-        threadDataVec[tid]->memoryTrace.AddMemoryOperation(addr, size, type);
-        PINTOOL_DEBUG_PRINTF(
-            "New memory operation: addr[%lu], size[%u], type[%u], tid[%d]\n",
-            addr, size, type, tid);
+    if (threadDataVec[tid]->memoryTrace.AddNumberOfMemOperations(totalOps)) {
+        PINTOOL_DEBUG_PRINTF("Failed to add number of mem ops to file\n");
     }
-}
 
-/** @brief Instrument instruction that have memory operators. */
-VOID InsertInstrumentionOnMemoryOperations(const INS* ins) {
-    /* INS_IsStandardMemop() returns false if this instruction has a memory
-     * operand which has unconventional meaning; returns true otherwise */
-    if (!INS_IsStandardMemop(*ins)) {
-        INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTraceNonStd,
-                       IARG_MULTI_MEMORYACCESS_EA, IARG_END);
-        return;
-    }
-    if (INS_IsMemoryRead(*ins)) {
-        INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTraceStd,
-                       IARG_MEMORYREAD_EA, IARG_MEMORYREAD_SIZE,
-                       sinucaTracer::MemoryOperationLoad, IARG_END);
-    }
-    if (INS_HasMemoryRead2(*ins)) {
-        INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTraceStd,
-                       IARG_MEMORYREAD2_EA, IARG_MEMORYREAD_SIZE,
-                       sinucaTracer::MemoryOperationLoad, IARG_END);
-    }
-    if (INS_IsMemoryWrite(*ins)) {
-        INS_InsertCall(*ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTraceStd,
-                       IARG_MEMORYWRITE_EA, IARG_MEMORYWRITE_SIZE,
-                       sinucaTracer::MemoryOperationStore, IARG_END);
+    for (int i = 0; i < totalOps; ++i) {
+        if (!accessInfo->memop[i].maskOn) continue;
+
+        address = accessInfo->memop[i].memoryAddress;
+        size = accessInfo->memop[i].bytesAccessed;
+        type = (accessInfo->memop[i].memopType == PIN_MEMOP_LOAD)
+                   ? MemoryOperationLoad
+                   : MemoryOperationStore;
+
+        if (threadDataVec[tid]->memoryTrace.AddMemoryOperation(address, size,
+                                                               type)) {
+            PINTOOL_DEBUG_PRINTF("Failed to add mem operation to file\n");
+        }
     }
 }
 
@@ -281,33 +257,55 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         unsigned int numberInstInBasicBlock = BBL_NumIns(bbl);
         unsigned int basicBlockIndex = staticTrace->GetBasicBlockCount();
+
         BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)AppendToDynamicTrace,
-                       IARG_UINT32, basicBlockIndex, IARG_UINT32,
-                       numberInstInBasicBlock, IARG_END);
-        staticTrace->AddBasicBlockSize(numberInstInBasicBlock);
+                       IARG_THREAD_ID, IARG_UINT32, basicBlockIndex,
+                       IARG_UINT32, numberInstInBasicBlock, IARG_END);
+
+        if (staticTrace->AddBasicBlockSize(numberInstInBasicBlock)) {
+            PINTOOL_DEBUG_PRINTF("Failed to add basic block count to file\n");
+        }
+        staticTrace->IncBasicBlockCount();
+
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
-            staticTrace->AddInstruction(&ins);
+            if (staticTrace->AddInstruction(&ins)) {
+                PINTOOL_DEBUG_PRINTF("Failed to add instruction to file\n");
+            }
+            staticTrace->IncStaticInstructionCount();
+
+            bool hasMemOperators =
+                INS_IsMemoryRead(ins) || INS_IsMemoryWrite(ins);
+            if (hasMemOperators) {
+                INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTrace,
+                               IARG_THREAD_ID, IARG_MULTI_MEMORYACCESS_EA,
+                               IARG_END);
+            }
         }
     }
 }
 
 /** @brief */
 VOID OnImageLoad(IMG img, VOID* ptr) {
-    if (IMG_IsMainExecutable(img) == false) return;
+    if (!IMG_IsMainExecutable(img)) return;
 
     std::string absoluteImgPath = IMG_Name(img);
     long size = absoluteImgPath.length() + sizeof('\0');
-    imageName = (char*)malloc(size);
+    char* name = (char*)malloc(size);
     long idx = absoluteImgPath.find_last_of('/') + 1;
     std::string sub = absoluteImgPath.substr(idx);
-    strcpy(imageName, sub.c_str());
+    strcpy(name, sub.c_str());
+    imageName = name;
+    PINTOOL_DEBUG_PRINTF("Image name is [%s]\n", imageName);
 
-    staticTrace = new sinucaTracer::StaticTraceFile();
+    staticTrace = new StaticTraceWriter();
     if (staticTrace == NULL) {
-        SINUCA3_ERROR_PRINTF("Failed to create static trace file.\n");
+        PINTOOL_DEBUG_PRINTF("Failed to create static trace file.\n");
         return;
     }
-    staticTrace->OpenFile(traceDir, imageName);
+    if (staticTrace->OpenFile(traceDir, imageName)) {
+        PINTOOL_DEBUG_PRINTF("Failed to open static trace file\n");
+        return;
+    }
 
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
         for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn)) {
@@ -335,38 +333,43 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
 
             const char* gompRtnName;
             for (int i = 0;; ++i) {
-                gompRtnName = GOMP_RTNS_FORCE_LOCK[i];
-                if (gompRtnName == NULL) break;
+                if (!(gompRtnName = GOMP_RTNS_FORCE_LOCK[i])) break;
+
                 if (strcmp(name, gompRtnName) == 0) {
-                    RTN_InsertCall();
+                    // RTN_InsertCall();
+                    PINTOOL_DEBUG_PRINTF("Found lock\n");
                 }
             }
             for (int i = 0;; ++i) {
-                gompRtnName = GOMP_RTNS_ATTEMPT_LOCK[i];
-                if (gompRtnName == NULL) break;
+                if (!(gompRtnName = GOMP_RTNS_ATTEMPT_LOCK[i])) break;
+
                 if (strcmp(name, gompRtnName) == 0) {
-                    RTN_InsertCall();
+                    // RTN_InsertCall();
+                    PINTOOL_DEBUG_PRINTF("Found test lock\n");
                 }
             }
             for (int i = 0;; ++i) {
-                gompRtnName = GOMP_RTNS_BARRIER[i];
-                if (gompRtnName == NULL) break;
+                if (!(gompRtnName = GOMP_RTNS_BARRIER[i])) break;
+
                 if (strcmp(name, gompRtnName) == 0) {
-                    RTN_InsertCall();
+                    // RTN_InsertCall();
+                    PINTOOL_DEBUG_PRINTF("Found barrier\n");
                 }
             }
             for (int i = 0;; ++i) {
-                gompRtnName = GOMP_RTNS_UNLOCK[i];
-                if (gompRtnName == NULL) break;
+                if (!(gompRtnName = GOMP_RTNS_UNLOCK[i])) break;
+
                 if (strcmp(name, gompRtnName) == 0) {
-                    RTN_InsertCall();
+                    // RTN_InsertCall();
+                    PINTOOL_DEBUG_PRINTF("Found unlock\n");
                 }
             }
             for (int i = 0;; ++i) {
-                gompRtnName = GOMP_RTNS_DESTROY[i];
-                if (gompRtnName == NULL) break;
+                if (!(gompRtnName = GOMP_RTNS_DESTROY[i])) break;
+
                 if (strcmp(name, gompRtnName) == 0) {
-                    RTN_InsertCall();
+                    // RTN_InsertCall();
+                    PINTOOL_DEBUG_PRINTF("Found thread end\n");
                 }
             }
 
@@ -377,18 +380,17 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
 
 /** @brief */
 VOID OnFini(INT32 code, VOID* ptr) {
-    SINUCA3_LOG_PRINTF("End of tool execution\n");
-    SINUCA3_LOG_PRINTF("Number of BBLs [%u]\n", staticTrace->GetBBlCount());
+    PINTOOL_DEBUG_PRINTF("End of tool execution\n");
 
-    staticTrace->WriteHeaderToFile();
-    if (imageName != NULL) free(imageName);
+    if (imageName) {
+        free((void*)imageName);
+    }
     delete staticTrace;
 
     if (!wasInitInstrumentationCalled) {
-        SINUCA3_WARNING_PRINTF(
+        PINTOOL_DEBUG_PRINTF(
             "No instrumentation blocks were found in the target program.\n"
-            "As result, no instruction data was recorded in the trace "
-            "files.\n");
+            "As result, no instruction data was recorded. \n\n");
         Usage();
     }
 }
@@ -401,17 +403,16 @@ int main(int argc, char* argv[]) {
         return Usage();
     }
 
-    traceDir = KnobFolder.Value().c_str();
+    traceDir = knobFolder.Value().c_str();
     if (access(traceDir, F_OK) != 0) {
         mkdir(traceDir, S_IRWXU | S_IRWXG | S_IROTH);
     }
 
-    PIN_InitLock(&printLock);
+    PIN_InitLock(&debugPrintLock);
     PIN_InitLock(&threadStartLock);
-    PIN_InitLock(&onTraceLock);
 
-    if (KnobForceInstrumentation.Value()) {
-        SINUCA3_WARNING_PRINTF("Instrumentating entire program\n");
+    if (knobForceInstrumentation.Value()) {
+        SINUCA3_WARNING_PRINTF("Instrumenting entire program\n");
         InitInstrumentation();
     } else {
         isInstrumentating = false;
