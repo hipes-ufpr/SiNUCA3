@@ -53,7 +53,6 @@ int SinucaTraceReader::OpenTrace(const char *imageName, const char *sourceDir) {
 
     for (int tid = 0; tid < this->totalThreads; ++tid) {
         if (this->threadDataArray[tid].Allocate(sourceDir, imageName, tid)) {
-            SINUCA3_ERROR_PRINTF("Failed to create dyn/mem trace reader\n");
             return 1;
         }
     }
@@ -167,31 +166,34 @@ FetchResult SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
 
     unsigned long arraySize;
 
-    ret->dynamicInfo.numReadings =
-        this->threadDataArray[tid].memFile->GetNumberOfMemLoadOps();
-    ret->dynamicInfo.numWritings =
-        this->threadDataArray[tid].memFile->GetNumberOfMemStoreOps();
+    if (ret->staticInfo->instReadsMemory || ret->staticInfo->instWritesMemory) {
+        ret->dynamicInfo.numReadings =
+            this->threadDataArray[tid].memFile->GetNumberOfMemLoadOps();
+        ret->dynamicInfo.numWritings =
+            this->threadDataArray[tid].memFile->GetNumberOfMemStoreOps();
 
-    arraySize = sizeof(ret->dynamicInfo.readsAddr) / sizeof(unsigned long);
-    if (this->threadDataArray[tid].memFile->CopyLoadOpsAddresses(
-            ret->dynamicInfo.readsAddr, arraySize)) {
-        return FetchResultError;
+        arraySize = sizeof(ret->dynamicInfo.readsAddr) / sizeof(unsigned long);
+        if (this->threadDataArray[tid].memFile->CopyLoadOpsAddresses(
+                ret->dynamicInfo.readsAddr, arraySize)) {
+            return FetchResultError;
+        }
+        arraySize = sizeof(ret->dynamicInfo.readsSize) / sizeof(unsigned int);
+        if (this->threadDataArray[tid].memFile->CopyLoadOpsSizes(
+                ret->dynamicInfo.readsSize, arraySize)) {
+            return FetchResultError;
+        }
+        arraySize = sizeof(ret->dynamicInfo.writesAddr) / sizeof(unsigned long);
+        if (this->threadDataArray[tid].memFile->CopyStoreOpsAddresses(
+                ret->dynamicInfo.writesAddr, arraySize)) {
+            return FetchResultError;
+        }
+        arraySize = sizeof(ret->dynamicInfo.writesSize) / sizeof(unsigned int);
+        if (this->threadDataArray[tid].memFile->CopyStoreOpsSizes(
+                ret->dynamicInfo.writesSize, arraySize)) {
+            return FetchResultError;
+        }
     }
-    arraySize = sizeof(ret->dynamicInfo.readsSize) / sizeof(unsigned int);
-    if (this->threadDataArray[tid].memFile->CopyLoadOpsSizes(
-            ret->dynamicInfo.readsSize, arraySize)) {
-        return FetchResultError;
-    }
-    arraySize = sizeof(ret->dynamicInfo.writesAddr) / sizeof(unsigned long);
-    if (this->threadDataArray[tid].memFile->CopyStoreOpsAddresses(
-            ret->dynamicInfo.writesAddr, arraySize)) {
-        return FetchResultError;
-    }
-    arraySize = sizeof(ret->dynamicInfo.writesSize) / sizeof(unsigned int);
-    if (this->threadDataArray[tid].memFile->CopyStoreOpsSizes(
-            ret->dynamicInfo.writesSize, arraySize)) {
-        return FetchResultError;
-    }
+
 
     ++this->threadDataArray[tid].currentInst;
     if (this->threadDataArray[tid].currentInst >=
@@ -212,13 +214,18 @@ void SinucaTraceReader::PrintStatistics() {
 
 int ThreadData::Allocate(const char *sourceDir, const char *imageName,
     int tid) {
-    this->dynFile = new DynamicTraceReader();
-    int ret = 0;
-    if ((ret = this->dynFile->OpenFile(sourceDir, imageName, tid))) {
-        SINUCA3_ERROR_PRINTF("Failed to open dynamic trace %d\n", ret);
+    if (!(this->dynFile = new DynamicTraceReader())) {
+        SINUCA3_ERROR_PRINTF("Failed to alloc dynamic trace\n");
         return 1;
     }
-    this->memFile = new MemoryTraceReader();
+    if (this->dynFile->OpenFile(sourceDir, imageName, tid)) {
+        SINUCA3_ERROR_PRINTF("Failed to open dynamic trace\n");
+        return 1;
+    }
+    if (!(this->memFile = new MemoryTraceReader())) {
+        SINUCA3_ERROR_PRINTF("Failed to alloc memory trace\n");
+        return 1;
+    }
     if (this->memFile->OpenFile(sourceDir, imageName, tid)) {
         SINUCA3_ERROR_PRINTF("Failed to open memory trace\n");
         return 1;
