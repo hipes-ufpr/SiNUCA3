@@ -21,43 +21,135 @@
  */
 
 #include "memory_trace_reader.hpp"
-
-#include <cstring>
+#include <cstdio>
 
 extern "C" {
 #include <alloca.h>
 }
 
-int sinucaTracer::MemoryTraceFile::OpenFile(const char* sourceDir,
-                                            const char* imgName, THREADID tid) {
+namespace sinucaTracer {
+
+int MemoryTraceReader::OpenFile(const char* sourceDir, const char* imageName,
+                                int tid) {
     unsigned long bufferSize;
     char* path;
 
-    bufferSize = GetPathTidInSize(sourceDir, "memory", imgName);
+    bufferSize = GetPathTidInSize(sourceDir, "memory", imageName);
     path = (char*)alloca(bufferSize);
-    FormatPathTidIn(path, sourceDir, "memory", imgName, tid, bufferSize);
+    FormatPathTidIn(path, sourceDir, "memory", imageName, tid, bufferSize);
     this->file = fopen(path, "rb");
-
-    return this->file == NULL;
-}
-
-int sinucaTracer::MemoryTraceFile::ReadMemoryRecordFromFile() {
     if (this->file == NULL) return 1;
-    unsigned long size =
-        fread(&this->record, sizeof(this->record), 1, this->file);
-    return size != sizeof(this->record);
+
+    unsigned long bytesRead;
+    bytesRead = fread(&this->header, 1, sizeof(this->header), this->file);
+
+    return (bytesRead != sizeof(this->header));
 }
 
-void sinucaTracer::MemoryTraceFile::ExtractMemoryOperation(unsigned long* addr,
-                                                           unsigned int* size) {
-    if (addr == NULL || size == NULL) return;
-    *addr = this->record.data.operation.addr;
-    *size = this->record.data.operation.size;
+int MemoryTraceReader::ReadMemoryOperations() {
+    if (this->file == NULL) return 1;
+
+    unsigned long readBytes;
+    readBytes = fread(&this->record, 1, sizeof(this->record), this->file);
+    if (readBytes != sizeof(this->record)) {
+        SINUCA3_ERROR_PRINTF("Failed to read record from memory file\n");
+        return 1;
+    }
+    if (this->record.recordType != MemoryRecordOperationHeader) {
+        SINUCA3_ERROR_PRINTF("Expected mem operation header\n");
+        return 1;
+    }
+
+    unsigned long address;
+    unsigned int size;
+
+    int totalMemOps = this->record.data.opHeader.numberOfMemoryOps;
+    for (int i = 0; i < totalMemOps; ++i) {
+        readBytes = fread(&this->record, 1, sizeof(this->record), this->file);
+        if (readBytes != sizeof(this->record)) {
+            SINUCA3_ERROR_PRINTF("Failed to read record from memory file\n");
+            return 1;
+        }
+        if (this->record.recordType != MemoryRecordOperation) {
+            SINUCA3_ERROR_PRINTF("Expected memory operation\n");
+            return 1;
+        }
+
+        address = this->record.data.operation.address;
+        size = this->record.data.operation.size;
+
+        if (this->record.data.operation.type == MemoryOperationLoad) {
+            ++this->numberOfMemLoadOps;
+            this->loadOpsAddressVec.push_back(address);
+            this->loadOpsSizeVec.push_back(size);
+        } else {
+            ++this->numberOfMemStoreOps;
+            this->storeOpsAddressVec.push_back(address);
+            this->storeOpsSizeVec.push_back(size);
+        }
+    }
+
+    return 0;
 }
 
-void sinucaTracer::MemoryTraceFile::ExtractNonStdHeader(
-    unsigned short* readOps, unsigned short* writeOps) {
-    if (readOps == NULL || writeOps == NULL) return;
-    *readOps = this->record.data.nonStdHeader.nonStdReadOps;
-    *writeOps = this->record.data.nonStdHeader.nonStdWriteOps;
+int MemoryTraceReader::CopyLoadOpsAddresses(unsigned long* array,
+                                            unsigned long arraySize) {
+    if (this->loadOpsAddressVec.size() > arraySize) {
+        SINUCA3_ERROR_PRINTF("Too many load ops addresses\n");
+        return 1;
+    }
+
+    for (unsigned long i = 0; i < this->loadOpsAddressVec.size(); ++i) {
+        array[i] = this->loadOpsAddressVec[i];
+    }
+
+    this->loadOpsAddressVec.clear();
+    return 0;
 }
+
+int MemoryTraceReader::CopyLoadOpsSizes(unsigned int* array,
+                                        unsigned long arraySize) {
+    if (this->loadOpsSizeVec.size() > arraySize) {
+        SINUCA3_ERROR_PRINTF("Too many load ops sizes\n");
+        return 1;
+    }
+
+    for (unsigned long i = 0; i < this->loadOpsSizeVec.size(); ++i) {
+        array[i] = this->loadOpsSizeVec[i];
+    }
+
+    this->loadOpsSizeVec.clear();
+    return 0;
+}
+
+int MemoryTraceReader::CopyStoreOpsAddresses(unsigned long* array,
+                                             unsigned long arraySize) {
+    if (this->storeOpsAddressVec.size() > arraySize) {
+        SINUCA3_ERROR_PRINTF("Too many store ops addresses\n");
+        return 1;
+    }
+
+    for (unsigned long i = 0; i < this->storeOpsAddressVec.size(); ++i) {
+        array[i] = this->storeOpsAddressVec[i];
+    }
+
+    this->storeOpsAddressVec.clear();
+    return 0;
+}
+
+int MemoryTraceReader::CopyStoreOpsSizes(unsigned int* array,
+                                         unsigned long arraySize) {
+    if (this->storeOpsSizeVec.size() > arraySize) {
+        SINUCA3_ERROR_PRINTF("Too many store ops sizes\n");
+        return 1;
+    }
+
+    for (unsigned long i = 0; i < this->storeOpsSizeVec.size(); ++i) {
+        array[i] = this->storeOpsSizeVec[i];
+    }
+
+    this->storeOpsSizeVec.clear();
+    return 0;
+}
+
+}  // namespace sinucaTracer

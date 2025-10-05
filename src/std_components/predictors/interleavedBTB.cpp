@@ -218,25 +218,25 @@ unsigned long BranchTargetBuffer::CalculateIndex(unsigned long address) {
 
 int BranchTargetBuffer::RegisterNewBranch(
     const StaticInstructionInfo* instruction, unsigned long target) {
-    unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
-    unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
-    unsigned int bank = this->CalculateBank(instruction->opcodeAddress);
+    unsigned long index = this->CalculateIndex(instruction->instAddress);
+    unsigned long tag = this->CalculateTag(instruction->instAddress);
+    unsigned int bank = this->CalculateBank(instruction->instAddress);
 
     return this->btb[index]->NewEntry(tag, bank, target, instruction);
 }
 
 int BranchTargetBuffer::UpdateBranch(const StaticInstructionInfo* instruction,
                                      bool branchState) {
-    unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
-    unsigned int bank = this->CalculateBank(instruction->opcodeAddress);
+    unsigned long index = this->CalculateIndex(instruction->instAddress);
+    unsigned int bank = this->CalculateBank(instruction->instAddress);
 
     return this->btb[index]->UpdateEntry(bank, branchState);
 }
 
 inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
                                       int connectionID) {
-    unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
-    unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
+    unsigned long index = this->CalculateIndex(instruction->instAddress);
+    unsigned long tag = this->CalculateTag(instruction->instAddress);
     BTBPacket response;
 
     BTBEntry* currentEntry = btb[index];
@@ -250,7 +250,7 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
         bool branchTaken = false;
         response.data.response.instruction = instruction;
         response.data.response.target =
-            instruction->opcodeAddress + this->interleavingFactor;
+            instruction->instAddress + this->interleavingFactor;
         response.data.response.numberOfBits = this->interleavingFactor;
 
         for (unsigned int i = 0; i < this->interleavingFactor; ++i) {
@@ -276,7 +276,7 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
          */
         response.data.response.instruction = instruction;
         response.data.response.target =
-            instruction->opcodeAddress + this->interleavingFactor;
+            instruction->instAddress + this->interleavingFactor;
         response.data.response.numberOfBits = this->interleavingFactor;
         for (unsigned int i = 0; i < this->interleavingFactor; ++i) {
             response.data.response.validBits[i] = true;

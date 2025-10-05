@@ -125,7 +125,7 @@ void EngineDebugComponent::Clock() {
         if (this->fetch->ReceiveResponse(this->fetchConnectionID, &packet) ==
             0) {
             SINUCA3_DEBUG_PRINTF("%p: Received instruction %s\n", this,
-                                 packet.response.staticInfo->opcodeAssembly);
+                                 packet.response.staticInfo->instMnemonic);
         }
     }
 

@@ -37,7 +37,7 @@ int Engine::SetConfigParameter(const char* parameter, ConfigValue value) {
 int Engine::SendBufferedAndFetch(int id) {
     InstructionPacket toSend = this->fetchBuffers[id];
     const FetchResult r = this->traceReader->Fetch(&this->fetchBuffers[id], id);
-    toSend.nextInstruction = this->fetchBuffers[id].staticInfo->opcodeAddress;
+    toSend.nextInstruction = this->fetchBuffers[id].staticInfo->instAddress;
 
     // This unfortunately drops the packet if the buffer is full. The component
     // must ensure the buffers never fills.
@@ -67,13 +67,13 @@ void Engine::Fetch(int id, FetchPacket packet) {
         return;
     }
 
-    long weight = this->fetchBuffers[id].staticInfo->opcodeSize;
+    long weight = this->fetchBuffers[id].staticInfo->instSize;
 
     while (weight < packet.request) {
         if (this->SendBufferedAndFetch(id)) {
             return;
         }
-        weight += this->fetchBuffers[id].staticInfo->opcodeSize;
+        weight += this->fetchBuffers[id].staticInfo->instSize;
     }
 }
 

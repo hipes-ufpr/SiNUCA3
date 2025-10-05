@@ -84,7 +84,8 @@ void HardwiredPredictor::Respond(int id, PredictorPacket request) {
     const InstructionPacket instruction = request.data.requestQuery;
     bool predict = true;
 
-    if (!instruction.staticInfo->isControlFlow) {
+    // check if this is right fix
+    if (instruction.staticInfo->branchType != None) {
         ++this->numberOfNoBranchs;
         predict = this->noBranch;
     } else {
@@ -97,7 +98,7 @@ void HardwiredPredictor::Respond(int id, PredictorPacket request) {
                 predict = this->call;
                 ++this->numberOfCalls;
                 break;
-            case BranchReturn:
+            case BranchRet:
                 predict = this->ret;
                 ++this->numberOfRets;
                 break;
@@ -108,6 +109,8 @@ void HardwiredPredictor::Respond(int id, PredictorPacket request) {
             case BranchCond:
                 predict = this->cond;
                 ++this->numberOfConds;
+                break;
+            default: // check if this is right fix
                 break;
         }
     }

@@ -66,6 +66,7 @@ int MemoryTraceWriter::AddNumberOfMemOperations(unsigned int memOps) {
         MemoryRecordOperationHeader;
     this->recordArray[this->recordArrayOccupation]
         .data.opHeader.numberOfMemoryOps = memOps;
+    ++this->recordArrayOccupation;
 
     return 0;
 }
@@ -86,6 +87,7 @@ int MemoryTraceWriter::AddMemoryOperation(unsigned long address,
     this->recordArray[this->recordArrayOccupation].data.operation.address =
         address;
     this->recordArray[this->recordArrayOccupation].data.operation.size = size;
+    ++this->recordArrayOccupation;
 
     return 0;
 }

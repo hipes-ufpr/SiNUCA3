@@ -23,35 +23,47 @@
 #include "dynamic_trace_reader.hpp"
 
 #include <cstdio>
-#include <cstring>
-#include <sinuca3.hpp>
+#include <cstdlib>
+#include "utils/logging.hpp"
 
 extern "C" {
 #include <alloca.h>
 }
 
-int sinucaTracer::DynamicTraceFile::OpenFile(const char *sourceDir,
-                                             const char *imgName,
-                                             THREADID tid) {
+namespace sinucaTracer {
+
+int DynamicTraceReader::OpenFile(const char *sourceDir, const char *imageName,
+                                 int tid) {
     unsigned long bufferSize;
     char *path;
 
-    bufferSize = GetPathTidInSize(sourceDir, "dynamic", imgName);
-    path = (char *)alloca(bufferSize);
-    FormatPathTidIn(path, sourceDir, "dynamic", imgName, tid, bufferSize);
+    bufferSize = GetPathTidInSize(sourceDir, "dynamic", imageName);
+    path = (char *)malloc(bufferSize);
+    FormatPathTidIn(path, sourceDir, "dynamic", imageName, tid, bufferSize);
     this->file = fopen(path, "rb");
-
-    return this->file == NULL;
-}
-
-int sinucaTracer::DynamicTraceFile::ReadHeaderFromFile() {
     if (this->file == NULL) return 1;
-    unsigned long size = fread(&header, sizeof(header), 1, this->file);
-    return size != sizeof(header);
+
+    unsigned long bytesRead;
+    bytesRead = fread(&this->header, 1, sizeof(this->header), this->file);
+
+    return (bytesRead != sizeof(this->header));
 }
 
-int sinucaTracer::DynamicTraceFile::ReadDynamicRecordFromFile() {
-    if (this->file == NULL) return 1;
-    unsigned long size = fread(&record, sizeof(record), 1, this->file);
-    return size != sizeof(record);
+int sinucaTracer::DynamicTraceReader::ReadDynamicRecord() {
+    if (this->file == NULL) {
+        return 1;
+    }
+
+    unsigned long bytesRead;
+    bytesRead = fread(&record, 1, sizeof(record), this->file);
+    if (bytesRead == 0) {
+        this->reachedEnd = true;
+    } else if (bytesRead != sizeof(record)) {
+        SINUCA3_ERROR_PRINTF("Failed to read record properly\n");
+        return 1;
+    }
+
+    return 0;
 }
+
+}  // namespace sinucaTracer

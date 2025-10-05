@@ -19,7 +19,7 @@
 //
 
 /**
- * @file x86_trace_reader.hpp
+ * @file trace_reader.hpp
  * @brief Implementation of SinucaTraceReader for x86 based traces.
  */
 
@@ -28,78 +28,81 @@
 #include <tracer/sinuca/utils/static_trace_reader.hpp>
 #include <tracer/trace_reader.hpp>
 
+#include "engine/default_packets.hpp"
+
 namespace sinucaTracer {
 
-/**
- * @details This struct is only used internally by the x86 reader. It turns out
- * that more than one instance of the same instruction might be in the processor
- * pipeline at once. Since the number of memory loads and stores might change
- * between them, these values are not kept in the StaticInstructionInfo. When
- * the number of memory operations is indeed fixed, they are written to the
- * numStdMemLoadOps and numStdMemStoreOps variables.
- */
-struct TraceReaderInstruction {
-    unsigned short numStdMemLoadOps;
-    unsigned short numStdMemStoreOps;
-    StaticInstructionInfo staticInfo;
-};
+struct ThreadData {
+    DynamicTraceReader* dynFile;
+    MemoryTraceReader* memFile;
+    unsigned long currentBasicBlock; /**<Index of basic block. */
+    unsigned long fetchedInst;       /**<Number of instructions fetched */
+    int currentInst; /**<Index of instruction inside basic block. */
+    bool isInsideBasicBlock;
 
-struct ThrInfo {
-    DynamicTraceFile* dynFile;
-    MemoryTraceFile* memFile;
-    unsigned long currentBBL;    /**<Index of basic block. */
-    unsigned long currentOpcode; /**<Index of instruction inside basic block. */
-    unsigned long fetchedInst;   /**<Number of instructions fetched */
-    bool isInsideBBL;
-    int Allocate(const char *sourceDir, const char *imageName, int tid);
+    int Allocate(const char* sourceDir, const char* imageName, int tid);
 
-    inline ThrInfo() : dynFile(NULL), memFile(NULL) {
-        this->isInsideBBL = false;
-        this->fetchedInst = 0;
-    }
-    inline void ReadDynamicFileHeader() {
-        this->dynFile->ReadHeaderFromFile();
-    }
-    inline ~ThrInfo() {
-        if (this->memFile != NULL) delete this->memFile;
-        if (this->dynFile != NULL) delete this->dynFile;
+    inline ThreadData()
+        : dynFile(0),
+          memFile(0),
+          currentBasicBlock(0),
+          currentInst(0),
+          isInsideBasicBlock(0) {}
+    inline ~ThreadData() {
+        if (this->memFile) delete this->memFile;
+        if (this->dynFile) delete this->dynFile;
     }
 };
 
+/** @brief Check trace_reader.hpp documentation for details */
 class SinucaTraceReader : public TraceReader {
   private:
-    ThrInfo* thrsInfo; /**<Information specific to each thread. */
-
+    ThreadData* threadDataArray;
+    StaticTraceReader* staticTrace;
+    StaticInstructionInfo** instructionDict;
+    StaticInstructionInfo* instructionPool;
+    unsigned long totalBasicBlocks; /**<Number of basic blocks in static file.*/
+    int* basicBlockSizeArr; /**<Number of instructions per basic block. */
+    int totalStaticInst;
     int totalThreads;
 
-    unsigned long binaryTotalBBLs; /**<Number of basic blocks in static file. */
-    unsigned int* binaryBBLsSize; /**<Number of instructions per basic block. */
-    InstructionInfo** binaryDict; /**<Array containing all instructions. */
-    InstructionInfo* pool;        /**<Pool used for more efficient allocation.*/
-
     /**
-     * @brief Fill instructions dictionary
-     * @details Info per instruction:
-     * Address        | Ins. Size   | Base Reg    | Index Reg       |
-     * Is predicated  | Is prefetch | Is indirect | Is !std mem op  |
-     * Is read        | Has read2   | Is write    | Num. Write Regs |
-     * Num. Read Regs | Read Regs   | Write Regs  | Ins. Mnemonic   |
-     * Branch Type
+     * @brief Fill instructions dictionary.
      * @return 1 on failure, 0 otherwise.
      */
-    int GenerateBinaryDict(StaticTraceFile *stFile);
+    int GenerateInstructionDict();
 
   public:
-    virtual int OpenTrace(const char *imageName, const char *sourceDir);
-    virtual void PrintStatistics();
-    virtual int GetTotalThreads();
-    virtual unsigned long GetTotalBBLs();
-    virtual unsigned long GetTotalInstToBeFetched(int tid);
-    virtual unsigned long GetNumberOfFetchedInst(int tid);
-    virtual FetchResult Fetch(InstructionPacket *ret, int tid);
-    virtual void CloseTrace();
+    inline SinucaTraceReader()
+        : threadDataArray(0),
+          staticTrace(0),
+          instructionDict(0),
+          instructionPool(0),
+          totalBasicBlocks(0),
+          basicBlockSizeArr(0),
+          totalThreads(0) {}
+    virtual inline ~SinucaTraceReader() {
+        delete[] this->threadDataArray;
+        delete[] this->instructionDict;
+        delete[] this->instructionPool;
+        delete[] this->basicBlockSizeArr;
+        delete this->staticTrace;
+    }
 
-    inline ~SinucaTraceReader() { this->CloseTrace(); }
+    virtual FetchResult Fetch(InstructionPacket* ret, int tid);
+    virtual int OpenTrace(const char* imageName, const char* sourceDir);
+    virtual void PrintStatistics();
+
+    virtual unsigned long GetNumberOfFetchedInst(int tid) {
+        return this->threadDataArray[tid].fetchedInst;
+    }
+    virtual unsigned long GetTotalInstToBeFetched(int tid) {
+        return this->threadDataArray[tid]
+            .dynFile->GetTotalExecutedInstructions();
+    }
+
+    virtual inline int GetTotalThreads() { return this->totalThreads; }
+    virtual inline int GetTotalBasicBlocks() { return this->totalBasicBlocks; }
 };
 
 }  // namespace sinucaTracer

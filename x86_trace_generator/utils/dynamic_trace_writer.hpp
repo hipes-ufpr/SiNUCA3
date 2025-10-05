@@ -29,6 +29,7 @@
 
 namespace sinucaTracer {
 
+/** @brief Check dynamic_trace_writer.hpp documentation for details */
 class DynamicTraceWriter {
   private:
     FILE *file;

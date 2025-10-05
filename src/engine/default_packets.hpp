@@ -28,44 +28,54 @@
 const int MAX_REGISTERS = 16;
 const int MAX_MEM_OPERATIONS = 16;
 const int TRACE_LINE_SIZE = 256;
+const int INST_MNEMONIC_LEN = 8 + sizeof('\0');
 
 /** @brief Enumerates the types of branches. */
 enum Branch {
     BranchSyscall,
     BranchCall,
-    BranchReturn,
+    BranchSysret,
+    BranchRet,
     BranchUncond,
-    BranchCond
+    BranchCond,
+    None
 };
 
 /**
  * @brief Stores details of an instruction.
- * These details are static and cannot be changed during program execution.
+ * These details are static and wont change during program execution.
  */
 struct StaticInstructionInfo {
-    char* opcodeAssembly;
+    unsigned long instAddress;
+    unsigned long instSize;
 
-    long opcodeAddress;
-    unsigned char opcodeSize;
-    unsigned short int baseReg;
-    unsigned short int indexReg;
-
-    unsigned short readRegs[MAX_REGISTERS];
-    unsigned char numReadRegs;
-    unsigned short writeRegs[MAX_REGISTERS];
-    unsigned char numWriteRegs;
+    unsigned int instOpcode;
+    unsigned int instExtension;
+    unsigned int instPredicate;
+    unsigned int effectiveAddressWidth;
 
     Branch branchType;
-    bool isNonStdMemOp;
-    bool isControlFlow;
-    bool isIndirect;
-    bool isPredicated;
-    bool isPrefetch;
+
+    unsigned short readRegsArray[MAX_REGISTERS];
+    unsigned short writtenRegsArray[MAX_REGISTERS];
+
+    unsigned char numberOfReadRegs;
+    unsigned char numberOfWriteRegs;
+
+    bool isPrefetchHintInst;
+    bool isPredicatedInst;
+    bool isIndirectControlFlowInst;
+    bool instCausesCacheLineFlush;
+    bool instPerformsAtomicUpdate;
+    bool instReadsMemory;
+    bool instWritesMemory;
+
+    char instMnemonic[INST_MNEMONIC_LEN]; /**<For debug. */
 
     inline StaticInstructionInfo() {
         memset(this, 0, sizeof(*this));
-        memcpy(this->opcodeAssembly, "N/A", 4);
-        this->branchType = BranchUncond;
+        memcpy(this->instMnemonic, "N/A", 4);
+        this->branchType = None;
     }
 };
 

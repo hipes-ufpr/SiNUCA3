@@ -21,9 +21,7 @@
 /**
  * @file dynamic_trace_reader.hpp
  * @brief Class implementation of the dynamic trace reader.
- * @details The x86 based dynamic trace is a binary file having a sequential
- * list of indices of basic blocks indicating the flow of execution. Each index
- * is stored as a BBLID, a type defined in x86_file_handler header.
+ * @details .
  */
 
 #include <cstdio>
@@ -31,32 +29,42 @@
 
 namespace sinucaTracer {
 
+/** @brief Check dynamic_trace_reader.hpp documentation for details */
 class DynamicTraceReader {
   private:
     FILE* file;
     FileHeader header;
-    ExecutionRecord record;
+    DynamicTraceRecord record;
+    bool reachedEnd;
 
   public:
-    inline DynamicTraceFile() : file(NULL) {};
-    inline ~DynamicTraceFile() {
-        if (file) fclose(this->file);
+    inline DynamicTraceReader() : file(0), reachedEnd(0) {}
+    inline ~DynamicTraceReader() {
+        if (file) {
+            fclose(this->file);
+        }
     }
-    int OpenFile(const char* sourceDir, const char* imgName, THREADID tid);
-    int ReadHeaderFromFile();
-    int ReadDynamicRecordFromFile();
 
-    inline int GetDynamicRecordType() {
+    int OpenFile(const char* sourceDir, const char* imageName, int tid);
+    int ReadDynamicRecord();
+
+    inline bool ReachedDynamicTraceEnd() {
+        return this->reachedEnd;
+    }
+    inline int GetRecordType() {
         return this->record.recordType;
     }
     inline unsigned long GetBasicBlockIdentifier() {
-        return this->record.data.basicBlockIdentifier;
-    }
-    inline const char* GetRoutineName() {
-        return this->record.data.routineName;
+        return this->record.data.bbl.basicBlockIdentifier;
     }
     inline unsigned long GetTotalExecutedInstructions() {
         return this->header.data.dynamicHeader.totalExecutedInstructions;
+    }
+    inline unsigned char GetThreadEvent() {
+        return this->record.data.thr.event;
+    }
+    inline unsigned int GetThreadIdentifier() {
+        return this->record.data.thr.threadId;
     }
 };
 

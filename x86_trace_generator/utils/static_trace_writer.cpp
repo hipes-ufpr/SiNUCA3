@@ -25,6 +25,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "tracer/sinuca/file_handler.hpp"
+
 extern "C" {
 #include <alloca.h>
 }
@@ -94,18 +96,23 @@ int StaticTraceWriter::AddInstruction(const INS* pinInst) {
     inst->instructionOpcode = INS_Opcode(*pinInst);
     inst->instructionExtension = INS_Extension(*pinInst);
     inst->effectiveAddressWidth = INS_EffectiveAddressWidth(*pinInst);
-    inst->instCausesCacheLineFlush = INS_IsCacheLineFlush(*pinInst);
-    inst->isCallInstruction = INS_IsCall(*pinInst);
-    inst->isSyscallInstruction = INS_IsSyscall(*pinInst);
-    inst->isRetInstruction = INS_IsRet(*pinInst);
-    inst->isSysretInstruction = INS_IsSysret(*pinInst);
-    inst->instHasFallthrough = INS_HasFallThrough(*pinInst);
-    inst->isBranchInstruction = INS_IsBranch(*pinInst);
-    inst->isIndirectControlFlowInst = INS_IsIndirectControlFlow(*pinInst);
     inst->instructionSize = INS_Size(*pinInst);
-    inst->instReadsMemory = INS_IsMemoryRead(*pinInst);
-    inst->instWritesMemory = INS_IsMemoryWrite(*pinInst);
-    inst->isPredicatedInst = INS_IsPredicated(*pinInst);
+
+    inst->instCausesCacheLineFlush =
+        this->ToUnsignedChar(INS_IsCacheLineFlush(*pinInst));
+    inst->isCallInstruction = this->ToUnsignedChar(INS_IsCall(*pinInst));
+    inst->isSyscallInstruction = this->ToUnsignedChar(INS_IsSyscall(*pinInst));
+    inst->isRetInstruction = this->ToUnsignedChar(INS_IsRet(*pinInst));
+    inst->isSysretInstruction = this->ToUnsignedChar(INS_IsSysret(*pinInst));
+    inst->instHasFallthrough =
+        this->ToUnsignedChar(INS_HasFallThrough(*pinInst));
+    inst->isBranchInstruction = this->ToUnsignedChar(INS_IsBranch(*pinInst));
+    inst->isIndirectControlFlowInst =
+        this->ToUnsignedChar(INS_IsIndirectControlFlow(*pinInst));
+    inst->instReadsMemory = this->ToUnsignedChar(INS_IsMemoryRead(*pinInst));
+    inst->instWritesMemory = this->ToUnsignedChar(INS_IsMemoryWrite(*pinInst));
+    inst->isPredicatedInst = this->ToUnsignedChar(INS_IsPredicated(*pinInst));
+
     if (inst->isPredicatedInst) {
         inst->instructionPredicate = INS_GetPredicate(*pinInst);
     }
@@ -114,9 +121,8 @@ int StaticTraceWriter::AddInstruction(const INS* pinInst) {
     inst->rRegsArrayOccupation = 0;
     int wRegsArraySize = sizeof(inst->writtenRegsArray);
     int rRegsArraySize = sizeof(inst->readRegsArray);
-    int totalOperands = INS_OperandCount(*pinInst);
 
-    for (int i = 0; i < totalOperands; ++i) {
+    for (unsigned int i = 0; i < INS_OperandCount(*pinInst); ++i) {
         if (INS_OperandIsReg(*pinInst, i)) {
             unsigned short reg = INS_OperandReg(*pinInst, i);
             if (INS_OperandRead(*pinInst, i)) {
@@ -141,7 +147,13 @@ int StaticTraceWriter::AddInstruction(const INS* pinInst) {
         }
     }
 
+    ++this->recordArrayOccupation;
+
     return 0;
+}
+
+unsigned char StaticTraceWriter::ToUnsignedChar(bool val) {
+    return (val == true) ? BoolTypeTrue : BoolTypeFalse;
 }
 
 }  // namespace sinucaTracer

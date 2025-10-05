@@ -44,19 +44,23 @@
 #include <sinuca3.hpp>
 #include <tracer/sinuca/file_handler.hpp>
 
+extern "C" {
+#include <sys/mman.h>
+#include <unistd.h>
+}
+
 namespace sinucaTracer {
 
+/** @brief Check static_trace_reader.hpp documentation for details */
 class StaticTraceReader {
   private:
-    int fileDescriptor;
-    char *mmapPtr;
+    FileHeader header;
+    StaticTraceRecord record;
     unsigned long mmapOffset;
     unsigned long mmapSize;
-    FileHeader header;
-    StaticRecord record;
+    int fileDescriptor;
+    char *mmapPtr;
 
-    void ConvertRawInstToSinucaInstFormat(InstructionInfo *instInfo,
-                                          Instruction *rawInst);
     /**
      * @brief Returns pointer to generic data and updates mmapOffset value.
      * @param len Number of bytes read.
@@ -64,35 +68,32 @@ class StaticTraceReader {
     void *ReadData(unsigned long len);
 
   public:
-    inline StaticTraceFile() : mmapPtr(NULL), mmapOffset(0) {};
-    ~StaticTraceFile();
+    inline StaticTraceReader()
+        : mmapOffset(0), mmapSize(0), fileDescriptor(0), mmapPtr(0) {};
+    inline ~StaticTraceReader() {
+        if (this->mmapPtr == NULL) return;
+        munmap(this->mmapPtr, this->mmapSize);
+        if (this->fileDescriptor == -1) return;
+        close(this->fileDescriptor);
+    }
+
     /**
      * @return 1 on failure, 0 otherwise.
      */
     int OpenFile(const char *folderPath, const char *img);
-    /**
-     * @return 1 on failure, 0 otherwise.
-     */
-    int ReadFileHeader();
-    /**
-     * @brief
-     */
     int ReadStaticRecordFromFile();
+    void GetInstruction(StaticInstructionInfo* instInfo);
 
-    inline void GetInstructionFromRecord(InstructionInfo *instInfo) {
-        this->ConvertRawInstToSinucaInstFormat(instInfo,
-                                               &this->record.data.instruction);
-    }
-    inline short GetStaticRecordType() {
+    inline unsigned char GetStaticRecordType() {
         return this->record.recordType;
     }
-    inline int GetBasicBlockSizeFromRecord() {
+    inline int GetBasicBlockSize() {
         return this->record.data.basicBlockSize;
     }
     inline unsigned long GetTotalBasicBlocks() {
         return this->header.data.staticHeader.bblCount;
     }
-    inline unsigned long GetTotalInstructionsInStaticTrace() {
+    inline unsigned long GetTotalInstInStaticTrace() {
         return this->header.data.staticHeader.instCount;
     }
     inline unsigned int GetNumThreads() {

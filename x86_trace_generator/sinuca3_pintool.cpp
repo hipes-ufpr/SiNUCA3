@@ -148,7 +148,7 @@ VOID StopInstrumentation() {
 /** @brief Enables execution of analysis code. */
 VOID EnableInstrumentationInThread(THREADID tid) {
     if (threadDataVec[tid]->isThreadAnalysisEnabled) return;
-    PINTOOL_DEBUG_PRINTF("Enabled tool instrumentation in thread [%d]\n", tid);
+    PINTOOL_DEBUG_PRINTF("Enabled thread [%d] to run analysis code\n", tid);
     threadDataVec[tid]->isThreadAnalysisEnabled = true;
 }
 
@@ -158,7 +158,7 @@ VOID DisableInstrumentationInThread(THREADID tid) {
         knobForceInstrumentation.Value()) {
         return;
     }
-    PINTOOL_DEBUG_PRINTF("Disabled tool instrumentation in thread [%d]\n", tid);
+    PINTOOL_DEBUG_PRINTF("Disabled thread [%d] to run analysis code\n", tid);
     threadDataVec[tid]->isThreadAnalysisEnabled = false;
 }
 
@@ -275,7 +275,10 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
 
             bool hasMemOperators =
                 INS_IsMemoryRead(ins) || INS_IsMemoryWrite(ins);
+
             if (hasMemOperators) {
+                PINTOOL_DEBUG_PRINTF("Instruction [%s] has memory operators\n",
+                                     INS_Mnemonic(ins).c_str());
                 INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTrace,
                                IARG_THREAD_ID, IARG_MULTI_MEMORYACCESS_EA,
                                IARG_END);
@@ -295,6 +298,7 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
     std::string sub = absoluteImgPath.substr(idx);
     strcpy(name, sub.c_str());
     imageName = name;
+
     PINTOOL_DEBUG_PRINTF("Image name is [%s]\n", imageName);
 
     staticTrace = new StaticTraceWriter();

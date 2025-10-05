@@ -28,6 +28,7 @@
 
 namespace sinucaTracer {
 
+/** @brief Check memory_trace_writer.hpp documentation for details */
 class MemoryTraceWriter {
   private:
     FILE* file;
@@ -36,6 +37,12 @@ class MemoryTraceWriter {
     int recordArrayOccupation;
     int recordArraySize;
 
+    inline int WriteHeaderToFile() {
+        if (this->file == NULL) return 1;
+        rewind(this->file);
+        return (fwrite(&this->header, 1, sizeof(this->header), this->file) !=
+                sizeof(this->header));
+    }
     inline int FlushMemoryRecords() {
         if (this->file == NULL) return 1;
         unsigned long occupationInBytes =
@@ -55,6 +62,9 @@ class MemoryTraceWriter {
             this->header.fileType = FileTypeMemoryTrace;
           };
     inline ~MemoryTraceWriter() {
+        if (this->WriteHeaderToFile()) {
+            SINUCA3_ERROR_PRINTF("Failed to write memory file header!\n");
+        }
         if (this->FlushMemoryRecords()) {
             SINUCA3_ERROR_PRINTF("Failed to flush memory records!\n");
         }

@@ -216,7 +216,7 @@ void GsharePredictor::Clock() {
     for (long i = 0; i < totalConnections; i++) {
         while (this->ReceiveRequestFromConnection(i, &packet) == 0) {
             if (packet.type == PredictorPacketTypeRequestQuery) {
-                addr = packet.data.requestQuery.staticInfo->opcodeAddress;
+                addr = packet.data.requestQuery.staticInfo->instAddress;
                 this->Query(&packet, addr);
                 if (this->sendTo == NULL) {
                     this->SendResponseToConnection(i, &packet);
@@ -247,7 +247,7 @@ int TestGshare() {
     for (int i = 0; i < testSize; ++i) {
         sendPackets[i].type = PredictorPacketTypeRequestQuery;
         sendPackets[i].data.requestQuery.staticInfo = &ins[i];
-        ins[i].opcodeAddress = addrs[i];
+        ins[i].instAddress = addrs[i];
     }
     for (int i = testSize; i < testSize * 2; ++i) {
         sendPackets[i].type = PredictorPacketTypeRequestUpdate;
@@ -275,7 +275,7 @@ int TestGshare() {
     for (int i = 0; i < testSize; ++i) {
         assert(predictor.ReceiveResponse(id, &recvPackets[i]) == 0);
         SINUCA3_DEBUG_PRINTF("Gshare Predicted [%d] for [%ld] ins addr\n",
-                         recvPackets[i].type, ins[i].opcodeAddress);
+                         recvPackets[i].type, ins[i].instAddress);
         predictor.SendRequest(id, &sendPackets[i + testSize]); // send update
     }
     predictor.Clock();
@@ -297,7 +297,7 @@ int TestGshare() {
     for (int i = 0; i < testSize; ++i) {
         assert(predictor.ReceiveResponse(id, &recvPackets[i]) == 0);
         SINUCA3_DEBUG_PRINTF("Gshare Predicted [%d] for [%ld] ins addr\n",
-                         recvPackets[i].type, ins[i].opcodeAddress);
+                         recvPackets[i].type, ins[i].instAddress);
         predictor.SendRequest(id, &sendPackets[i + testSize]); // send update
     }
     predictor.Clock();

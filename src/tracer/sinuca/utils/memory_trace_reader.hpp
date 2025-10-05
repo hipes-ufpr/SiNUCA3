@@ -21,37 +21,53 @@
 /**
  * @file memory_trace_reader.hpp
  * @brief Class implementation of the memory trace reader.
- * @details The x86 based memory trace is a binary file having a list of memory
- * operations in sequential order. Each operation is a pair of address and size.
- * Since the final buffer size is not a fixed value, the pintool also stores
- * this value in the file before each buffer flush.
+ * @details The x86 based memory trace is a binary file .
  */
 
 #include <sinuca3.hpp>
 #include <tracer/sinuca/file_handler.hpp>
 
+#include <vector>
+
 namespace sinucaTracer {
 
+/** @brief Check memory_trace_reader.hpp documentation for details */
 class MemoryTraceReader {
   private:
     FILE* file;
-    MemoryRecord record;
+    FileHeader header;
+    MemoryTraceRecord record;
+    std::vector<unsigned long> loadOpsAddressVec;
+    std::vector<unsigned long> storeOpsAddressVec;
+    std::vector<unsigned short> loadOpsSizeVec;
+    std::vector<unsigned short> storeOpsSizeVec;
+    int numberOfMemLoadOps;
+    int numberOfMemStoreOps;
 
   public:
-    inline MemoryTraceFile() : file(NULL) {};
-    inline ~MemoryTraceFile() {
-        if (file) fclose(this->file);
+    inline MemoryTraceReader() : file(NULL) {};
+    inline ~MemoryTraceReader() {
+        if (file) {
+            fclose(this->file);
+        }
     }
-    int OpenFile(const char* sourceDir, const char* imgName, THREADID tid);
-    int ReadMemoryRecordFromFile();
-    void ExtractMemoryOperation(unsigned long* addr, unsigned int* size);
-    void ExtractNonStdHeader(unsigned short* readOps, unsigned short* writeOps);
 
-    inline int GetMemoryRecordType() {
-        return this->record.recordType;
+    int OpenFile(const char* sourceDir, const char* imgName, int tid);
+    int ReadMemoryOperations();
+    int CopyLoadOpsAddresses(unsigned long* array, unsigned long size);
+    int CopyLoadOpsSizes(unsigned int* array, unsigned long size);
+    int CopyStoreOpsAddresses(unsigned long* array, unsigned long size);
+    int CopyStoreOpsSizes(unsigned int* array, unsigned long size);
+
+    inline int GetNumberOfMemLoadOps() {
+        int numOps = this->numberOfMemLoadOps;
+        this->numberOfMemLoadOps = 0;
+        return numOps;
     }
-    inline int GetMemoryOperationType() {
-        return this->record.data.operation.type;
+    inline int GetNumberOfMemStoreOps() {
+        int numOps = this->numberOfMemStoreOps;
+        this->numberOfMemStoreOps = 0;
+        return numOps;
     }
 };
 

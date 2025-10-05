@@ -29,6 +29,7 @@
 
 namespace sinucaTracer {
 
+/** @brief Check static_trace_writer.hpp documentation for details */
 class StaticTraceWriter {
   private:
     FILE* file;
@@ -52,6 +53,7 @@ class StaticTraceWriter {
     }
 
     int DoubleRecordArraySize();
+    unsigned char ToUnsignedChar(bool val);
 
   public:
     inline StaticTraceWriter()

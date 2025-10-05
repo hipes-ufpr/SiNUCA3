@@ -43,7 +43,6 @@ extern "C" {
 namespace sinucaTracer {
 
 const char TRACE_VERSION[] = "0.0.1"; /**<Used to detect incompatibility.> */
-const int INST_MNEMONIC_LEN = 8 + sizeof('\0');
 const int MAX_IMAGE_NAME_SIZE = 255;
 
 enum FileType : uint16_t {
@@ -132,7 +131,7 @@ struct DynamicTraceRecord {
             uint32_t basicBlockIdentifier;
         } bbl;
         struct {
-            uint8_t threadId;
+            uint32_t threadId;
             uint8_t event;
         } thr;
     } data;
@@ -148,7 +147,7 @@ struct MemoryTraceRecord {
             uint8_t type;     /**<Load or Store. */
         } operation;
         struct {
-            uint32_t numberOfMemoryOps;
+            int32_t numberOfMemoryOps;
         } opHeader;
     } data;
     uint8_t recordType;

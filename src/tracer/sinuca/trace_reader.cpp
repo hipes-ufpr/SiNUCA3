@@ -21,30 +21,44 @@
 
 #include "trace_reader.hpp"
 
-#include <cassert>
 #include <sinuca3.hpp>
-#include <tracer/trace_reader.hpp>
-#include <tracer/sinuca/file_handler.hpp>
 
+#include "engine/default_packets.hpp"
+#include "tracer/sinuca/file_handler.hpp"
+#include "tracer/trace_reader.hpp"
 #include "utils/logging.hpp"
 
-int sinucaTracer::SinucaTraceReader::OpenTrace(const char *imageName,
-                                               const char *sourceDir) {
-    StaticTraceFile staticFile;
+namespace sinucaTracer {
 
-    if (staticFile.OpenFile(sourceDir, imageName)) return 1;
-    staticFile.ReadFileHeader();
-    this->totalThreads = staticFile.GetNumThreads();
-    this->binaryTotalBBLs = staticFile.GetTotalBasicBlocks();
+int SinucaTraceReader::OpenTrace(const char *imageName, const char *sourceDir) {
+    this->staticTrace = new StaticTraceReader;
+    if (this->staticTrace == NULL) {
+        SINUCA3_ERROR_PRINTF("Failed to create static trace reader\n");
+        return 1;
+    }
+    if (this->staticTrace->OpenFile(sourceDir, imageName)) {
+        SINUCA3_ERROR_PRINTF("Failed to open static trace\n");
+        return 1;
+    }
 
-    this->thrsInfo = new ThrInfo[this->totalThreads];
-    for (int i = 0; i < this->totalThreads; i++) {
-        if (this->thrsInfo[i].Allocate(sourceDir, imageName, i)) {
+    this->totalThreads = this->staticTrace->GetNumThreads();
+    this->totalBasicBlocks = this->staticTrace->GetTotalBasicBlocks();
+    this->totalStaticInst = this->staticTrace->GetTotalInstInStaticTrace();
+
+    this->threadDataArray = new ThreadData[this->totalThreads];
+    if (this->threadDataArray == NULL) {
+        SINUCA3_ERROR_PRINTF("Failed to create thread data array\n");
+        return 1;
+    }
+
+    for (int tid = 0; tid < this->totalThreads; ++tid) {
+        if (this->threadDataArray[tid].Allocate(sourceDir, imageName, tid)) {
+            SINUCA3_ERROR_PRINTF("Failed to create dyn/mem trace reader\n");
             return 1;
         }
-        this->thrsInfo[i].ReadDynamicFileHeader();
     }
-    if (this->GenerateBinaryDict(&staticFile)) {
+
+    if (this->GenerateInstructionDict()) {
         SINUCA3_ERROR_PRINTF("Failed to generate instruction dictionary\n");
         return 1;
     }
@@ -52,165 +66,198 @@ int sinucaTracer::SinucaTraceReader::OpenTrace(const char *imageName,
     return 0;
 }
 
-void sinucaTracer::SinucaTraceReader::CloseTrace() {
-    delete[] this->thrsInfo;
-    delete[] this->binaryBBLsSize;
-    delete[] this->pool;
-    delete[] this->binaryDict;
-}
-
-int sinucaTracer::SinucaTraceReader::GenerateBinaryDict(
-    StaticTraceFile *stFile) {
-    InstructionInfo *instInfoPtr;
+int SinucaTraceReader::GenerateInstructionDict() {
+    StaticInstructionInfo *instInfoPtr;
     unsigned long poolOffset;
+    unsigned long bblCounter;
     unsigned int bblSize;
     unsigned int instCounter;
-    unsigned long bblCounter;
-    unsigned long totalStaticInstructions;
-    short recordType;
+    unsigned char recordType;
 
-    this->binaryBBLsSize = new unsigned int[this->binaryTotalBBLs];
-    this->binaryDict = new InstructionInfo *[this->binaryTotalBBLs];
-    totalStaticInstructions = stFile->GetTotalInstructionsInStaticTrace();
-    this->pool = new InstructionInfo[totalStaticInstructions];
+    this->basicBlockSizeArr = new int[this->totalBasicBlocks];
+    if (this->basicBlockSizeArr == NULL) {
+        SINUCA3_ERROR_PRINTF("Failed to alloc basicBlockSizeArr\n");
+        return 1;
+    }
+
+    this->instructionDict = new StaticInstructionInfo *[this->totalBasicBlocks];
+    if (this->instructionDict == NULL) {
+        SINUCA3_ERROR_PRINTF("Failed to alloc instructionDict\n");
+        return 1;
+    }
+
+    this->instructionPool = new StaticInstructionInfo[this->totalStaticInst];
+    if (this->instructionPool == NULL) {
+        SINUCA3_ERROR_PRINTF("Failed to alloc instructionPool\n");
+        return 1;
+    }
+
     poolOffset = 0;
 
-    for (bblCounter = 0; bblCounter < this->binaryTotalBBLs; bblCounter++) {
-        if (stFile->ReadStaticRecordFromFile()) return 1;
-        recordType = stFile->GetStaticRecordType();
-        if (recordType != sinucaTracer::BBL_SIZE_TYPE) return 1;
-        bblSize = stFile->GetBasicBlockSizeFromRecord();
-        this->binaryBBLsSize[bblCounter] = bblSize;
-        this->binaryDict[bblCounter] = &this->pool[poolOffset];
+    for (bblCounter = 0; bblCounter < this->totalBasicBlocks; bblCounter++) {
+        if (this->staticTrace->ReadStaticRecordFromFile()) {
+            return 1;
+        }
+
+        recordType = this->staticTrace->GetStaticRecordType();
+        if (recordType != StaticRecordBasicBlockSize) {
+            SINUCA3_ERROR_PRINTF("Expected basic block size record type\n");
+            return 1;
+        }
+
+        bblSize = this->staticTrace->GetBasicBlockSize();
+        this->basicBlockSizeArr[bblCounter] = bblSize;
+        this->instructionDict[bblCounter] = &this->instructionPool[poolOffset];
         poolOffset += bblSize;
 
         for (instCounter = 0; instCounter < bblSize; instCounter++) {
-            instInfoPtr = &this->binaryDict[bblCounter][instCounter];
-            stFile->ReadStaticRecordFromFile();
-            recordType = stFile->GetStaticRecordType();
-            if (recordType != sinucaTracer::INSTRUCTION_TYPE) return 1;
-            stFile->GetInstructionFromRecord(instInfoPtr);
-        }
+            if (this->staticTrace->ReadStaticRecordFromFile()) {
+                return 1;
+            }
 
-        SINUCA3_DEBUG_PRINTF("bbl [%lu] size [%u]\n", bblCounter + 1, bblSize);
+            recordType = this->staticTrace->GetStaticRecordType();
+            if (recordType != StaticRecordInstruction) {
+                SINUCA3_ERROR_PRINTF("Expected instruction record type\n");
+                return 1;
+            }
+
+            instInfoPtr = &this->instructionDict[bblCounter][instCounter];
+            this->staticTrace->GetInstruction(instInfoPtr);
+        }
     }
 
     return 0;
 }
 
-FetchResult sinucaTracer::SinucaTraceReader::Fetch(InstructionPacket *ret,
-                                                   int tid) {
-    InstructionInfo *packageInfo;
-    short recordType;
+FetchResult SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
+    unsigned char recordType;
 
-    if (!this->thrsInfo[tid].isInsideBBL) {
-        do {
-            if (this->thrsInfo[tid].dynFile->ReadDynamicRecordFromFile()) {
-                return FetchResultEnd;
-            }
-            recordType = this->thrsInfo[tid].dynFile->GetDynamicRecordType();
-        } while(recordType != BBL_IDENTIFIER_TYPE);
-        this->thrsInfo[tid].currentBBL = this->thrsInfo[tid].dynFile->GetBasicBlockIdentifier();
-        this->thrsInfo[tid].isInsideBBL = true;
-        this->thrsInfo[tid].currentOpcode = 0;
+    for (int i = 0; i < this->totalThreads; i++) {
+        if (this->threadDataArray[tid].dynFile->ReachedDynamicTraceEnd()) {
+            return FetchResultEnd;
+        }
     }
 
-    packageInfo = &this->binaryDict[this->thrsInfo[tid].currentBBL]
-                                   [this->thrsInfo[tid].currentOpcode];
-    if (this->CopyMemoryOperations(ret, packageInfo, &this->thrsInfo[tid])) {
-        SINUCA3_ERROR_PRINTF("Tracer failed to copy memory operations");
+    if (this->threadDataArray[tid].dynFile->ReachedDynamicTraceEnd()) {
+        return FetchResultNop;
+    }
+
+    if (!this->threadDataArray[tid].isInsideBasicBlock) {
+        this->threadDataArray[tid].currentInst = 0;
+
+        do {
+            if (this->threadDataArray[tid].dynFile->ReadDynamicRecord()) {
+                return FetchResultError;
+            }
+            recordType = this->threadDataArray[tid].dynFile->GetRecordType();
+        } while (recordType != DynamicRecordBasicBlockIdentifier);
+
+        this->threadDataArray[tid].currentBasicBlock =
+            this->threadDataArray[tid].dynFile->GetBasicBlockIdentifier();
+    }
+
+    ret->staticInfo =
+        &this->instructionDict[this->threadDataArray[tid].currentBasicBlock]
+                              [this->threadDataArray[tid].currentInst];
+
+    if (this->threadDataArray[tid].memFile->ReadMemoryOperations()) {
+        SINUCA3_ERROR_PRINTF("Failed to read memory operations\n");
         return FetchResultError;
     }
 
-    this->thrsInfo[tid].currentOpcode++;
-    if (this->thrsInfo[tid].currentOpcode >=
-        this->binaryBBLsSize[this->thrsInfo[tid].currentBBL]) {
-        this->thrsInfo[tid].isInsideBBL = false;
+    unsigned long arraySize;
+
+    ret->dynamicInfo.numReadings =
+        this->threadDataArray[tid].memFile->GetNumberOfMemLoadOps();
+    ret->dynamicInfo.numWritings =
+        this->threadDataArray[tid].memFile->GetNumberOfMemStoreOps();
+
+    arraySize = sizeof(ret->dynamicInfo.readsAddr) / sizeof(unsigned long);
+    if (this->threadDataArray[tid].memFile->CopyLoadOpsAddresses(
+            ret->dynamicInfo.readsAddr, arraySize)) {
+        return FetchResultError;
+    }
+    arraySize = sizeof(ret->dynamicInfo.readsSize) / sizeof(unsigned int);
+    if (this->threadDataArray[tid].memFile->CopyLoadOpsSizes(
+            ret->dynamicInfo.readsSize, arraySize)) {
+        return FetchResultError;
+    }
+    arraySize = sizeof(ret->dynamicInfo.writesAddr) / sizeof(unsigned long);
+    if (this->threadDataArray[tid].memFile->CopyStoreOpsAddresses(
+            ret->dynamicInfo.writesAddr, arraySize)) {
+        return FetchResultError;
+    }
+    arraySize = sizeof(ret->dynamicInfo.writesSize) / sizeof(unsigned int);
+    if (this->threadDataArray[tid].memFile->CopyStoreOpsSizes(
+            ret->dynamicInfo.writesSize, arraySize)) {
+        return FetchResultError;
     }
 
-    this->thrsInfo[tid].fetchedInst++;
+    ++this->threadDataArray[tid].currentInst;
+    if (this->threadDataArray[tid].currentInst >=
+        this->basicBlockSizeArr[this->threadDataArray[tid].currentBasicBlock]) {
+        this->threadDataArray[tid].isInsideBasicBlock = false;
+    }
 
-    SINUCA3_DEBUG_PRINTF("Fetched: %s\n", (*ret).staticInfo->opcodeAssembly);
+    this->threadDataArray[tid].fetchedInst++;
 
     return FetchResultOk;
 }
 
-int sinucaTracer::SinucaTraceReader::GetTotalThreads() {
-    return this->totalThreads;
-}
-
-unsigned long sinucaTracer::SinucaTraceReader::GetTotalBBLs() {
-    return this->binaryTotalBBLs;
-}
-
-unsigned long sinucaTracer::SinucaTraceReader::GetNumberOfFetchedInst(int tid) {
-    return this->thrsInfo[tid].fetchedInst;
-}
-
-unsigned long sinucaTracer::SinucaTraceReader::GetTotalInstToBeFetched(
-    int tid) {
-    return this->thrsInfo[tid].dynFile->GetTotalExecutedInstructions();
-}
-
-void sinucaTracer::SinucaTraceReader::PrintStatistics() {
+void SinucaTraceReader::PrintStatistics() {
     SINUCA3_LOG_PRINTF("###########################\n");
     SINUCA3_LOG_PRINTF("Sinuca3 Trace Reader\n");
-
     SINUCA3_LOG_PRINTF("###########################\n");
 }
 
-int sinucaTracer::ThrInfo::Allocate(const char *sourceDir,
-                                    const char *imageName, int tid) {
-    this->dynFile = new DynamicTraceFile();
-    if (this->dynFile->OpenFile(sourceDir, imageName, tid)) return 1;
-    this->memFile = new MemoryTraceFile();
-    if (this->memFile->OpenFile(sourceDir, imageName, tid)) return 1;
+int ThreadData::Allocate(const char *sourceDir, const char *imageName,
+    int tid) {
+    this->dynFile = new DynamicTraceReader();
+    int ret = 0;
+    if ((ret = this->dynFile->OpenFile(sourceDir, imageName, tid))) {
+        SINUCA3_ERROR_PRINTF("Failed to open dynamic trace %d\n", ret);
+        return 1;
+    }
+    this->memFile = new MemoryTraceReader();
+    if (this->memFile->OpenFile(sourceDir, imageName, tid)) {
+        SINUCA3_ERROR_PRINTF("Failed to open memory trace\n");
+        return 1;
+    }
     return 0;
 }
 
-int sinucaTracer::SinucaTraceReader::CopyMemoryOperations(
-    InstructionPacket *instPkt, InstructionInfo *instInfo, ThrInfo *thrInfo) {
-    int memRecordType;
-    int memOpType;
-    short totalOps;
-    if (instInfo->staticInfo.isNonStdMemOp) {
-        if (thrInfo->memFile->ReadMemoryRecordFromFile()) return 1;
-        memRecordType = thrInfo->memFile->GetMemoryRecordType();
-        if (memRecordType != NON_STD_HEADER_TYPE) return 1;
-        thrInfo->memFile->ExtractNonStdHeader(
-            &instPkt->dynamicInfo.numReadings,
-            &instPkt->dynamicInfo.numWritings);
-    } else {
-        instPkt->dynamicInfo.numReadings = instInfo->staticNumReadings;
-        instPkt->dynamicInfo.numWritings = instInfo->staticNumWritings;
-    }
-    totalOps =
-        instPkt->dynamicInfo.numWritings + instPkt->dynamicInfo.numReadings;
-    for (short i = 0, rIdx = 0, wIdx = 0; i < totalOps; ++i) {
-        if (thrInfo->memFile->ReadMemoryRecordFromFile()) return 1;
-        memRecordType = thrInfo->memFile->GetMemoryRecordType();
-        if (memRecordType != MEM_OPERATION_TYPE) return 1;
-        memOpType = thrInfo->memFile->GetMemoryOperationType();
-        if (memOpType == MEM_READ_TYPE) {
-            if (rIdx >= instPkt->dynamicInfo.numReadings) return 1;
-            thrInfo->memFile->ExtractMemoryOperation(
-                &instPkt->dynamicInfo.readsAddr[rIdx],
-                &instPkt->dynamicInfo.readsSize[rIdx]);
-            rIdx++;
-        } else if (memOpType == MEM_WRITE_TYPE) {
-            if (wIdx >= instPkt->dynamicInfo.numReadings) return 1;
-            thrInfo->memFile->ExtractMemoryOperation(
-                &instPkt->dynamicInfo.writesAddr[wIdx],
-                &instPkt->dynamicInfo.writesSize[wIdx]);
-            wIdx++;
-        }
-    }
-
-    return 0;
-}
+}  // namespace sinucaTracer
 
 #ifndef NDEBUG
 int TestTraceReader() {
+    TraceReader* reader = new sinucaTracer::SinucaTraceReader;
 
+    char traceDir[1024];
+    char imageName[1024];
+
+    printf("Trace directory: ");
+    scanf("%s", traceDir);
+    printf("Image name: ");
+    scanf("%s", imageName);
+
+    reader->OpenTrace(imageName, traceDir);
+
+    InstructionPacket instPkt;
+    FetchResult res = reader->Fetch(&instPkt, 0);
+    while (res != FetchResultError && res != FetchResultEnd) {
+
+        printf("Instruction name [%s]\n", instPkt.staticInfo->instMnemonic);
+        printf("Instruction address [%lu]\n", instPkt.staticInfo->instAddress);
+        printf("Instruction size [%lu]\n", instPkt.staticInfo->instSize);
+        printf("Instruction branch [%d]\n", instPkt.staticInfo->branchType);
+
+        res = reader->Fetch(&instPkt, 0);
+    }
+
+    if (res == FetchResultError) {
+        SINUCA3_ERROR_PRINTF("Fetch result error!\n");
+    }
+
+    return 0;
 }
 #endif
