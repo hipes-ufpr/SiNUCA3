@@ -26,6 +26,7 @@
 #include <cstring>
 
 #include "tracer/sinuca/file_handler.hpp"
+#include "utils/logging.hpp"
 
 extern "C" {
 #include <alloca.h>
@@ -57,45 +58,39 @@ int StaticTraceWriter::OpenFile(const char* sourceDir, const char* imageName) {
     return 0;
 }
 
-int StaticTraceWriter::DoubleRecordArraySize() {
-    if (this->recordArraySize == 0) {
-        this->recordArraySize = 128;
+int StaticTraceWriter::IsBasicBlockFull() {
+    return (this->basicBlockOccupation >= this->basicBlockSize);
+}
+
+int StaticTraceWriter::ReallocBasicBlock() {
+    if (this->basicBlockSize == 0) {
+        this->basicBlockSize = 128;
     }
-    this->recordArraySize <<= 1;
-    this->recordArray =
-        (StaticTraceRecord*)realloc(this->recordArray, this->recordArraySize);
-    return this->recordArray == NULL;
+    this->basicBlockSize <<= 1;
+    this->basicBlock =
+        (StaticTraceRecord*)realloc(this->basicBlock, this->basicBlockSize);
+    return (this->basicBlock == NULL);
 }
 
 int StaticTraceWriter::AddBasicBlockSize(unsigned int basicBlockSize) {
-    if (this->recordArrayOccupation >= this->recordArraySize) {
-        if (this->DoubleRecordArraySize()) {
+    if (this->IsBasicBlockFull()) {
+        if (this->ReallocBasicBlock()) {
+            SINUCA3_ERROR_PRINTF("Failed to realloc basic block in st trace\n");
             return 1;
         }
     }
 
-    this->recordArray[this->recordArrayOccupation].recordType =
+    this->basicBlock[0].recordType =
         StaticRecordBasicBlockSize;
-    this->recordArray[this->recordArrayOccupation].data.basicBlockSize =
+    this->basicBlock[0].data.basicBlockSize =
         basicBlockSize;
-    ++this->recordArrayOccupation;
+    ++this->basicBlockOccupation;
 
     return 0;
 }
 
-int StaticTraceWriter::AddInstruction(const INS* pinInst) {
-    if (this->recordArrayOccupation >= this->recordArraySize) {
-        if (this->DoubleRecordArraySize()) {
-            return 1;
-        }
-    }
-
-    this->recordArray[this->recordArrayOccupation].recordType =
-        StaticRecordInstruction;
-    Instruction* inst =
-        &this->recordArray[this->recordArrayOccupation].data.instruction;
-
-    const char* mnemonic = INS_Mnemonic(*pinInst).c_str();
+int StaticTraceWriter::TranslatePinInst(Instruction* inst, const PIN* pinInst) {
+     const char* mnemonic = INS_Mnemonic(*pinInst).c_str();
     unsigned long size = sizeof(inst->instructionMnemonic) - 1;
     strncpy(inst->instructionMnemonic, mnemonic, size);
     inst->instructionMnemonic[size] = '\0';
@@ -126,9 +121,6 @@ int StaticTraceWriter::AddInstruction(const INS* pinInst) {
         COPY(inst->instructionPredicate, INS_GetPredicate(*pinInst), 0);
     }
 
-    int wRegsArraySize = sizeof(inst->writtenRegsArray);
-    int rRegsArraySize = sizeof(inst->readRegsArray);
-
     for (unsigned int i = 0; i < INS_OperandCount(*pinInst); ++i) {
         if (!INS_OperandIsReg(*pinInst, i)) {
             continue;
@@ -136,7 +128,7 @@ int StaticTraceWriter::AddInstruction(const INS* pinInst) {
 
         unsigned short reg = INS_OperandReg(*pinInst, i);
         if (INS_OperandRead(*pinInst, i)) {
-            if (inst->rRegsArrayOccupation >= rRegsArraySize) {
+            if (inst->rRegsArrayOccupation >= sizeof(inst->readRegsArray)) {
                 SINUCA3_ERROR_PRINTF(
                     "More registers read than readRegsArray can store\n");
                 return 1;
@@ -145,7 +137,7 @@ int StaticTraceWriter::AddInstruction(const INS* pinInst) {
             ++inst->rRegsArrayOccupation;
         }
         if (INS_OperandWritten(*pinInst, i)) {
-            if (inst->wRegsArrayOccupation >= wRegsArraySize) {
+            if (inst->wRegsArrayOccupation >= sizeof(inst->writtenRegsArray)) {
                 SINUCA3_ERROR_PRINTF(
                     "More registers written than writtenRegsArray can "
                     "store\n");
@@ -155,8 +147,22 @@ int StaticTraceWriter::AddInstruction(const INS* pinInst) {
             ++inst->wRegsArrayOccupation;
         }
     }
+}
 
-    ++this->recordArrayOccupation;
+int StaticTraceWriter::AddInstruction(const INS* pinInst) {
+    if (this->IsBasicBlockFull()) {
+        if (this->ReallocBasicBlock()) {
+            SINUCA3_ERROR_PRINTF("Failed to realloc basic block in st trace\n");
+            return 1;
+        }
+    }
+
+    ++this->basicBlockOccupation;
+    this->basicBlock[this->basicBlockOccupation].recordType =
+        StaticRecordInstruction;
+    Instruction* inst =
+        &this->basicBlock[this->basicBlockOccupation].data.instruction;
+    this->TranslatePinInst(inst, pinInst);
 
     return 0;
 }

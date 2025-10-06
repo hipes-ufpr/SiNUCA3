@@ -34,43 +34,34 @@ class StaticTraceWriter {
   private:
     FILE* file;
     FileHeader header;
-    StaticTraceRecord* recordArray;
-    int recordArraySize;
-    int recordArrayOccupation;
+    StaticTraceRecord* basicBlock;
+    unsigned long basicBlockSize;
+    unsigned long basicBlockOccupation;
 
-    inline int WriteHeaderToFile() {
-        if (this->file == NULL) return 1;
-        rewind(this->file);
-        return (fwrite(&this->header, 1, sizeof(this->header), this->file) !=
-                sizeof(this->header));
-    }
-    inline int FlushStaticRecords() {
-        if (this->file == NULL) return 1;
-        unsigned long occupationInBytes =
-            sizeof(*this->recordArray) * this->recordArrayOccupation;
-        return (fwrite(this->recordArray, 1, occupationInBytes, this->file) !=
-                occupationInBytes);
-    }
-
-    int DoubleRecordArraySize();
+    int FlushBasicBlock();
+    int ReallocBasicBlock();
+    int IsBasicBlockFull();
+    int TranslatePinInst(Instruction* inst, const PIN* pinInst);
 
   public:
     inline StaticTraceWriter()
         : file(0),
-          recordArray(0),
-          recordArraySize(0),
-          recordArrayOccupation(0) {
+          basicBlock(0),
+          basicBlockSize(0),
+          basicBlockOccupation(0) {
         this->header.fileType = FileTypeStaticTrace;
         this->header.data.staticHeader.instCount = 0;
         this->header.data.staticHeader.bblCount = 0;
         this->header.data.staticHeader.threadCount = 0;
     };
     inline ~StaticTraceWriter() {
-        if (this->WriteHeaderToFile()) {
+        if (this->header.FlushHeader(this->file)) {
             SINUCA3_ERROR_PRINTF("Failed to write static header!\n")
         }
-        if (this->FlushStaticRecords()) {
-            SINUCA3_ERROR_PRINTF("Failed to flush static records!\n");
+        if (this->basicBlockOccupation > 0) {
+            if (this->FlushBasicBlock()) {
+                SINUCA3_ERROR_PRINTF("Failed to flush basic block!\n");
+            }
         }
         if (this->file) {
             fclose(this->file);
@@ -81,14 +72,6 @@ class StaticTraceWriter {
     int AddInstruction(const INS* pinInst);
     int AddBasicBlockSize(unsigned int basicBlockSize);
 
-    inline int LastInstIsMemoryRead() {
-        return this->recordArray[this->recordArrayOccupation - 1]
-            .data.instruction.instReadsMemory;
-    }
-    inline int LastInstIsMemoryWrite() {
-        return this->recordArray[this->recordArrayOccupation - 1]
-            .data.instruction.instWritesMemory;
-    }
     inline void IncStaticInstructionCount() {
         this->header.data.staticHeader.instCount++;
     }

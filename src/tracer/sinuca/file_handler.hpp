@@ -113,6 +113,11 @@ struct StaticTraceRecord {
         Instruction instruction;
     } data;
     uint8_t recordType;
+
+    inline int FlushRecord(FILE* file) {
+        if (!file) return 1;
+        return (fwrite(this, 1, sizeof(*this), file) != sizeof(*this));
+    }
 } __attribute__((packed));
 
 /** @brief Written to dynamic trace file. */
@@ -127,6 +132,11 @@ struct DynamicTraceRecord {
         } thr;
     } data;
     uint8_t recordType;
+
+    inline int FlushRecord(FILE* file) {
+        if (!file) return 1;
+        return (fwrite(this, 1, sizeof(*this), file) != sizeof(*this));
+    }
 } __attribute__((packed));
 
 /** @brief Written to memory trace file. */
@@ -142,6 +152,11 @@ struct MemoryTraceRecord {
         } opHeader;
     } data;
     uint8_t recordType;
+
+    inline int FlushRecord(FILE* file) {
+        if (!file) return 1;
+        return (fwrite(this, 1, sizeof(*this), file) != sizeof(*this));
+    }
 } __attribute__((packed));
 
 /** @brief General usage. */
@@ -161,6 +176,10 @@ struct FileHeader {
 
     inline FileHeader() {
         memcpy(this->traceVersion, TRACE_VERSION, sizeof(this->traceVersion));
+    }
+    inline int FlushHeader(FILE* file) {
+        if (!file) return 1;
+        return (fwrite(this, 1, sizeof(*this), file) != sizeof(*this));
     }
 } __attribute__((packed));
 
