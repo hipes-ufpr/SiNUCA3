@@ -31,6 +31,15 @@ extern "C" {
 #include <alloca.h>
 }
 
+#define COPY(dest, source, boolean) \
+{                                   \
+    if (boolean) {                  \
+        dest = (source) ? 1 : 0;    \
+    } else{                         \
+        dest = source;              \
+    }                               \
+}
+
 namespace sinucaTracer {
 
 int StaticTraceWriter::OpenFile(const char* sourceDir, const char* imageName) {
@@ -86,74 +95,70 @@ int StaticTraceWriter::AddInstruction(const INS* pinInst) {
     Instruction* inst =
         &this->recordArray[this->recordArrayOccupation].data.instruction;
 
-    unsigned long writtenSize;
     const char* mnemonic = INS_Mnemonic(*pinInst).c_str();
-    unsigned long mnemonicSize = strlen(mnemonic);
-    writtenSize = std::min(mnemonicSize, sizeof(inst->instructionMnemonic));
-    memcpy(inst->instructionMnemonic, mnemonic, writtenSize);
-    inst->instructionMnemonic[writtenSize - 1] = '\0';
+    unsigned long size = sizeof(inst->instructionMnemonic) - 1;
+    strncpy(inst->instructionMnemonic, mnemonic, size);
+    inst->instructionMnemonic[size] = '\0';
 
-    inst->instructionOpcode = INS_Opcode(*pinInst);
-    inst->instructionExtension = INS_Extension(*pinInst);
-    inst->effectiveAddressWidth = INS_EffectiveAddressWidth(*pinInst);
-    inst->instructionSize = INS_Size(*pinInst);
+    COPY(inst->instructionOpcode, INS_Opcode(*pinInst), 0);
+    COPY(inst->instructionExtension, INS_Extension(*pinInst), 0);
+    COPY(inst->instructionOpcode, INS_Opcode(*pinInst), 0);
+    COPY(inst->instructionExtension, INS_Extension(*pinInst), 0);
+    COPY(inst->effectiveAddressWidth, INS_EffectiveAddressWidth(*pinInst), 0);
+    COPY(inst->effectiveAddressWidth, INS_EffectiveAddressWidth(*pinInst), 0);
+    COPY(inst->instructionSize, INS_Size(*pinInst), 0);
+    COPY(inst->wRegsArrayOccupation, 0, 0);
+    COPY(inst->rRegsArrayOccupation, 0, 0);
 
-    inst->instCausesCacheLineFlush =
-        this->ToUnsignedChar(INS_IsCacheLineFlush(*pinInst));
-    inst->isCallInstruction = this->ToUnsignedChar(INS_IsCall(*pinInst));
-    inst->isSyscallInstruction = this->ToUnsignedChar(INS_IsSyscall(*pinInst));
-    inst->isRetInstruction = this->ToUnsignedChar(INS_IsRet(*pinInst));
-    inst->isSysretInstruction = this->ToUnsignedChar(INS_IsSysret(*pinInst));
-    inst->instHasFallthrough =
-        this->ToUnsignedChar(INS_HasFallThrough(*pinInst));
-    inst->isBranchInstruction = this->ToUnsignedChar(INS_IsBranch(*pinInst));
-    inst->isIndirectControlFlowInst =
-        this->ToUnsignedChar(INS_IsIndirectControlFlow(*pinInst));
-    inst->instReadsMemory = this->ToUnsignedChar(INS_IsMemoryRead(*pinInst));
-    inst->instWritesMemory = this->ToUnsignedChar(INS_IsMemoryWrite(*pinInst));
-    inst->isPredicatedInst = this->ToUnsignedChar(INS_IsPredicated(*pinInst));
+    COPY(inst->instCausesCacheLineFlush, INS_IsCacheLineFlush(*pinInst), 1);
+    COPY(inst->isCallInstruction, INS_IsCall(*pinInst), 1);
+    COPY(inst->isSyscallInstruction, INS_IsSyscall(*pinInst), 1);
+    COPY(inst->isRetInstruction, INS_IsRet(*pinInst), 1);
+    COPY(inst->isSysretInstruction, INS_IsSysret(*pinInst), 1);
+    COPY(inst->instHasFallthrough, INS_HasFallThrough(*pinInst), 1);
+    COPY(inst->isBranchInstruction, INS_IsBranch(*pinInst), 1);
+    COPY(inst->isIndirectCtrlFlowInst, INS_IsIndirectControlFlow(*pinInst),1);
+    COPY(inst->instReadsMemory, INS_IsMemoryRead(*pinInst), 1);
+    COPY(inst->instWritesMemory, INS_IsMemoryWrite(*pinInst), 1);
+    COPY(inst->isPredicatedInst, INS_IsPredicated(*pinInst), 1);
 
-    if (inst->isPredicatedInst) {
-        inst->instructionPredicate = INS_GetPredicate(*pinInst);
+    if (INS_IsPredicated(*pinInst)) {
+        COPY(inst->instructionPredicate, INS_GetPredicate(*pinInst), 0);
     }
 
-    inst->wRegsArrayOccupation = 0;
-    inst->rRegsArrayOccupation = 0;
     int wRegsArraySize = sizeof(inst->writtenRegsArray);
     int rRegsArraySize = sizeof(inst->readRegsArray);
 
     for (unsigned int i = 0; i < INS_OperandCount(*pinInst); ++i) {
-        if (INS_OperandIsReg(*pinInst, i)) {
-            unsigned short reg = INS_OperandReg(*pinInst, i);
-            if (INS_OperandRead(*pinInst, i)) {
-                if (inst->rRegsArrayOccupation >= rRegsArraySize) {
-                    SINUCA3_ERROR_PRINTF(
-                        "More registers read than readRegsArray can store\n");
-                    return 1;
-                }
-                inst->readRegsArray[inst->rRegsArrayOccupation] = reg;
-                ++inst->rRegsArrayOccupation;
+        if (!INS_OperandIsReg(*pinInst, i)) {
+            continue;
+        }
+
+        unsigned short reg = INS_OperandReg(*pinInst, i);
+        if (INS_OperandRead(*pinInst, i)) {
+            if (inst->rRegsArrayOccupation >= rRegsArraySize) {
+                SINUCA3_ERROR_PRINTF(
+                    "More registers read than readRegsArray can store\n");
+                return 1;
             }
-            if (INS_OperandWritten(*pinInst, i)) {
-                if (inst->wRegsArrayOccupation >= wRegsArraySize) {
-                    SINUCA3_ERROR_PRINTF(
-                        "More registers written than writtenRegsArray can "
-                        "store\n");
-                    return 1;
-                }
-                inst->writtenRegsArray[inst->wRegsArrayOccupation] = reg;
-                ++inst->wRegsArrayOccupation;
+            COPY(inst->readRegsArray[inst->rRegsArrayOccupation], reg, 0);
+            ++inst->rRegsArrayOccupation;
+        }
+        if (INS_OperandWritten(*pinInst, i)) {
+            if (inst->wRegsArrayOccupation >= wRegsArraySize) {
+                SINUCA3_ERROR_PRINTF(
+                    "More registers written than writtenRegsArray can "
+                    "store\n");
+                return 1;
             }
+            COPY(inst->writtenRegsArray[inst->wRegsArrayOccupation], reg, 0);
+            ++inst->wRegsArrayOccupation;
         }
     }
 
     ++this->recordArrayOccupation;
 
     return 0;
-}
-
-unsigned char StaticTraceWriter::ToUnsignedChar(bool val) {
-    return (val == true) ? BoolTypeTrue : BoolTypeFalse;
 }
 
 }  // namespace sinucaTracer

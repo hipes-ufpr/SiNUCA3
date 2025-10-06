@@ -53,7 +53,6 @@ class StaticTraceWriter {
     }
 
     int DoubleRecordArraySize();
-    unsigned char ToUnsignedChar(bool val);
 
   public:
     inline StaticTraceWriter()

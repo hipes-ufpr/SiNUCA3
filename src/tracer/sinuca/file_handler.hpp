@@ -78,15 +78,6 @@ enum MemoryOperationType : uint8_t {
     MemoryOperationStore
 };
 
-/**
- * @brief Standard C++ boolean operators may not be 0 or 1 in memory. Thus,
- * we define our boolean type to maintain cross systems compatibility.
- */
-enum BoolType : uint8_t {
-    BoolTypeTrue = 0,
-    BoolTypeFalse = 1
-};
-
 /** @brief Instruction extracted informations */
 struct Instruction {
     uint64_t instructionAddress;
@@ -107,7 +98,7 @@ struct Instruction {
     uint8_t isSysretInstruction;
     uint8_t isPrefetchHintInst;
     uint8_t isPredicatedInst;
-    uint8_t isIndirectControlFlowInst;
+    uint8_t isIndirectCtrlFlowInst;
     uint8_t instCausesCacheLineFlush;
     uint8_t instPerformsAtomicUpdate;
     uint8_t instReadsMemory;

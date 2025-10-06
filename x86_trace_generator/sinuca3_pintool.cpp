@@ -296,7 +296,7 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
     char* name = (char*)malloc(size);
     long idx = absoluteImgPath.find_last_of('/') + 1;
     std::string sub = absoluteImgPath.substr(idx);
-    strcpy(name, sub.c_str());
+    strncpy(name, sub.c_str(), size);
     imageName = name;
 
     PINTOOL_DEBUG_PRINTF("Image name is [%s]\n", imageName);
