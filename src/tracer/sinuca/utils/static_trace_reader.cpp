@@ -74,30 +74,29 @@ void *StaticTraceReader::ReadData(unsigned long len) {
 
 int StaticTraceReader::ReadStaticRecordFromFile() {
     if (this->fileDescriptor == -1) return 1;
-    void *readData = this->ReadData(sizeof(this->record));
+    void *readData = this->ReadData(sizeof(*this->record));
     if (readData == NULL) {
         SINUCA3_ERROR_PRINTF("Failed to read static trace record\n");
         return 1;
     }
-    this->record = *(StaticTraceRecord *)readData;
+    this->record = (StaticTraceRecord *)readData;
     return 0;
 }
 
 void StaticTraceReader::GetInstruction(StaticInstructionInfo *instInfo) {
     if (instInfo == NULL) return;
 
-    Instruction *rawInst = &this->record.data.instruction;
+    Instruction *rawInst = &this->record->data.instruction;
 
     strcpy(instInfo->instMnemonic, rawInst->instructionMnemonic);
 
     instInfo->instSize = rawInst->instructionSize;
     instInfo->instAddress = rawInst->instructionAddress;
-    instInfo->instExtension = rawInst->instructionExtension;
     instInfo->instPerformsAtomicUpdate = rawInst->instPerformsAtomicUpdate;
     instInfo->isPredicatedInst = rawInst->isPredicatedInst;
     instInfo->instReadsMemory = rawInst->instReadsMemory;
     instInfo->instWritesMemory = rawInst->instWritesMemory;
-    instInfo->isIndirectControlFlowInst = rawInst->isIndirectControlFlowInst;
+    instInfo->isIndirectControlFlowInst = rawInst->isIndirectCtrlFlowInst;
     instInfo->numberOfReadRegs = rawInst->rRegsArrayOccupation;
     instInfo->numberOfWriteRegs = rawInst->wRegsArrayOccupation;
 
@@ -127,6 +126,8 @@ void StaticTraceReader::GetInstruction(StaticInstructionInfo *instInfo) {
             instInfo->branchType = BranchUncond;
         }
     }
+
+    this->record = NULL;
 }
 
 }  // namespace sinucaTracer

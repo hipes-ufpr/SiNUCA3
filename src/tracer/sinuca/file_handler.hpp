@@ -44,6 +44,7 @@ namespace sinucaTracer {
 
 const char TRACE_VERSION[] = "0.0.1"; /**<Used to detect incompatibility.> */
 const int MAX_IMAGE_NAME_SIZE = 255;
+const int RECORD_ARRAY_SIZE = 10000;
 
 enum FileType : uint16_t {
     FileTypeStaticTrace,

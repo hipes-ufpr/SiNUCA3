@@ -55,7 +55,7 @@ namespace sinucaTracer {
 class StaticTraceReader {
   private:
     FileHeader header;
-    StaticTraceRecord record;
+    StaticTraceRecord* record;
     unsigned long mmapOffset;
     unsigned long mmapSize;
     int fileDescriptor;
@@ -85,10 +85,10 @@ class StaticTraceReader {
     void GetInstruction(StaticInstructionInfo* instInfo);
 
     inline unsigned char GetStaticRecordType() {
-        return this->record.recordType;
+        return this->record->recordType;
     }
     inline int GetBasicBlockSize() {
-        return this->record.data.basicBlockSize;
+        return this->record->data.basicBlockSize;
     }
     inline unsigned long GetTotalBasicBlocks() {
         return this->header.data.staticHeader.bblCount;

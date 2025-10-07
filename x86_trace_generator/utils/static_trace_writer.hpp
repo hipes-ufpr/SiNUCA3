@@ -61,7 +61,7 @@ class StaticTraceWriter {
         if (this->header.FlushHeader(this->file)) {
             SINUCA3_ERROR_PRINTF("Failed to write static header!\n")
         }
-        if (!this->IsBasicBlockEmpty()) {
+        if (!this->WasBasicBlockReset()) {
             SINUCA3_ERROR_PRINTF("Last basic block is incomplete!\n");
         }
         if (this->file) {
@@ -84,9 +84,6 @@ class StaticTraceWriter {
     }
     inline int IsBasicBlockArrayFull() {
         return (this->basicBlockOccupation >= this->basicBlockArraySize);
-    }
-    inline int IsBasicBlockEmpty() {
-        return (this->basicBlockOccupation <= 0);
     }
     inline void IncStaticInstructionCount() {
         this->header.data.staticHeader.instCount++;

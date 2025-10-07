@@ -67,6 +67,7 @@ int DynamicTraceWriter::AddThreadEvent(unsigned char event, int tid) {
             SINUCA3_ERROR_PRINTF("[1] Failed to flush mem record array!\n")
             return 1;
         }
+        this->ResetRecordArray();
     }
 
     return 0;
@@ -90,6 +91,7 @@ int DynamicTraceWriter::AddBasicBlockId(int id) {
             SINUCA3_ERROR_PRINTF("[2] Failed to flush mem record array!\n")
             return 1;
         }
+        this->ResetRecordArray();
     }
 
     return 0;

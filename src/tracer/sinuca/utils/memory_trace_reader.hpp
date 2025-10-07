@@ -45,7 +45,7 @@ class MemoryTraceReader {
     int numberOfMemStoreOps;
 
   public:
-    inline MemoryTraceReader() : file(NULL) {};
+    inline MemoryTraceReader() : file(0) {};
     inline ~MemoryTraceReader() {
         if (file) {
             fclose(this->file);

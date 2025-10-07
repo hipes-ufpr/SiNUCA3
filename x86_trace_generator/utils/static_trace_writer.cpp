@@ -97,6 +97,7 @@ int StaticTraceWriter::TranslatePinInst(Instruction* inst, const INS* pinInst) {
         SINUCA3_WARNING_PRINTF("Insufficient space to store inst mnemonic\n");
     }
 
+    inst->instructionAddress = INS_Address(*pinInst);
     /* 16, 32 or 64 bits */
     inst->effectiveAddressWidth = INS_EffectiveAddressWidth(*pinInst);
     /* at most 15 bytes len (for now) */

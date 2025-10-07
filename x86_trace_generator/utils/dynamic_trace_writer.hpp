@@ -27,11 +27,6 @@
 #include <tracer/sinuca/file_handler.hpp>
 #include "utils/logging.hpp"
 
-#ifndef RECORD_ARRAY_SIZE_
-#define RECORD_ARRAY_SIZE_
-const int RECORD_ARRAY_SIZE = 10000;
-#endif
-
 namespace sinucaTracer {
 
 /** @brief Check dynamic_trace_writer.hpp documentation for details */

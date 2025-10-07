@@ -38,7 +38,7 @@ int DynamicTraceReader::OpenFile(const char *sourceDir, const char *imageName,
     char *path;
 
     bufferSize = GetPathTidInSize(sourceDir, "dynamic", imageName);
-    path = (char *)malloc(bufferSize);
+    path = (char *)alloca(bufferSize);
     FormatPathTidIn(path, sourceDir, "dynamic", imageName, tid, bufferSize);
     this->file = fopen(path, "rb");
     if (this->file == NULL) return 1;

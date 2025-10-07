@@ -61,8 +61,8 @@ class SinucaTraceReader : public TraceReader {
     StaticTraceReader* staticTrace;
     StaticInstructionInfo** instructionDict;
     StaticInstructionInfo* instructionPool;
-    unsigned long totalBasicBlocks; /**<Number of basic blocks in static file.*/
     int* basicBlockSizeArr; /**<Number of instructions per basic block. */
+    unsigned long totalBasicBlocks; /**<Number of basic blocks in static file.*/
     int totalStaticInst;
     int totalThreads;
 
@@ -78,11 +78,13 @@ class SinucaTraceReader : public TraceReader {
           staticTrace(0),
           instructionDict(0),
           instructionPool(0),
-          totalBasicBlocks(0),
           basicBlockSizeArr(0),
+          totalBasicBlocks(0),
           totalThreads(0) {}
     virtual inline ~SinucaTraceReader() {
-        delete[] this->threadDataArray;
+        if (this->threadDataArray) {
+            delete[] this->threadDataArray;
+        }
         delete[] this->instructionDict;
         delete[] this->instructionPool;
         delete[] this->basicBlockSizeArr;

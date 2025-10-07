@@ -65,6 +65,7 @@ int MemoryTraceWriter::AddNumberOfMemOperations(unsigned int memOps) {
             SINUCA3_ERROR_PRINTF("[1] Failed to flush mem record array!\n")
             return 1;
         }
+        this->ResetRecordArray();
     }
 
     return 0;
@@ -92,6 +93,7 @@ int MemoryTraceWriter::AddMemoryOperation(unsigned long address,
             SINUCA3_ERROR_PRINTF("[1] Failed to flush mem record array!\n")
             return 1;
         }
+        this->ResetRecordArray();
     }
 
     return 0;

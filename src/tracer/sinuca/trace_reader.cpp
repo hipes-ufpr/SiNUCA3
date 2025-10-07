@@ -159,14 +159,14 @@ FetchResult SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
         &this->instructionDict[this->threadDataArray[tid].currentBasicBlock]
                               [this->threadDataArray[tid].currentInst];
 
-    if (this->threadDataArray[tid].memFile->ReadMemoryOperations()) {
-        SINUCA3_ERROR_PRINTF("Failed to read memory operations\n");
-        return FetchResultError;
-    }
-
     unsigned long arraySize;
 
     if (ret->staticInfo->instReadsMemory || ret->staticInfo->instWritesMemory) {
+        if (this->threadDataArray[tid].memFile->ReadMemoryOperations()) {
+            SINUCA3_ERROR_PRINTF("Failed to read memory operations\n");
+            return FetchResultError;
+        }
+
         ret->dynamicInfo.numReadings =
             this->threadDataArray[tid].memFile->GetNumberOfMemLoadOps();
         ret->dynamicInfo.numWritings =
@@ -254,7 +254,7 @@ int TestTraceReader() {
     while (res != FetchResultError && res != FetchResultEnd) {
 
         printf("Instruction name [%s]\n", instPkt.staticInfo->instMnemonic);
-        printf("Instruction address [%lu]\n", instPkt.staticInfo->instAddress);
+        printf("Instruction address [%p]\n", (void *)instPkt.staticInfo->instAddress);
         printf("Instruction size [%lu]\n", instPkt.staticInfo->instSize);
         printf("Instruction branch [%d]\n", instPkt.staticInfo->branchType);
 
@@ -264,6 +264,8 @@ int TestTraceReader() {
     if (res == FetchResultError) {
         SINUCA3_ERROR_PRINTF("Fetch result error!\n");
     }
+
+    delete reader;
 
     return 0;
 }
