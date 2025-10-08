@@ -27,6 +27,8 @@
 #include <cstdio>
 #include <tracer/sinuca/file_handler.hpp>
 
+#include "utils/logging.hpp"
+
 namespace sinucaTracer {
 
 /** @brief Check dynamic_trace_reader.hpp documentation for details */
@@ -34,14 +36,23 @@ class DynamicTraceReader {
   private:
     FILE* file;
     FileHeader header;
-    DynamicTraceRecord record;
+    DynamicTraceRecord recordArray[RECORD_ARRAY_SIZE];
+    int recordArraySize;
+    int recordArrayIndex;
     bool reachedEnd;
 
+    int LoadRecordArray();
+
   public:
-    inline DynamicTraceReader() : file(0), reachedEnd(0) {}
+    inline DynamicTraceReader()
+        : file(0), recordArraySize(0), recordArrayIndex(0), reachedEnd(0) {}
     inline ~DynamicTraceReader() {
         if (file) {
             fclose(this->file);
+        }
+        if (this->recordArrayIndex != this->recordArraySize) {
+            SINUCA3_WARNING_PRINTF(
+                "Basic block ids may have been left unread\n");
         }
     }
 
@@ -49,22 +60,24 @@ class DynamicTraceReader {
     int ReadDynamicRecord();
 
     inline bool ReachedDynamicTraceEnd() {
-        return this->reachedEnd;
+        return (this->reachedEnd &&
+                this->recordArrayIndex == this->recordArraySize);
     }
     inline int GetRecordType() {
-        return this->record.recordType;
+        return this->recordArray[this->recordArrayIndex].recordType;
     }
     inline unsigned long GetBasicBlockIdentifier() {
-        return this->record.data.bbl.basicBlockIdentifier;
+        return this->recordArray[this->recordArrayIndex]
+            .data.bbl.basicBlockIdentifier;
     }
     inline unsigned long GetTotalExecutedInstructions() {
         return this->header.data.dynamicHeader.totalExecutedInstructions;
     }
     inline unsigned char GetThreadEvent() {
-        return this->record.data.thr.event;
+        return this->recordArray[this->recordArrayIndex].data.thr.event;
     }
     inline unsigned int GetThreadIdentifier() {
-        return this->record.data.thr.threadId;
+        return this->recordArray[this->recordArrayIndex].data.thr.threadId;
     }
 };
 

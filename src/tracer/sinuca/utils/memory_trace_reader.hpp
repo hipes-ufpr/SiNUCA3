@@ -26,8 +26,7 @@
 
 #include <sinuca3.hpp>
 #include <tracer/sinuca/file_handler.hpp>
-
-#include <vector>
+#include <utils/circular_buffer.hpp>
 
 namespace sinucaTracer {
 
@@ -36,39 +35,55 @@ class MemoryTraceReader {
   private:
     FILE* file;
     FileHeader header;
-    MemoryTraceRecord record;
-    std::vector<unsigned long> loadOpsAddressVec;
-    std::vector<unsigned long> storeOpsAddressVec;
-    std::vector<unsigned short> loadOpsSizeVec;
-    std::vector<unsigned short> storeOpsSizeVec;
-    int numberOfMemLoadOps;
-    int numberOfMemStoreOps;
+    MemoryTraceRecord recordArray[RECORD_ARRAY_SIZE];
+    int recordArraySize;
+    int recordArrayIndex;
+    bool reachedEnd;
+
+    CircularBuffer loadOperations;
+    CircularBuffer storeOperations;
+
+    int totalLoadOps;
+    int totalStoreOps;
+
+    int LoadRecordArray();
+    int CopyOperations(unsigned long* addrsArr, int addrsArrS,
+                       unsigned int* sizesArr, int sizesArrS, bool isOpLoad);
 
   public:
-    inline MemoryTraceReader() : file(0) {};
+    inline MemoryTraceReader()
+        : file(0), recordArraySize(0), recordArrayIndex(0), reachedEnd(0) {
+        this->loadOperations.Allocate(0, sizeof(*this->recordArray));
+        this->storeOperations.Allocate(0, sizeof(*this->recordArray));
+    };
     inline ~MemoryTraceReader() {
         if (file) {
             fclose(this->file);
         }
+        if (this->loadOperations.GetOccupation() > 0) {
+            SINUCA3_WARNING_PRINTF("Load operations left unread!\n");
+        }
+        this->loadOperations.Deallocate();
+        if (this->storeOperations.GetOccupation() > 0) {
+            SINUCA3_WARNING_PRINTF("Store operations left unread!\n");
+        }
+        this->storeOperations.Deallocate();
     }
 
     int OpenFile(const char* sourceDir, const char* imgName, int tid);
     int ReadMemoryOperations();
-    int CopyLoadOpsAddresses(unsigned long* array, unsigned long size);
-    int CopyLoadOpsSizes(unsigned int* array, unsigned long size);
-    int CopyStoreOpsAddresses(unsigned long* array, unsigned long size);
-    int CopyStoreOpsSizes(unsigned int* array, unsigned long size);
 
-    inline int GetNumberOfMemLoadOps() {
-        int numOps = this->numberOfMemLoadOps;
-        this->numberOfMemLoadOps = 0;
-        return numOps;
+    int CopyLoadOperations(unsigned long* addrsArray, int addrsArraySize,
+                           unsigned int* sizesArray, int sizesArraySize);
+    int CopyStoreOperations(unsigned long* addrsArray, int addrsArraySize,
+                            unsigned int* sizesArray, int sizesArraySize);
+
+    inline bool ReachedMemoryTraceEnd() {
+        return (this->reachedEnd &&
+                this->recordArrayIndex == this->recordArraySize);
     }
-    inline int GetNumberOfMemStoreOps() {
-        int numOps = this->numberOfMemStoreOps;
-        this->numberOfMemStoreOps = 0;
-        return numOps;
-    }
+    inline int GetNumberOfLoads() { return this->totalLoadOps; }
+    inline int GetNumberOfStores() { return this->totalStoreOps; }
 };
 
 }  // namespace sinucaTracer

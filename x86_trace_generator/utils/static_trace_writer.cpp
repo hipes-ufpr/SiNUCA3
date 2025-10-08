@@ -121,9 +121,6 @@ int StaticTraceWriter::TranslatePinInst(Instruction* inst, const INS* pinInst) {
     inst->instWritesMemory = INS_IsMemoryWrite(*pinInst);
     /* e.g. CMOV */
     inst->isPredicatedInst = INS_IsPredicated(*pinInst);
-    if (INS_IsPredicated(*pinInst)) {
-        inst->instructionPredicate = INS_GetPredicate(*pinInst);
-    }
 
     for (unsigned int i = 0; i < INS_OperandCount(*pinInst); ++i) {
         /* interest only in register operands */

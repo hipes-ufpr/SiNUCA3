@@ -53,6 +53,8 @@ int SinucaTraceReader::OpenTrace(const char *imageName, const char *sourceDir) {
 
     for (int tid = 0; tid < this->totalThreads; ++tid) {
         if (this->threadDataArray[tid].Allocate(sourceDir, imageName, tid)) {
+            SINUCA3_ERROR_PRINTF("Failed to allocate [%d] tid data array!\n",
+                                 tid);
             return 1;
         }
     }
@@ -168,32 +170,23 @@ FetchResult SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
         }
 
         ret->dynamicInfo.numReadings =
-            this->threadDataArray[tid].memFile->GetNumberOfMemLoadOps();
+            this->threadDataArray[tid].memFile->GetNumberOfLoads();
         ret->dynamicInfo.numWritings =
-            this->threadDataArray[tid].memFile->GetNumberOfMemStoreOps();
+            this->threadDataArray[tid].memFile->GetNumberOfStores();
 
         arraySize = sizeof(ret->dynamicInfo.readsAddr) / sizeof(unsigned long);
-        if (this->threadDataArray[tid].memFile->CopyLoadOpsAddresses(
-                ret->dynamicInfo.readsAddr, arraySize)) {
-            return FetchResultError;
-        }
-        arraySize = sizeof(ret->dynamicInfo.readsSize) / sizeof(unsigned int);
-        if (this->threadDataArray[tid].memFile->CopyLoadOpsSizes(
+
+        if (this->threadDataArray[tid].memFile->CopyLoadOperations(
+                ret->dynamicInfo.readsAddr, arraySize,
                 ret->dynamicInfo.readsSize, arraySize)) {
             return FetchResultError;
         }
-        arraySize = sizeof(ret->dynamicInfo.writesAddr) / sizeof(unsigned long);
-        if (this->threadDataArray[tid].memFile->CopyStoreOpsAddresses(
-                ret->dynamicInfo.writesAddr, arraySize)) {
-            return FetchResultError;
-        }
-        arraySize = sizeof(ret->dynamicInfo.writesSize) / sizeof(unsigned int);
-        if (this->threadDataArray[tid].memFile->CopyStoreOpsSizes(
+        if (this->threadDataArray[tid].memFile->CopyStoreOperations(
+                ret->dynamicInfo.writesAddr, arraySize,
                 ret->dynamicInfo.writesSize, arraySize)) {
             return FetchResultError;
         }
     }
-
 
     ++this->threadDataArray[tid].currentInst;
     if (this->threadDataArray[tid].currentInst >=
@@ -213,7 +206,7 @@ void SinucaTraceReader::PrintStatistics() {
 }
 
 int ThreadData::Allocate(const char *sourceDir, const char *imageName,
-    int tid) {
+                         int tid) {
     if (!(this->dynFile = new DynamicTraceReader())) {
         SINUCA3_ERROR_PRINTF("Failed to alloc dynamic trace\n");
         return 1;
@@ -237,7 +230,7 @@ int ThreadData::Allocate(const char *sourceDir, const char *imageName,
 
 #ifndef NDEBUG
 int TestTraceReader() {
-    TraceReader* reader = new sinucaTracer::SinucaTraceReader;
+    TraceReader *reader = new sinucaTracer::SinucaTraceReader;
 
     char traceDir[1024];
     char imageName[1024];
@@ -252,9 +245,9 @@ int TestTraceReader() {
     InstructionPacket instPkt;
     FetchResult res = reader->Fetch(&instPkt, 0);
     while (res != FetchResultError && res != FetchResultEnd) {
-
         printf("Instruction name [%s]\n", instPkt.staticInfo->instMnemonic);
-        printf("Instruction address [%p]\n", (void *)instPkt.staticInfo->instAddress);
+        printf("Instruction address [%p]\n",
+               (void *)instPkt.staticInfo->instAddress);
         printf("Instruction size [%lu]\n", instPkt.staticInfo->instSize);
         printf("Instruction branch [%d]\n", instPkt.staticInfo->branchType);
 

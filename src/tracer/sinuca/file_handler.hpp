@@ -84,7 +84,6 @@ struct Instruction {
     uint64_t instructionAddress;
     uint64_t instructionSize;
     uint32_t effectiveAddressWidth;
-    uint32_t instructionPredicate; /**<Used when isPredicatedInst is true */
     uint16_t readRegsArray[MAX_REGISTERS];    /**<Enum defined in reg_ia32.PH */
     uint16_t writtenRegsArray[MAX_REGISTERS]; /**<Enum defined in reg_ia32.PH */
     uint8_t wRegsArrayOccupation;
@@ -178,6 +177,10 @@ struct FileHeader {
         if (!file) return 1;
         rewind(file);
         return (fwrite(this, 1, sizeof(*this), file) != sizeof(*this));
+    }
+    inline int LoadHeader(FILE* file) {
+        if (!file) return 1;
+        return (fread(this, 1, sizeof(*this), file) != sizeof(*this));
     }
     inline void ReserveHeaderSpace(FILE* file) {
         fseek(file, sizeof(*this), SEEK_SET);
