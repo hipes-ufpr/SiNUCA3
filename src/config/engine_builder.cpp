@@ -1,13 +1,11 @@
 #include "engine_builder.hpp"
 
 #include <cassert>
-#include <cmath>
 #include <config/config.hpp>
-#include <config/yaml_parser.hpp>
-#include <cstddef>
-#include <cstring>
 #include <sinuca3.hpp>
-#include <vector>
+#include <yaml/yaml_parser.hpp>
+
+#include "utils/logging.hpp"
 
 //
 // Copyright (C) 2024  HiPES - Universidade Federal do Paraná
@@ -114,29 +112,43 @@ builder::InstanceID EngineBuilder::GetComponentInstantiationOrMakeDummy(
     return instanceID;
 }
 
-static inline void YamlNumber2Parameter(builder::Parameter* dest,
-                                        double number) {
-    long integer = trunc(number);
-    if (((double)integer) == number) {
-        dest->value.integer = integer;
-        dest->type = builder::ParameterTypeInteger;
-    } else {
-        dest->value.number = number;
-        dest->type = builder::ParameterTypeNumber;
-    }
-}
+int EngineBuilder::YamlArray2Parameter(builder::Parameter* dest,
+                                       const yaml::YamlArray array) {
+    dest->value.array.parameters = (builder::Parameter*)this->arena.Alloc(
+        array.size * sizeof(*dest->value.array.parameters));
 
-int EngineBuilder::YamlArray2Parameter(
-    builder::Parameter* dest, const std::vector<yaml::YamlValue*>* array) {
-    dest->value.array.parameters = new builder::Parameter[array->size()];
-
-    for (unsigned long i = 0; i < array->size(); ++i) {
+    for (unsigned long i = 0; i < array.size; ++i) {
         if (this->Yaml2Parameter(NULL, &dest->value.array.parameters[i],
-                                 (*array)[i]))
+                                 &array.elements[i]))
             return 1;
     }
 
     return 0;
+}
+
+builder::Parameter EngineBuilder::YamlString2Parameter(
+    const char* const string) {
+    builder::Parameter ret;
+    if (sscanf(string, "%lf", &ret.value.number) == 1) {
+        ret.type = builder::ParameterTypeNumber;
+        // Check if it's an integer (no decimal point)
+        if (strchr(string, '.') == NULL) {
+            ret.type = builder::ParameterTypeInteger;
+            ret.value.integer = (long)ret.value.number;
+        }
+    } else if (strcmp(string, "true")) {
+        ret.type = builder::ParameterTypeBoolean;
+        ret.value.boolean = true;
+    } else if (strcmp(string, "false")) {
+        ret.type = builder::ParameterTypeBoolean;
+        ret.value.boolean = false;
+    } else {
+        ret.type = builder::ParameterTypeDefinitionReference;
+        ret.value.referenceToDefinition =
+            this->GetComponentDefinitionOrMakeDummy(string);
+    }
+
+    return ret;
 }
 
 int EngineBuilder::Yaml2Parameter(const char* name, builder::Parameter* dest,
@@ -144,13 +156,6 @@ int EngineBuilder::Yaml2Parameter(const char* name, builder::Parameter* dest,
     int err;
 
     switch (src->type) {
-        case yaml::YamlValueTypeBoolean:
-            dest->type = builder::ParameterTypeBoolean;
-            dest->value.boolean = src->value.boolean;
-            break;
-        case yaml::YamlValueTypeNumber:
-            YamlNumber2Parameter(dest, src->value.number);
-            break;
         case yaml::YamlValueTypeArray:
             YamlArray2Parameter(dest, src->value.array);
             break;
@@ -161,9 +166,7 @@ int EngineBuilder::Yaml2Parameter(const char* name, builder::Parameter* dest,
             if (err != 0) return 1;
             break;
         case yaml::YamlValueTypeString:
-            dest->value.referenceToDefinition =
-                this->GetComponentDefinitionOrMakeDummy(src->value.string);
-            dest->type = builder::ParameterTypeDefinitionReference;
+            *dest = this->YamlString2Parameter(src->value.string);
             break;
         case yaml::YamlValueTypeAlias:
             if (strcmp(src->value.alias, "ENGINE") == 0) {
@@ -203,16 +206,16 @@ static inline int AddClass(builder::ComponentDefinition* definition,
     return 0;
 }
 
-int EngineBuilder::FillParametersAndClass(
-    builder::DefinitionID id,
-    const std::vector<yaml::YamlMappingEntry*>* config) {
+int EngineBuilder::FillParametersAndClass(builder::DefinitionID id,
+                                          Map<yaml::YamlValue>* config) {
     SINUCA3_DEBUG_PRINTF("    Filling parameters and class for definition.\n");
 
     builder::ComponentDefinition* definition = &this->componentDefinitions[id];
 
     definition->clazz = NULL;
 
-    if (config->size() == 0) {
+    yaml::YamlValue* clazzValue = config->Get("class");
+    if (clazzValue == NULL) {
         SINUCA3_ERROR_PRINTF(
             "While trying to define component %s: parameter `class` not "
             "provided.\n",
@@ -220,46 +223,39 @@ int EngineBuilder::FillParametersAndClass(
         return 1;
     }
 
-    // It's -1 because we don't append the class.
-    definition->parameters.size = config->size() - 1;
-    definition->parameters.items =
-        new builder::ParameterMapItem[definition->parameters.size];
+    definition->parameters = (Map<builder::Parameter>*)this->arena.Alloc(
+        sizeof(*definition->parameters));
+    *definition->parameters = Map<builder::Parameter>(&this->arena);
 
-    unsigned long itemsIndex = 0;
-    for (unsigned long i = 0; i < config->size(); ++i) {
+    config->ResetIterator();
+    yaml::YamlValue value;
+    for (const char* key = config->Next(&value); key != NULL;
+         key = config->Next(&value)) {
         // Get the class.
-        if (strcmp((*config)[i]->name, "class") == 0) {
-            if (AddClass(definition, (*config)[i]->value)) return 1;
+        if (strcmp(key, "class") == 0) {
+            if (AddClass(definition, &value)) return 1;
 
             continue;
         }
 
-        // If we're on the last item and class was not provided, appending would
-        // overflow, but we know that class was not provided!
-        if (i == config->size() - 1 && definition->clazz == NULL) {
-            SINUCA3_ERROR_PRINTF(
-                "While trying to define component %s: parameter `class` was "
-                "not provided.\n",
-                definition->name);
-            return 1;
-        }
+        builder::Parameter parameter;
+        if (this->Yaml2Parameter(key, &parameter, &value)) return 1;
+        definition->parameters->Insert(key, parameter);
+    }
 
-        // Finally add the parameter.
-        builder::ParameterMapItem* parameter =
-            &definition->parameters.items[itemsIndex];
-        parameter->name = (*config)[i]->name;
-        if (this->Yaml2Parameter(parameter->name, &parameter->value,
-                                 (*config)[i]->value))
-            return 1;
-
-        ++itemsIndex;
+    if (definition->clazz == NULL) {
+        SINUCA3_ERROR_PRINTF(
+            "While trying to define component %s: parameter `class` was not "
+            "provided.\n",
+            definition->name);
+        return 1;
     }
 
     return 0;
 }
 
 int EngineBuilder::AddComponentDefinitionFromYamlMapping(
-    const char* name, const std::vector<yaml::YamlMappingEntry*>* config,
+    const char* name, Map<yaml::YamlValue>* config,
     builder::DefinitionID* ret) {
     builder::DefinitionID definitionID;
     bool mustPop = false;
@@ -286,8 +282,7 @@ int EngineBuilder::AddComponentDefinitionFromYamlMapping(
 }
 
 int EngineBuilder::AddComponentInstantiationFromYamlMapping(
-    const char* name, const char* alias,
-    const std::vector<yaml::YamlMappingEntry*>* config,
+    const char* name, const char* alias, Map<yaml::YamlValue>* config,
     builder::InstanceID* ret) {
     builder::DefinitionID definition;
     if (this->AddComponentDefinitionFromYamlMapping(name, config,
@@ -410,23 +405,6 @@ static inline Linkable* CreateComponent(const char* clazz) {
     return component;
 }
 
-Engine* EngineBuilder::FreeSelfOnInstantiationFailure(
-    const yaml::YamlValue* yamlConfig) {
-    delete yamlConfig;
-    delete this->engine;
-
-    // Go back deallocating everything. We need to do this because
-    // ComponentInstantiation doesn't delete it's own component pointer. Of
-    // course, we skip the engine.
-    for (unsigned long j = 1;
-         j < this->components.size() && this->components[j].component != NULL;
-         ++j)
-        delete this->components[j].component;
-    // The definitions array doesn't need one of this.
-
-    return NULL;
-}
-
 int EngineBuilder::ArrayParameter2ConfigValue(
     const builder::ParameterArray* parameter, ConfigValue* value) {
     std::vector<ConfigValue>* array = new std::vector<ConfigValue>;
@@ -502,42 +480,43 @@ int EngineBuilder::Parameter2ConfigValue(const builder::Parameter* parameter,
 
 int EngineBuilder::SetupComponentConfig(builder::InstanceID instance) {
     Linkable* component = this->components[instance].component;
-    builder::DefinitionID definition = this->components[instance].definition;
+    const builder::DefinitionID definition =
+        this->components[instance].definition;
+    Map<builder::Parameter>* const config =
+        this->componentDefinitions[definition].parameters;
 
-    // We need to perform the access to map each iteration as
-    // Parameter2ConfigValue may append to the array, thus changing the location
-    // of the map.
-    for (long i = 0; i < this->componentDefinitions[definition].parameters.size;
-         ++i) {
-        builder::ParameterMap* map =
-            &this->componentDefinitions[definition].parameters;
-        const char* parameterName = map->items[i].name;
-        const builder::Parameter* parameterValue = &map->items[i].value;
+    config->ResetIterator();
+    builder::Parameter parameter;
+    for (const char* key = config->Next(&parameter); key != NULL;
+         key = config->Next(&parameter)) {
         ConfigValue value;
-        if (this->Parameter2ConfigValue(parameterValue, &value)) return 1;
-        if (component->SetConfigParameter(parameterName, value)) return 1;
+        if (this->Parameter2ConfigValue(&parameter, &value)) return 1;
+        if (component->SetConfigParameter(key, value)) return 1;
     }
 
     return 0;
 }
 
 Engine* EngineBuilder::Instantiate(const char* configFile) {
-    const yaml::YamlValue* yamlConfig = yaml::ParseFile(configFile);
-    if (yamlConfig == NULL) return NULL;
-    assert(yamlConfig->type == yaml::YamlValueTypeMapping);
+    yaml::Parser parser;
+    yaml::YamlValue toplevel;
+    if (parser.ParseFile(configFile, &toplevel)) return NULL;
+
+    assert(toplevel.type == yaml::YamlValueTypeMapping);
 
     // We only need this to instantiate everything.
-    const std::vector<yaml::YamlMappingEntry*>* config =
-        yamlConfig->value.mapping;
+    Map<yaml::YamlValue>* config = toplevel.value.mapping;
 
-    for (unsigned int i = 0; i < config->size(); ++i) {
-        if (this->TreatParameter((*config)[i]->name, (*config)[i]->value))
-            return this->FreeSelfOnInstantiationFailure(yamlConfig);
+    config->ResetIterator();
+
+    yaml::YamlValue parameterValue;
+    for (const char* key = config->Next(&parameterValue); key != NULL;
+         key = config->Next(&parameterValue)) {
+        if (this->TreatParameter(key, &parameterValue)) return NULL;
     }
 
     // Error.
-    if (this->EnsureAllComponentsAreDefined())
-        return this->FreeSelfOnInstantiationFailure(yamlConfig);
+    if (this->EnsureAllComponentsAreDefined()) return NULL;
 
     // We instantiate all components first so the pointers to aliased stuff will
     // always work. We only have to solve definitions references now.
@@ -553,7 +532,7 @@ Engine* EngineBuilder::Instantiate(const char* configFile) {
         if (component->component == NULL) {
             SINUCA3_ERROR_PRINTF("No such component class: %s.\n",
                                  definition->clazz);
-            return this->FreeSelfOnInstantiationFailure(yamlConfig);
+            return NULL;
         }
     }
 
@@ -563,17 +542,13 @@ Engine* EngineBuilder::Instantiate(const char* configFile) {
     //
     // We skip the engine of course.
     for (unsigned long i = 1; i < this->components.size(); ++i) {
-        if (this->SetupComponentConfig(i))
-            return this->FreeSelfOnInstantiationFailure(yamlConfig);
+        if (this->SetupComponentConfig(i)) return NULL;
     }
     for (unsigned long i = 1; i < this->components.size(); ++i) {
-        if (this->components[i].component->FinishSetup()) {
-            return this->FreeSelfOnInstantiationFailure(yamlConfig);
-        }
+        if (this->components[i].component->FinishSetup()) return NULL;
     }
 
     Engine* engine = this->BuildEngine();
-    delete yamlConfig;
     return engine;
 }
 

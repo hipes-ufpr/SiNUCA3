@@ -60,11 +60,22 @@ struct Node {
 template <typename Element>
 class Map {
   private:
-    Arena arena;
+    Arena* arena;
     map::Node<Element>* table[map::M];
+    map::Node<Element>* iteratorPtr;
+    unsigned int iteratorIdx;
+    bool privateArena;
 
   public:
-    Map() : arena(4096) {
+    inline Map(Arena* const arena = NULL) : iteratorPtr(NULL), iteratorIdx(0) {
+        if (arena == NULL) {
+            this->arena = new Arena(4096);
+            this->privateArena = true;
+        } else {
+            this->arena = arena;
+            this->privateArena = false;
+        }
+
         memset(this->table, 0, map::M * sizeof(*this->table));
     };
 
@@ -75,8 +86,8 @@ class Map {
         map::Node<Element>** nodePtr = &this->table[pos];
         while (*nodePtr != NULL) nodePtr = &(*nodePtr)->next;
 
-        *nodePtr = (map::Node<Element>*)this->arena.Alloc(sizeof(**nodePtr));
-        (*nodePtr)->key = (char*)this->arena.Alloc(keyLen + 1);
+        *nodePtr = (map::Node<Element>*)this->arena->Alloc(sizeof(**nodePtr));
+        (*nodePtr)->key = (char*)this->arena->Alloc(keyLen + 1);
         (*nodePtr)->next = NULL;
 
         memcpy((void*)(*nodePtr)->key, key, keyLen + 1);
@@ -94,6 +105,42 @@ class Map {
 
         return NULL;
     }
+
+    inline void ResetIterator() {
+        this->iteratorPtr = NULL;
+        this->iteratorIdx = 0;
+    }
+
+    const char* Next(Element* ret) {
+        if (this->iteratorPtr != NULL) {
+            if (this->iteratorPtr->next != NULL) {
+                this->iteratorPtr = this->iteratorPtr->next;
+                *ret = this->iteratorPtr->value;
+                return this->iteratorPtr->key;
+            } else {
+                this->iteratorIdx += 1;
+                if (this->iteratorIdx >= map::M) {
+                    this->ResetIterator();
+                    return NULL;
+                }
+            }
+        }
+
+        for (; this->iteratorIdx < map::M; ++this->iteratorIdx) {
+            if (this->table[this->iteratorIdx] != NULL) {
+                this->iteratorPtr = this->table[this->iteratorIdx];
+                *ret = this->iteratorPtr->value;
+                return this->iteratorPtr->key;
+            }
+        }
+
+        this->ResetIterator();
+        return NULL;
+    }
+
+    inline ~Map() {
+        if (this->privateArena) delete this->arena;
+    }
 };
 
 /**
@@ -101,16 +148,38 @@ class Map {
  */
 class StringMap {
   private:
-    Arena arena;
+    Arena* arena;
     map::Node<char*>* table[map::M];
+    map::Node<char*>* iteratorPtr;
+    unsigned int iteratorIdx;
+    bool privateArena;
 
   public:
-    inline StringMap() : arena(4096) {
+    inline StringMap(Arena* const arena = NULL) : iteratorPtr(NULL) {
+        if (arena == NULL) {
+            this->arena = new Arena(4096);
+            this->privateArena = true;
+        } else {
+            this->arena = arena;
+            this->privateArena = false;
+        }
+
         memset(this->table, 0, map::M * sizeof(*this->table));
     };
 
     const char* Insert(const char* key, const char* value);
     const char* Get(const char* const key);
+
+    inline void ResetIterator() {
+        this->iteratorPtr = NULL;
+        this->iteratorIdx = 0;
+    };
+
+    const char* Next(char** elementRet);
+
+    inline ~StringMap() {
+        if (this->privateArena) delete this->arena;
+    }
 };
 
 #ifndef NDEBUG

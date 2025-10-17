@@ -29,9 +29,11 @@
  */
 
 #include <cassert>
-#include <config/yaml_parser.hpp>
 #include <engine/engine.hpp>
 #include <vector>
+#include <yaml/yaml_parser.hpp>
+
+#include "utils/arena.hpp"
 
 namespace builder {
 
@@ -159,42 +161,13 @@ struct Parameter {
     }
 };
 
-/** @brief Intermediate representation of a parameter itself (with a name). */
-struct ParameterMapItem {
-    /**
-     * @brief Name of the parameter.
-     * @details This is a pointer to a C-style string from the YamlParser. It
-     * can be treated as an immutable value throughout it's life, as YamlParser
-     * is responsible for it's deletion.
-     */
-    const char* name;
-    Parameter value; /** @brief It's value. */
-};
-
-/**
- * @brief Intermediate representation of a list of parameters, i.e., the entire
- * configuration passed to a component.
- */
-struct ParameterMap {
-    ParameterMapItem* items; /** @brief The parameters. Vector of size size. */
-    long size;               /** @brief Size of items. */
-
-    /** @brief Ensure items is NULL on initialization so it can be used to check
-     * if the map is filled or not. */
-    inline ParameterMap() { this->items = NULL; }
-
-    inline ~ParameterMap() {
-        if (this->items != NULL) delete[] this->items;
-    }
-};
-
 /**
  * @brief Intermediate representation of a component definition, i.e., not an
  * instance, but a list of parameters passed to a certain component, that can be
  * referenced to create instances of components.
  */
 struct ComponentDefinition {
-    ParameterMap parameters; /** @brief The parameters. */
+    Map<Parameter>* parameters; /** @brief The parameters. */
     /**
      * @brief The name of the definition.
      * @details This is a pointer to a C-style string from the YamlParser. It
@@ -244,6 +217,8 @@ struct ComponentDefinition {
  */
 class EngineBuilder {
   private:
+    Arena arena;
+
     /**
      * @brief What we're building.
      */
@@ -266,14 +241,14 @@ class EngineBuilder {
     /** @brief Simply adds an instantiation and a definition. Calls
      * AddComponentDefinitionFromYamlMapping first, then creates an instance.
      * Returns non-zero on error. */
-    int AddComponentInstantiationFromYamlMapping(
-        const char* name, const char* alias,
-        const std::vector<yaml::YamlMappingEntry*>* config,
-        builder::InstanceID* ret);
+    int AddComponentInstantiationFromYamlMapping(const char* name,
+                                                 const char* alias,
+                                                 Map<yaml::YamlValue>* config,
+                                                 builder::InstanceID* ret);
     /** @brief Simply adds a definition, recursively. Returns non-zero on error.
      */
     builder::DefinitionID AddComponentDefinitionFromYamlMapping(
-        const char* name, const std::vector<yaml::YamlMappingEntry*>* config,
+        const char* name, Map<yaml::YamlValue>* config,
         builder::DefinitionID* ret);
     /** @brief Adds a definition not yet defined. */
     builder::DefinitionID AddDummyDefinition(const char* name);
@@ -281,13 +256,14 @@ class EngineBuilder {
     builder::InstanceID AddDummyInstance(const char* alias);
     /** @brief Makes an array of parameters from a YAML array. */
     int YamlArray2Parameter(builder::Parameter* dest,
-                            const std::vector<yaml::YamlValue*>* array);
+                            const yaml::YamlArray array);
 
-    /** @brief Fills the parameters and the class of a component. Parameter are
-     * translated with Yaml2Parameter. */
-    int FillParametersAndClass(
-        builder::DefinitionID id,
-        const std::vector<yaml::YamlMappingEntry*>* config);
+    builder::Parameter YamlString2Parameter(const char* const string);
+
+    /** @brief Fills the parameters and the class of a component. Parameter
+     * are translated with Yaml2Parameter. */
+    int FillParametersAndClass(builder::DefinitionID id,
+                               Map<yaml::YamlValue>* config);
 
     /** @brief If there's a component definition with the name passed, returns a
      * pointer to it. Otherwise creates a dummy one and returns it's pointer. */
@@ -341,10 +317,6 @@ class EngineBuilder {
      * parameter. */
     int TreatInstantiateParameter(const yaml::YamlValue* value);
 
-    /** @brief Helper that frees all memory used by the builder and returns NULL
-     * (to be used as `return this->FreeSelf...`). */
-    Engine* FreeSelfOnInstantiationFailure(const yaml::YamlValue* yamlConfig);
-
     /** @brief After everything is done, constructs the engine. */
     Engine* BuildEngine();
 
@@ -352,7 +324,7 @@ class EngineBuilder {
     /** @brief Instantiates an Engine from a configuration file, returning NULL
      * on error. */
     Engine* Instantiate(const char* configFile);
-    inline EngineBuilder() : engine(new Engine) {
+    inline EngineBuilder() : arena(4096), engine(new Engine) {
         builder::ComponentInstantiation engineInstantiation =
             builder::ComponentInstantiation(NULL, 0, true);
         engineInstantiation.component = this->engine;

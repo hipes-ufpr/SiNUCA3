@@ -1,0 +1,4 @@
+include:
+  - include-array-nested.yaml
+
+include-array1: worked

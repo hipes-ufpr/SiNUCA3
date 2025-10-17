@@ -48,9 +48,9 @@ const char* StringMap::Insert(const char* key, const char* value) {
     map::Node<char*>** nodePtr = &this->table[pos];
     while (*nodePtr != NULL) nodePtr = &(*nodePtr)->next;
 
-    *nodePtr = (map::Node<char*>*)this->arena.Alloc(sizeof(**nodePtr));
-    (*nodePtr)->key = (char*)this->arena.Alloc(keyLen);
-    (*nodePtr)->value = (char*)this->arena.Alloc(valueLen);
+    *nodePtr = (map::Node<char*>*)this->arena->Alloc(sizeof(**nodePtr));
+    (*nodePtr)->key = (char*)this->arena->Alloc(keyLen);
+    (*nodePtr)->value = (char*)this->arena->Alloc(valueLen);
     (*nodePtr)->next = NULL;
 
     memcpy((void*)(*nodePtr)->key, key, keyLen + 1);
@@ -67,6 +67,33 @@ const char* StringMap::Get(const char* const key) {
         if (strcmp(node->key, key) == 0) return node->value;
     }
 
+    return NULL;
+}
+
+const char* StringMap::Next(char** elementRet) {
+    if (this->iteratorPtr != NULL) {
+        if (this->iteratorPtr->next != NULL) {
+            this->iteratorPtr = this->iteratorPtr->next;
+            *elementRet = this->iteratorPtr->value;
+            return this->iteratorPtr->key;
+        } else {
+            this->iteratorIdx += 1;
+            if (this->iteratorIdx >= map::M) {
+                this->ResetIterator();
+                return NULL;
+            }
+        }
+    }
+
+    for (; this->iteratorIdx < map::M; ++this->iteratorIdx) {
+        if (this->table[this->iteratorIdx] != NULL) {
+            this->iteratorPtr = this->table[this->iteratorIdx];
+            *elementRet = this->iteratorPtr->value;
+            return this->iteratorPtr->key;
+        }
+    }
+
+    this->ResetIterator();
     return NULL;
 }
 
