@@ -106,10 +106,11 @@ void Engine::PrintTime(time_t start, unsigned long cycle) {
     const unsigned long remaining = this->traceSize - this->fetchedInstructions;
 
     SINUCA3_LOG_PRINTF("engine: Heartbeat at cycle %ld.\n", cycle);
-    SINUCA3_LOG_PRINTF("engine: Remaining instructions: %ld.\n", remaining - 1);
+    SINUCA3_LOG_PRINTF("engine: Remaining instructions: %ld.\n", remaining);
 
     const time_t now = time(NULL);
-    const time_t estimatedEnd = (traceSize * (now - start) / remaining) + start;
+    const time_t estimatedEnd =
+        remaining == 0 ? now : (traceSize * (now - start) / remaining) + start;
     SINUCA3_LOG_PRINTF("engine: Estimated simulation end: %s",
                        ctime(&estimatedEnd));
 }
