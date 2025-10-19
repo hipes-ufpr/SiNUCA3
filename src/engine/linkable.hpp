@@ -64,9 +64,9 @@ struct Connection {
     inline int GetMessageSize() const;
 
     /**
-     * @brief Swap the buffers of the connection.
-     */
-    void SwapBuffers();
+    * @brief Swaps the connection buffers and flushes unread buffers.
+    */
+    void CommitBuffers();
 
     /**
      * @brief Insert a message into a requestBuffer.
