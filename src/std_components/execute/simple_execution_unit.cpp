@@ -42,8 +42,10 @@ void SimpleExecutionUnit::Clock() {
 }
 
 void SimpleExecutionUnit::PrintStatistics() {
-    SINUCA3_LOG_PRINTF("SimpleExecutionUnit %p: %lu instructions executed\n",
-                       this, this->numberOfInstructions);
+    SINUCA3_LOG_PRINTF("SimpleExecutionUnit [%p]\n", this);
+
+    SINUCA3_LOG_PRINTF("    Instructions executed: %lu\n",
+                       this->numberOfInstructions);
 }
 
 SimpleExecutionUnit::~SimpleExecutionUnit() {}
