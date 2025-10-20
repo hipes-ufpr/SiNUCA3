@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <string>
 
+#include "tracer/sinuca/file_handler.hpp"
 #include "utils/logging.hpp"
 
 extern "C" {
@@ -56,7 +57,7 @@ int StaticTraceWriter::ReallocBasicBlock() {
     }
     this->basicBlockArraySize <<= 1;
     this->basicBlock = (StaticTraceRecord*)realloc(this->basicBlock,
-                                                   this->basicBlockArraySize);
+                                                   sizeof(StaticTraceRecord) * this->basicBlockArraySize);
 
     return (this->basicBlock == NULL);
 }
@@ -88,6 +89,15 @@ int StaticTraceWriter::AddBasicBlockSize(unsigned int basicBlockSize) {
 }
 
 int StaticTraceWriter::TranslatePinInst(Instruction* inst, const INS* pinInst) {
+    if (inst == NULL) {
+        SINUCA3_ERROR_PRINTF("TranslatePinInst inst is nil\n");
+        return 1;
+    }
+    if (pinInst == NULL) {
+        SINUCA3_ERROR_PRINTF("TranslatePinInst pinInst is nil\n");
+        return 1;
+    }
+
     memset(inst, 0, sizeof(*inst));
 
     std::string mnemonic = INS_Mnemonic(*pinInst);
@@ -161,14 +171,13 @@ int StaticTraceWriter::AddInstruction(const INS* pinInst) {
         }
     }
 
-    // Instruction* inst =
-    //    &this->basicBlock[this->basicBlockOccupation].data.instruction;
+    Instruction* inst = &this->basicBlock[this->basicBlockOccupation].data.instruction;
 
     this->basicBlock[this->basicBlockOccupation].recordType =
         StaticRecordInstruction;
-    // if (this->TranslatePinInst(inst, pinInst)) {
-    //     SINUCA3_ERROR_PRINTF("Failed to properly translate instruction!\n");
-    // }
+    if (this->TranslatePinInst(inst, pinInst)) {
+        SINUCA3_ERROR_PRINTF("Failed to properly translate instruction!\n");
+    }
 
     ++this->basicBlockOccupation;
 

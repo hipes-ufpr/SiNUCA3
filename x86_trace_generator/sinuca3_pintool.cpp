@@ -32,7 +32,7 @@
 #include <sinuca3.hpp>
 
 #include "pin.H"
-#include "tracer/sinuca/file_handler.hpp"
+
 #include "utils/dynamic_trace_writer.hpp"
 #include "utils/memory_trace_writer.hpp"
 #include "utils/static_trace_writer.hpp"
@@ -87,6 +87,7 @@ struct ThreadData {
 
 std::vector<ThreadData*> threadDataVec;
 sinucaTracer::StaticTraceWriter* staticTrace;
+std::vector<std::string> rtnsWithPauseInst;
 
 /** @brief Used to block two threads from trying to print simultaneously. */
 static PIN_LOCK debugPrintLock;
@@ -257,21 +258,34 @@ VOID AppendToMemTrace(THREADID tid, PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
 VOID OnTrace(TRACE trace, VOID* ptr) {
     if (!isInstrumentating) return;
 
-    if (!RTN_Valid(TRACE_Rtn(trace))) {
-        PINTOOL_DEBUG_PRINTF("Routine is [%s]\n", RTN_Name(TRACE_Rtn(trace)).c_str());
+    RTN rtn = TRACE_Rtn(trace);
+    if (!RTN_Valid(rtn)) {
+        PINTOOL_DEBUG_PRINTF("Found invalid routine! Skipping...\n");
+        return;
+    }
+
+    RTN_Open(rtn);
+    std::string rtnName = RTN_Name(rtn);
+    RTN_Close(rtn);
+
+    for (std::string& str : rtnsWithPauseInst) {
+        if (rtnName == str) {
+            PINTOOL_DEBUG_PRINTF("Not instrumenting [%s]. Skipping...\n", rtnName.c_str());
+        }
     }
 
     for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
+        /* c */
         unsigned int numberInstInBasicBlock = BBL_NumIns(bbl);
         unsigned int basicBlockIndex = staticTrace->GetBasicBlockCount();
-
         BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)AppendToDynamicTrace,
                        IARG_THREAD_ID, IARG_UINT32, basicBlockIndex,
                        IARG_UINT32, numberInstInBasicBlock, IARG_END);
-
+        /* c */
         if (staticTrace->AddBasicBlockSize(numberInstInBasicBlock)) {
             PINTOOL_DEBUG_PRINTF("Failed to add basic block count to file\n");
         }
+        /* c */
         staticTrace->IncBasicBlockCount();
 
         for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
@@ -280,16 +294,17 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
             }
             staticTrace->IncStaticInstructionCount();
 
-            // bool hasMemOperators =
-            //     INS_IsMemoryRead(ins) || INS_IsMemoryWrite(ins);
+            bool hasMemOperators =
+                INS_IsMemoryRead(ins) || INS_IsMemoryWrite(ins);
 
-            // if (hasMemOperators) {
-            //     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTrace,
-            //                    IARG_THREAD_ID, IARG_MULTI_MEMORYACCESS_EA,
-            //                    IARG_END);
-            // }
+            if (hasMemOperators) {
+                INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)AppendToMemTrace,
+                               IARG_THREAD_ID, IARG_MULTI_MEMORYACCESS_EA,
+                               IARG_END);
+            }
         }
     }
+
 }
 
 VOID OnThreadEvent(THREADID tid, INT32 eid, UINT32 event) {
@@ -353,7 +368,7 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
         return;
     }
 
-    // int eventIdentifier = 0;
+    int eventIdentifier = 0;
     parentThreadId = 0;
 
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
@@ -369,29 +384,36 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
                 RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)StopInstrumentation,
                                IARG_END);
             }
-            // if (strcmp(rtnName, "EnableThreadInstrumentation") == 0) {
-            //     RTN_InsertCall(rtn, IPOINT_BEFORE,
-            //                    (AFUNPTR)EnableInstrumentationInThread,
-            //                    IARG_THREAD_ID, IARG_END);
-            // }
-            // if (strcmp(rtnName, "DisableThreadInstrumentation") == 0) {
-            //     RTN_InsertCall(rtn, IPOINT_BEFORE,
-            //                    (AFUNPTR)DisableInstrumentationInThread,
-            //                    IARG_THREAD_ID, IARG_END);
-            // }
+            if (strcmp(rtnName, "EnableThreadInstrumentation") == 0) {
+                RTN_InsertCall(rtn, IPOINT_BEFORE,
+                               (AFUNPTR)EnableInstrumentationInThread,
+                               IARG_THREAD_ID, IARG_END);
+            }
+            if (strcmp(rtnName, "DisableThreadInstrumentation") == 0) {
+                RTN_InsertCall(rtn, IPOINT_BEFORE,
+                               (AFUNPTR)DisableInstrumentationInThread,
+                               IARG_THREAD_ID, IARG_END);
+            }
 
-            // for (unsigned long i = 0;
-            //      i < sizeof(GOMP_RTNS) / sizeof(ThreadEvent); ++i) {
-            //     if (strcmp(rtnName, GOMP_RTNS[i].name.c_str()) == 0) {
-            //         RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadEvent,
-            //                        IARG_THREAD_ID, IARG_UINT32, eventIdentifier,
-            //                        IARG_UINT32, GOMP_RTNS[i].type, IARG_END);
+            for (unsigned long i = 0;
+                 i < sizeof(GOMP_RTNS) / sizeof(ThreadEvent); ++i) {
+                if (strcmp(rtnName, GOMP_RTNS[i].name.c_str()) == 0) {
+                    RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadEvent,
+                                   IARG_THREAD_ID, IARG_UINT32, eventIdentifier,
+                                   IARG_UINT32, GOMP_RTNS[i].type, IARG_END);
 
-            //         PINTOOL_DEBUG_PRINTF("Found %s; Event Id is [%d]!\n",
-            //                              rtnName, eventIdentifier);
-            //         ++eventIdentifier;
-            //     }
-            // }
+                    PINTOOL_DEBUG_PRINTF("Found %s; Event Id is [%d]!\n",
+                                         rtnName, eventIdentifier);
+                    ++eventIdentifier;
+                }
+            }
+
+            for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins)) {
+                if (INS_Mnemonic(ins) == "PAUSE") {
+                    PINTOOL_DEBUG_PRINTF("Found pause in [%s]\n", rtnName);
+                    rtnsWithPauseInst.push_back(rtnName);
+                }
+            }
 
             RTN_Close(rtn);
         }
@@ -405,12 +427,9 @@ VOID OnFini(INT32 code, VOID* ptr) {
     if (imageName) {
         free((void*)imageName);
     }
-    PINTOOL_DEBUG_PRINTF("End of tool execution! [2]\n");
     if (staticTrace) {
         delete staticTrace;
     }
-    PINTOOL_DEBUG_PRINTF("End of tool execution! [3]\n");
-
     if (!wasInitInstrumentationCalled) {
         PINTOOL_DEBUG_PRINTF(
             "No instrumentation blocks were found in the target program.\n\n");
