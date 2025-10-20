@@ -133,25 +133,33 @@ void sinucaTracer::StaticTraceFile::SetFlags(const INS* ins) {
 }
 
 void sinucaTracer::StaticTraceFile::SetBranchFields(const INS* ins) {
-    bool isSyscall = INS_IsSyscall(*ins);
-    bool isControlFlow = INS_IsControlFlow(*ins) || isSyscall;
+    if (INS_IsIndirectControlFlow(*ins)) {
+        this->data.isIndirectControlFlow = 1;
+    }
 
-    if (isControlFlow) {
-        if (isSyscall)
-            this->data.branchType = BRANCH_SYSCALL;
-        else if (INS_IsCall(*ins))
-            this->data.branchType = BRANCH_CALL;
-        else if (INS_IsRet(*ins))
-            this->data.branchType = BRANCH_RETURN;
-        else if (INS_HasFallThrough(*ins))
+    this->data.isControlFlow = 1;
+
+    SINUCA3_DEBUG_PRINTF("Inst: %s\n", INS_Mnemonic(*ins).c_str());
+
+    if (INS_IsSyscall(*ins)) {
+        this->data.branchType = BRANCH_SYSCALL;
+    } else if (INS_IsCall(*ins)) {
+        this->data.branchType = BRANCH_CALL;
+    } else if (INS_IsRet(*ins)) {
+        this->data.branchType = BRANCH_RETURN;
+    } else if (INS_IsSysret(*ins)) {
+        this->data.branchType = BRANCH_RETURN;
+    } else if (INS_IsBranch(*ins)) {
+        if (INS_HasFallThrough(*ins)) {
             this->data.branchType = BRANCH_COND;
-        else
+        } else {
             this->data.branchType = BRANCH_UNCOND;
-
-        this->data.isControlFlow = 1;
-        if (INS_IsIndirectControlFlow(*ins)) {
-            this->data.isIndirectControlFlow = 1;
         }
+    } else {
+        this->data.branchType = BRANCH_SYSCALL; /* default */
+        this->data.isControlFlow = 0;
+        SINUCA3_WARNING_PRINTF(
+            "Setting default branch type as Syscall with ControlFlow zero\n");
     }
 }
 
