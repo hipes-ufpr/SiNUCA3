@@ -286,8 +286,8 @@ void BoomFetch::ClockSendBuffered() {
         this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToPredictor;
 
         // if (this->SendToRas(i)) {
-        //    this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendToRas;
-        //}
+        //     this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToRas;
+        // }
 
         i++;
     }
@@ -341,6 +341,7 @@ int BoomFetch::ClockCheckRas() {
     PredictorPacket response;
 
     this->ras->Clock();
+    this->ras->PosClock();
 
     while (this->ras->ReceiveResponse(this->rasID, &response) == 0) {
         target = response.data.response.target;
@@ -513,7 +514,8 @@ void BoomFetch::Clock() {
     this->ClockUnbuffer();
 
     if (predictionResult != 0)
-    // || (rasResult != 0) || (btbResult != 0))
+    // || (rasResult != 0))
+    //|| (btbResult != 0))
     {
         ++this->misspredictions;
         this->currentPenalty = this->misspredictPenalty;

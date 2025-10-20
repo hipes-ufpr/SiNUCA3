@@ -139,24 +139,20 @@ void HardwiredPredictor::Clock() {
 }
 
 void HardwiredPredictor::PrintStatistics() {
-    SINUCA3_LOG_PRINTF(
-        "HardwiredPredictor %p: %lu syscalls executed (predict: %b).\n", this,
-        this->numberOfSyscalls, this->syscall);
-    SINUCA3_LOG_PRINTF(
-        "HardwiredPredictor %p: %lu calls executed (predict: %b).\n", this,
-        this->numberOfCalls, this->call);
-    SINUCA3_LOG_PRINTF(
-        "HardwiredPredictor %p: %lu rets executed (predict: %b).\n", this,
-        this->numberOfRets, this->ret);
-    SINUCA3_LOG_PRINTF(
-        "HardwiredPredictor %p: %lu unconds executed (predict: %b).\n", this,
-        this->numberOfUnconds, this->uncond);
-    SINUCA3_LOG_PRINTF(
-        "HardwiredPredictor %p: %lu conds executed (predict: %b).\n", this,
-        this->numberOfConds, this->cond);
-    SINUCA3_LOG_PRINTF(
-        "HardwiredPredictor %p: %lu noBranchs executed (predict: %b).\n", this,
-        this->numberOfNoBranchs, this->noBranch);
+    SINUCA3_LOG_PRINTF("HardiwiredPredictor [%p]\n", this);
+
+    SINUCA3_LOG_PRINTF("    %lu Syscalls executed (predict: %b).\n",
+                       this->numberOfSyscalls, this->syscall);
+    SINUCA3_LOG_PRINTF("    %lu Calls executed (predict: %b).\n",
+                       this->numberOfCalls, this->call);
+    SINUCA3_LOG_PRINTF("    %lu Rets executed (predict: %b).\n",
+                       this->numberOfRets, this->ret);
+    SINUCA3_LOG_PRINTF("    %lu Unconds executed (predict: %b).\n",
+                       this->numberOfUnconds, this->uncond);
+    SINUCA3_LOG_PRINTF("    %lu Conds executed (predict: %b).\n",
+                       this->numberOfConds, this->cond);
+    SINUCA3_LOG_PRINTF("    %lu NoBranchs executed (predict: %b).\n",
+                       this->numberOfNoBranchs, this->noBranch);
 }
 
 HardwiredPredictor::~HardwiredPredictor() {}
