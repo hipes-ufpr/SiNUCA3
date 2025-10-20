@@ -145,6 +145,15 @@ int BoomFetch::SetConfigParameter(const char* parameter, ConfigValue value) {
     return 1;
 }
 
+void binprintf(int v) {
+    unsigned int mask = 1 << ((sizeof(int) << 3) - 1);
+    while (mask) {
+        printf("%d", (v & mask ? 1 : 0));
+        mask >>= 1;
+    }
+    printf("\n");
+}
+
 int BoomFetch::FinishSetup() {
     if (this->fetch == NULL) {
         SINUCA3_ERROR_PRINTF(
@@ -180,6 +189,9 @@ int BoomFetch::FinishSetup() {
 
     this->fetchBuffer = new BoomFetchBufferEntry[this->fetchSize];
 
+    this->flagsToCheck = BoomFetchBufferEntryFlagsSentToMemory;
+    this->flagsToCheck |= BoomFetchBufferEntryFlagsPredictorCheck;
+
     if (this->btb->FinishSetup()) {
         return 1;
     }
@@ -191,114 +203,93 @@ int BoomFetch::FinishSetup() {
     return 0;
 }
 
+bool BoomFetch::SendToRas(unsigned long i) {
+    PredictorPacket rasPacket;
+    if (this->fetchBuffer[i].instruction.staticInfo->branchType == BranchCall) {
+        /* Fills the packet with the instruction and target info. */
+        /*
+         * We found a call instruction and want to insert its target into
+         * the ras.
+         */
+        rasPacket.type = PredictorPacketTypeRequestUpdate;
+        rasPacket.data.requestUpdate.instruction =
+            this->fetchBuffer[i].instruction;
+        rasPacket.data.requestUpdate.target =
+            this->fetchBuffer[i].instruction.nextInstruction;
+        this->ras->SendRequest(this->rasID, &rasPacket);
+
+        return true;
+    } else if (this->fetchBuffer[i].instruction.staticInfo->branchType ==
+               BranchReturn) {
+        /*
+         * We found a return statement, so we unstacked the most recent
+         * target from the ras.
+         */
+        rasPacket.type = PredictorPacketTypeRequestQuery;
+        rasPacket.data.requestQuery = this->fetchBuffer[i].instruction;
+        this->ras->SendRequest(this->rasID, &rasPacket);
+
+        return true;
+    }
+
+    return false;
+}
+
 void BoomFetch::ClockSendBuffered() {
-    unsigned int i;
-    int rasUsed;
-    int sendMemoryReturn, sendPredictorReturn, sendRasReturn, sendBTBReturn,
-        successfulySend = 1;
+    unsigned long i;
+    bool instMemAvailable;
+    bool predictorAvailable;
+    bool btbAvailable;
+    bool rasAvailable;
+
+    // BTBPacket btbPacket;
+    PredictorPacket predictorPacket;
 
     /* Skip instructions we already sent. */
     i = 0;
-    while (this->fetchBuffer[i].flags & BoomFetchBufferEntryFlagsSendInst) ++i;
+    while (this->fetchBuffer[i].flags & BoomFetchBufferEntryFlagsSentToMemory)
+        ++i;
 
-    BTBPacket btbPacket;
-    btbPacket.data.requestQuery = this->fetchBuffer[i].instruction.staticInfo;
-    btbPacket.type = BTBPacketTypeRequestQuery;
-    sendBTBReturn = this->btb->SendRequest(this->btbID, &btbPacket);
+    btbAvailable = this->btb->IsComponentAvailable(this->btbID);
 
-    if (sendBTBReturn) {
-        successfulySend = 0;
-    } else {
-        this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendBTB;
-    }
+    if (!(btbAvailable)) return;
+
+    //    if (i < this->fetchBufferUsage) {
+    //        btbPacket.type = BTBPacketTypeRequestQuery;
+    //        btbPacket.data.requestQuery =
+    //            this->fetchBuffer[i].instruction.staticInfo;
+    //        this->btb->SendRequest(this->btbID, &btbPacket);
+    //        this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendToBTB;
+    //    }
 
     while (i < this->fetchBufferUsage) {
-        rasUsed = 0;
+        instMemAvailable = this->instructionMemory->IsComponentAvailable(
+            this->instructionMemoryID);
 
-        SINUCA3_DEBUG_PRINTF(
-            "%s %ld\n",
-            this->fetchBuffer[i].instruction.staticInfo->opcodeAssembly,
-            this->fetchBuffer[i].instruction.staticInfo->opcodeAddress);
+        predictorAvailable =
+            this->predictor->IsComponentAvailable(this->predictorID);
 
-        /* Send to Memory */
-        sendMemoryReturn = this->instructionMemory->SendRequest(
-            this->instructionMemoryID, &this->fetchBuffer[i].instruction);
-        if (sendMemoryReturn) {
-            successfulySend = 0;
-        } else {
-            this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendMemory;
-        }
+        rasAvailable = this->ras->IsComponentAvailable(this->rasID);
 
-        /* Send to Predictor */
-        PredictorPacket predictorPacket;
-        predictorPacket.type = PredictorPacketTypeRequestQuery;
-        predictorPacket.data.requestQuery = this->fetchBuffer[i].instruction;
-        sendPredictorReturn =
-            this->predictor->SendRequest(this->predictorID, &predictorPacket);
-
-        if (sendPredictorReturn) {
-            successfulySend = 0;
-        } else {
-            this->fetchBuffer[i].flags |=
-                BoomFetchBufferEntryFlagsSendPredictor;
-        }
-
-        /* Send to Ras */
-        if (this->fetchBuffer[i].instruction.staticInfo->branchType ==
-            BranchCall) {
-            rasUsed = 1;
-            PredictorPacket predictorPacket;
-
-            /* Fills the packet with the instruction and target info. */
-            /*
-             * We found a call instruction and want to insert its target into
-             * the ras
-             */
-            predictorPacket.data.requestUpdate.instruction =
-                this->fetchBuffer[i].instruction;
-            predictorPacket.data.requestUpdate.target =
-                this->fetchBuffer[i].instruction.nextInstruction;
-            predictorPacket.type = PredictorPacketTypeRequestUpdate;
-
-            sendRasReturn =
-                this->ras->SendRequest(this->rasID, &predictorPacket);
-            if (sendRasReturn) {
-                successfulySend = 0;
-            } else {
-                this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendRas;
-            }
-
-        } else if (this->fetchBuffer[i].instruction.staticInfo->branchType ==
-                   BranchReturn) {
-            rasUsed = 1;
-            PredictorPacket predictorPacket;
-
-            /*
-             * We found a return statement, so we unstacked the most recent
-             * target from the ras.
-             */
-            predictorPacket.data.requestQuery =
-                this->fetchBuffer[i].instruction;
-            predictorPacket.type = PredictorPacketTypeRequestQuery;
-
-            sendRasReturn =
-                this->ras->SendRequest(this->rasID, &predictorPacket);
-            if (sendRasReturn) {
-                successfulySend = 0;
-            } else {
-                this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendRas;
-            }
-        }
-
-        if (successfulySend)
-            this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendInst;
-
-        if (sendMemoryReturn || sendPredictorReturn ||
-            (rasUsed && sendRasReturn)) {
+        if (!(instMemAvailable) || !(predictorAvailable) || !(rasAvailable)) {
             break;
         }
 
-        ++i;
+        this->instructionMemory->SendRequest(this->instructionMemoryID,
+                                             &this->fetchBuffer[i].instruction);
+
+        predictorPacket.type = PredictorPacketTypeRequestQuery;
+        predictorPacket.data.requestQuery = this->fetchBuffer[i].instruction;
+        this->predictor->SendRequest(this->predictorID, &predictorPacket);
+
+        this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToMemory;
+        this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToPredictor;
+
+        // if (this->SendToRas(i)) {
+        //    this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendToRas;
+        //}
+
+        i++;
     }
 }
 
@@ -322,10 +313,12 @@ int BoomFetch::ClockCheckPredictor() {
             this->fetchBuffer[i].instruction.staticInfo->opcodeAddress +
             this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
 
+        this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsPredictorCheck;
+
         /*
          * "Redirect" the fetch only if the predictor has an address, otherwise
+         * expect the instruction to be at the next logical PC.
          */
-        /* expect the instruction to be at the next logical PC. */
         if (response.type == PredictorPacketTypeResponseTakeToAddress) {
             target = response.data.response.target;
         }
@@ -334,7 +327,7 @@ int BoomFetch::ClockCheckPredictor() {
         if (target != this->fetchBuffer[i].instruction.nextInstruction) {
             return 1;
         }
-        this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsPredictorCheck;
+
         ++i;
     }
 
@@ -373,7 +366,8 @@ int BoomFetch::ClockCheckBTB() {
     miss = 0;
     if (this->btb->ReceiveResponse(this->btbID, &response) == 0) {
         i = 0;
-        while (this->fetchBuffer[i].flags & BoomFetchBufferEntryFlagsSendInst)
+        while (this->fetchBuffer[i].flags &
+               BoomFetchBufferEntryFlagsSentToMemory)
             ++i;
         assert(this->fetchBuffer[i].instruction.staticInfo ==
                response.data.response.instruction);
@@ -469,6 +463,7 @@ int BoomFetch::ClockCheckBTB() {
 
 void BoomFetch::ClockUnbuffer() {
     unsigned long i = 0;
+
     while (i < this->fetchBufferUsage &&
            ((this->fetchBuffer[i].flags & this->flagsToCheck) ==
             this->flagsToCheck)) {
@@ -506,7 +501,6 @@ void BoomFetch::ClockFetch() {
 }
 
 void BoomFetch::Clock() {
-    /* If paying a misspredict penalty */
     if (this->currentPenalty > 0) {
         --this->currentPenalty;
         return;
@@ -514,14 +508,17 @@ void BoomFetch::Clock() {
 
     this->ClockSendBuffered();
     const int predictionResult = this->ClockCheckPredictor();
-    const int rasResult = this->ClockCheckRas();
-    const int btbResult = this->ClockCheckBTB();
+    // const int rasResult = this->ClockCheckRas();
+    // const int btbResult = this->ClockCheckBTB();
     this->ClockUnbuffer();
 
-    if ((predictionResult != 0) || (rasResult != 0) || (btbResult != 0)) {
+    if (predictionResult != 0)
+    // || (rasResult != 0) || (btbResult != 0))
+    {
         ++this->misspredictions;
         this->currentPenalty = this->misspredictPenalty;
         this->fetchClock = 0;
+        return;
     }
 
     this->ClockFetch();
@@ -535,7 +532,7 @@ void BoomFetch::Clock() {
 }
 
 void BoomFetch::PrintStatistics() {
-    SINUCA3_LOG_PRINTF("Boom Fetch [%p]", this);
+    SINUCA3_LOG_PRINTF("Boom Fetch [%p]\n", this);
     this->btb->PrintStatistics();
     this->ras->PrintStatistics();
 }

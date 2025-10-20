@@ -35,21 +35,24 @@
  */
 typedef int BoomFetchBufferEntryFlags;
 
-/** @brief This instruction was send to memory. */
-const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSendMemory = (1 << 0);
 /** @brief This instruction was send to predictor. */
-const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSendPredictor =
-    (1 << 1);
-/** @brief This instruction was send to ras. */
-const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSendRas = (1 << 2);
-/** @brief This instruction was send to btb. */
-const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSendBTB = (1 << 3);
+const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSentToPredictor =
+    (1 << 0);
 
 /** @brief This instruction was checked for predictor. */
 const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsPredictorCheck =
+    (1 << 1);
+
+/** @brief This instruction was send to ras. */
+const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSentToRas = (1 << 2);
+
+/** @brief This instruction was send to btb. */
+const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSentToBTB = (1 << 3);
+
+/** @brief This instruction was send to memory. */
+const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSentToMemory =
     (1 << 4);
-/** @brief This instruction was processed by fetch. */
-const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSendInst = (1 << 5);
+
 struct BoomFetchBufferEntry {
     InstructionPacket instruction;   /**< Fetched instruction >*/
     BoomFetchBufferEntryFlags flags; /**< Flags for the entry >*/
@@ -109,9 +112,9 @@ class BoomFetch : public Component<FetchPacket> {
     int rasID;               /**< ID of the RAS component */
     BoomFetchBufferEntryFlags
         flagsToCheck; /**<Flags to check when removing entries from the buffer.
-                         If there's a predictor, we need to check wether the
-                         instruction was predicted. If there's no predictor, we
-                         don't need to check anything >*/
+   If there's a predictor, we need to check wether the
+   instruction was predicted. If there's no predictor, we
+   don't need to check anything >*/
 
     /** @brief Helper to set the fetch config parameter. */
     int FetchConfigParameter(ConfigValue value);
@@ -126,6 +129,8 @@ class BoomFetch : public Component<FetchPacket> {
     /** @brief Helper to set the missprediction penalty config parameter. */
     int MisspredictPenaltyConfigParameter(ConfigValue value);
 
+    /** @brief Helper for sending instructions to the RAS. */
+    bool SendToRas(unsigned long i);
     /** @brief Helper to send the fetched instructions to the memory, predictor
      * and btb. */
     void ClockSendBuffered();
@@ -162,7 +167,7 @@ class BoomFetch : public Component<FetchPacket> {
           predictorID(-1),
           btbID(-1),
           rasID(-1),
-          flagsToCheck((BoomFetchBufferEntryFlagsSendInst << 1) - 1) {}
+          flagsToCheck(BoomFetchBufferEntryFlagsSentToMemory) {}
 
     virtual int SetConfigParameter(const char* parameter, ConfigValue value);
     virtual int FinishSetup();
