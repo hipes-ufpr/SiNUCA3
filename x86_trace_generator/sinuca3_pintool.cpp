@@ -152,7 +152,7 @@ VOID StopInstrumentation() {
 /** @brief Enables execution of analysis code. */
 VOID EnableInstrumentationInThread(THREADID tid) {
     if (threadDataVec[tid]->isThreadAnalysisEnabled) return;
-    PINTOOL_DEBUG_PRINTF("Enabled thread [%d] to run analysis code\n", tid);
+    PINTOOL_DEBUG_PRINTF("Enabled  thread [%d] to run analysis code\n", tid);
     threadDataVec[tid]->isThreadAnalysisEnabled = true;
 }
 
@@ -216,6 +216,10 @@ VOID AppendToDynamicTrace(THREADID tid, UINT32 bblId, UINT32 numInst) {
 
     /* new thread created or reused */
     if (numberOfActiveThreads <= tid) {
+        if (parendThreadStack.size() <= 0) {
+            PINTOOL_DEBUG_PRINTF("Thread [%d] parent not yet identified\n", tid);
+            return;
+        }
         threadDataVec[parendThreadStack.top()]->dynamicTrace.AddThreadEvent(
             ThreadEventCreateThread, tid);
         ++numberOfActiveThreads;
@@ -317,8 +321,8 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
 }
 
 VOID OnThreadEvent(THREADID tid, INT32 eid, UINT32 event) {
-    PINTOOL_DEBUG_PRINTF("Thread event is [%d] and event id [%d]\n", event,
-                         eid);
+    PINTOOL_DEBUG_PRINTF("Thread event is [%d]; event id [%d]; tid [%u]\n", event,
+                         eid, tid);
 
     if (threadDataVec.size() - tid <= 0) {
         PINTOOL_DEBUG_PRINTF("Error while adding thread event [1]\n");
@@ -336,8 +340,10 @@ VOID OnThreadEvent(THREADID tid, INT32 eid, UINT32 event) {
     }
 
     if (event == ThreadEventDestroyThread) {
-        parendThreadStack.pop();
-        numberOfActiveThreads = parentThreadId + 1;
+        if (parendThreadStack.top() == tid) {
+            numberOfActiveThreads = parendThreadStack.top() + 1;
+            parendThreadStack.pop();
+        }
     }
 }
 
@@ -350,7 +356,7 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
         ThreadEventType type;
     };
 
-    static ThreadEvent GOMP_RTNS[] = {
+    static ThreadEvent gompRtnsArr[] = {
         {"GOMP_critical_start", ThreadEventLockRequest},
         {"omp_set_lock", ThreadEventLockRequest},
         {"omp_set_nest_lock", ThreadEventNestLockRequest},
@@ -360,7 +366,6 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
         {"omp_unset_lock", ThreadEventUnlock},
         {"omp_unset_nest_lock", ThreadEventUnlock},
         {"GOMP_barrier", ThreadEventBarrier},
-        {"GOMP_parallel_end", ThreadEventDestroyThread},
         {"gomp_team_start", ThreadEventCreateThread},
         {"gomp_team_end", ThreadEventDestroyThread}};
 
@@ -385,38 +390,40 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
     }
 
     int eventIdentifier = 0;
-    parentThreadId = 0;
 
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
         for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn)) {
             RTN_Open(rtn);
-            const char* rtnName = RTN_Name(rtn).c_str();
+            std::string rtnName = RTN_Name(rtn);
 
-            if (strcmp(rtnName, "BeginInstrumentationBlock") == 0) {
+            if (rtnName == "BeginInstrumentationBlock") {
                 RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)InitInstrumentation,
                                IARG_END);
             }
-            if (strcmp(rtnName, "EndInstrumentationBlock") == 0) {
+            if (rtnName == "EndInstrumentationBlock") {
                 RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)StopInstrumentation,
                                IARG_END);
             }
-            if (strcmp(rtnName, "EnableThreadInstrumentation") == 0) {
+            if (rtnName == "EnableThreadInstrumentation") {
                 RTN_InsertCall(rtn, IPOINT_BEFORE,
                                (AFUNPTR)EnableInstrumentationInThread,
                                IARG_THREAD_ID, IARG_END);
             }
-            if (strcmp(rtnName, "DisableThreadInstrumentation") == 0) {
+            if (rtnName == "DisableThreadInstrumentation") {
                 RTN_InsertCall(rtn, IPOINT_BEFORE,
                                (AFUNPTR)DisableInstrumentationInThread,
                                IARG_THREAD_ID, IARG_END);
             }
 
             for (unsigned long i = 0;
-                 i < sizeof(GOMP_RTNS) / sizeof(ThreadEvent); ++i) {
-                if (strcmp(rtnName, GOMP_RTNS[i].name.c_str()) == 0) {
+                 i < sizeof(gompRtnsArr) / sizeof(ThreadEvent); ++i) {
+                if (rtnName == gompRtnsArr[i].name) {
+                    /* this rtn insert call logic is wrong */
+                    /* the code must me inserted before every call inst */
+                    /* currently the code is inserted before the rtn */
                     RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadEvent,
                                    IARG_THREAD_ID, IARG_UINT32, eventIdentifier,
-                                   IARG_UINT32, GOMP_RTNS[i].type, IARG_END);
+                                   IARG_UINT32, gompRtnsArr[i].type, IARG_END);
 
                     ++eventIdentifier;
                 }
@@ -425,7 +432,7 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
             /* pause instruction is spin lock hint */
             for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins)) {
                 if (INS_Mnemonic(ins) == "PAUSE") {
-                    PINTOOL_DEBUG_PRINTF("Found pause in [%s]\n", rtnName);
+                    PINTOOL_DEBUG_PRINTF("Found pause in [%s]\n", rtnName.c_str());
                     rtnsWithPauseInst.push_back(rtnName);
                 }
             }
