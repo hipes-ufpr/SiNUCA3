@@ -49,8 +49,6 @@ extern "C" {
 #include <unistd.h>
 }
 
-namespace sinucaTracer {
-
 /** @brief Check static_trace_reader.hpp documentation for details */
 class StaticTraceReader {
   private:
@@ -100,7 +98,5 @@ class StaticTraceReader {
         return this->header.data.staticHeader.threadCount;
     }
 };
-
-}  // namespace sinucaTracer
 
 #endif

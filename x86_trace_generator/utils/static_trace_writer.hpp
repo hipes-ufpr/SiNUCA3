@@ -28,8 +28,6 @@
 
 #include "pin.H"
 
-namespace sinucaTracer {
-
 /** @brief Check static_trace_writer.hpp documentation for details */
 class StaticTraceWriter {
   private:
@@ -98,7 +96,5 @@ class StaticTraceWriter {
         return this->header.data.staticHeader.bblCount;
     }
 };
-
-}  // namespace sinucaTracer
 
 #endif

@@ -29,8 +29,6 @@ extern "C" {
 #include <unistd.h>    // lseek
 }
 
-namespace sinucaTracer {
-
 int StaticTraceReader::OpenFile(const char *sourceDir, const char *imgName) {
     unsigned long bufferLen;
     char *staticPath;
@@ -129,5 +127,3 @@ void StaticTraceReader::GetInstruction(StaticInstructionInfo *instInfo) {
 
     this->record = NULL;
 }
-
-}  // namespace sinucaTracer

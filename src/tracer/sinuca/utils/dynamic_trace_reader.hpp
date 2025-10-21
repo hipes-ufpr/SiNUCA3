@@ -29,8 +29,6 @@
 
 #include "utils/logging.hpp"
 
-namespace sinucaTracer {
-
 /** @brief Check dynamic_trace_reader.hpp documentation for details */
 class DynamicTraceReader {
   private:
@@ -80,7 +78,5 @@ class DynamicTraceReader {
         return this->recordArray[this->recordArrayIndex].data.thr.threadId;
     }
 };
-
-}  // namespace sinucaTracer
 
 #endif

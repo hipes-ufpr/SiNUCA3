@@ -29,7 +29,7 @@
 
 const int MAX_INT_DIGITS = 7;
 
-unsigned long sinucaTracer::GetPathTidInSize(const char *sourceDir,
+unsigned long GetPathTidInSize(const char *sourceDir,
                                              const char *prefix,
                                              const char *imageName) {
     unsigned long sourceDirLen = strlen(sourceDir);
@@ -39,14 +39,14 @@ unsigned long sinucaTracer::GetPathTidInSize(const char *sourceDir,
     return MAX_INT_DIGITS + 10 + sourceDirLen + prefixLen + imageNameLen;
 }
 
-void sinucaTracer::FormatPathTidIn(char *dest, const char *sourceDir,
+void FormatPathTidIn(char *dest, const char *sourceDir,
                                    const char *prefix, const char *imageName,
                                    int tid, long destSize) {
     snprintf(dest, destSize, "%s/%s_%s_tid%u.trace", sourceDir, prefix,
              imageName, tid);
 }
 
-unsigned long sinucaTracer::GetPathTidOutSize(const char *sourceDir,
+unsigned long GetPathTidOutSize(const char *sourceDir,
                                               const char *prefix,
                                               const char *imageName) {
     unsigned long sourceDirLen = strlen(sourceDir);
@@ -56,7 +56,7 @@ unsigned long sinucaTracer::GetPathTidOutSize(const char *sourceDir,
     return 9 + sourceDirLen + prefixLen + imageNameLen;
 }
 
-void sinucaTracer::FormatPathTidOut(char *dest, const char *sourceDir,
+void FormatPathTidOut(char *dest, const char *sourceDir,
                                     const char *prefix, const char *imageName,
                                     long destSize) {
     snprintf(dest, destSize, "%s/%s_%s.trace", sourceDir, prefix, imageName);

@@ -42,8 +42,6 @@ extern "C" {
 #include <unistd.h>
 }
 
-using namespace sinucaTracer;
-
 /**
  * @note Instrumentation is the process of deciding where and what code should
  * be inserted into the target program, while analysis refers to the code that
@@ -86,7 +84,7 @@ struct ThreadData {
 };
 
 std::vector<ThreadData*> threadDataVec;
-sinucaTracer::StaticTraceWriter* staticTrace;
+StaticTraceWriter* staticTrace;
 std::vector<std::string> rtnsWithPauseInst;
 
 /** @brief Used to block two threads from trying to print simultaneously. */

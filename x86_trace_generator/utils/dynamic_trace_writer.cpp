@@ -29,8 +29,6 @@ extern "C" {
 #include <alloca.h>
 }
 
-namespace sinucaTracer {
-
 int DynamicTraceWriter::OpenFile(const char *sourceDir, const char *imageName,
                                  int tid) {
     unsigned long bufferSize;
@@ -114,5 +112,3 @@ int DynamicTraceWriter::FlushRecordArray() {
 
     return 0;
 }
-
-}  // namespace sinucaTracer

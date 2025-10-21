@@ -28,7 +28,6 @@ extern "C" {
 #include <alloca.h>
 }
 
-namespace sinucaTracer {
 
 int MemoryTraceWriter::OpenFile(const char* sourceDir, const char* imageName,
                                 int tid) {
@@ -117,4 +116,3 @@ int MemoryTraceWriter::FlushRecordArray() {
     return 0;
 }
 
-}  // namespace sinucaTracer

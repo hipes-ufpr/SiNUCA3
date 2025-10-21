@@ -27,8 +27,6 @@
 #include <tracer/sinuca/file_handler.hpp>
 #include "utils/logging.hpp"
 
-namespace sinucaTracer {
-
 /** @brief Check dynamic_trace_writer.hpp documentation for details */
 class DynamicTraceWriter {
   private:
@@ -84,7 +82,5 @@ class DynamicTraceWriter {
         return (this->recordArrayOccupation == RECORD_ARRAY_SIZE);
     }
 };
-
-}  // namespace sinucaTracer
 
 #endif

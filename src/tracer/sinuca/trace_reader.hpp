@@ -30,8 +30,6 @@
 
 #include "engine/default_packets.hpp"
 
-namespace sinucaTracer {
-
 struct ThreadData {
     DynamicTraceReader* dynFile;
     MemoryTraceReader* memFile;
@@ -106,8 +104,6 @@ class SinucaTraceReader : public TraceReader {
     virtual inline int GetTotalThreads() { return this->totalThreads; }
     virtual inline int GetTotalBasicBlocks() { return this->totalBasicBlocks; }
 };
-
-}  // namespace sinucaTracer
 
 #ifndef NDEBUG
 int TestTraceReader();

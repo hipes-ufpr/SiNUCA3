@@ -40,8 +40,6 @@ extern "C" {
 #include <stdint.h>
 }
 
-namespace sinucaTracer {
-
 const char TRACE_VERSION[] = "0.0.1"; /**<Used to detect incompatibility.> */
 const int MAX_IMAGE_NAME_SIZE = 255;
 const int RECORD_ARRAY_SIZE = 10000;
@@ -234,7 +232,5 @@ unsigned long GetPathTidOutSize(const char *sourceDir, const char *prefix,
  */
 void FormatPathTidOut(char *dest, const char *sourceDir, const char *prefix,
                       const char *imageName, long destSize);
-
-}  // namespace sinucaTracer
 
 #endif

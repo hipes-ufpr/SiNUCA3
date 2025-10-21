@@ -26,8 +26,6 @@
 #include <cstdio>
 #include <tracer/sinuca/file_handler.hpp>
 
-namespace sinucaTracer {
-
 /** @brief Check memory_trace_writer.hpp documentation for details */
 class MemoryTraceWriter {
   private:
@@ -75,7 +73,5 @@ class MemoryTraceWriter {
         return (this->recordArrayOccupation == RECORD_ARRAY_SIZE);
     }
 };
-
-}  // namespace sinucaTracer
 
 #endif

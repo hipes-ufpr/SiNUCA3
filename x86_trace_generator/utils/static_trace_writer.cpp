@@ -32,8 +32,6 @@ extern "C" {
 #include <alloca.h>
 }
 
-namespace sinucaTracer {
-
 int StaticTraceWriter::OpenFile(const char* sourceDir, const char* imageName) {
     unsigned long bufferSize;
     char* path;
@@ -209,5 +207,3 @@ int StaticTraceWriter::FlushBasicBlock() {
 
     return 0;
 }
-
-}  // namespace sinucaTracer

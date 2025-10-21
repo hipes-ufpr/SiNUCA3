@@ -28,8 +28,6 @@
 #include <tracer/sinuca/file_handler.hpp>
 #include <utils/circular_buffer.hpp>
 
-namespace sinucaTracer {
-
 /** @brief Check memory_trace_reader.hpp documentation for details */
 class MemoryTraceReader {
   private:
@@ -85,7 +83,5 @@ class MemoryTraceReader {
     inline int GetNumberOfLoads() { return this->totalLoadOps; }
     inline int GetNumberOfStores() { return this->totalStoreOps; }
 };
-
-}  // namespace sinucaTracer
 
 #endif

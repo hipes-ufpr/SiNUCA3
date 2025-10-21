@@ -28,8 +28,6 @@
 #include "tracer/trace_reader.hpp"
 #include "utils/logging.hpp"
 
-namespace sinucaTracer {
-
 int SinucaTraceReader::OpenTrace(const char *imageName, const char *sourceDir) {
     this->staticTrace = new StaticTraceReader;
     if (this->staticTrace == NULL) {
@@ -147,9 +145,9 @@ FetchResult SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
         this->threadDataArray[tid].currentInst = 0;
 
         /* Loop
-         * -> if new thread is created: create and continue
-         * -> if tid trace ended: return FetchResultNop
-         * -> if new inst is fetched, break
+         * - if new thread is created: create and continue
+         * - if tid trace ended: return FetchResultNop
+         * - if new inst is fetched, break
          */
         do {
             if (this->threadDataArray[tid].dynFile->ReadDynamicRecord()) {
@@ -227,8 +225,6 @@ int ThreadData::Allocate(const char *sourceDir, const char *imageName,
     }
     return 0;
 }
-
-}  // namespace sinucaTracer
 
 #ifndef NDEBUG
 int TestTraceReader() {
