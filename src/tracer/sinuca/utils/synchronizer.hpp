@@ -1,5 +1,5 @@
-#ifndef SINUCA3_SINUCA_TRACER_STATIC_TRACE_READER_HPP_
-#define SINUCA3_SINUCA_TRACER_STATIC_TRACE_READER_HPP_
+#ifndef SINUCA3_SINUCA_TRACER_SYNCHRONIZER_HPP_
+#define SINUCA3_SINUCA_TRACER_SYNCHRONIZER_HPP_
 
 //
 // Copyright (C) 2025  HiPES - Universidade Federal do Paraná
@@ -68,7 +68,7 @@ class Synchro {
         }
     }
 
-    ThreadState HandleLockRequest();
+    ThreadState HandleLockRequest(int lockId);
     ThreadState HandleBarrierWait();
 
     inline void IncTotalThreads() {++this->totalThreads;}

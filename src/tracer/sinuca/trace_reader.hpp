@@ -26,13 +26,15 @@
 #include <tracer/sinuca/utils/dynamic_trace_reader.hpp>
 #include <tracer/sinuca/utils/memory_trace_reader.hpp>
 #include <tracer/sinuca/utils/static_trace_reader.hpp>
+#include <tracer/sinuca/utils/synchronizer.hpp>
 #include <tracer/trace_reader.hpp>
 
 #include "engine/default_packets.hpp"
 
 struct ThreadData {
-    DynamicTraceReader* dynFile;
-    MemoryTraceReader* memFile;
+    DynamicTraceReader dynFile;
+    MemoryTraceReader memFile;
+    Synchro sync; /**<Component responsible for handling synchronization. */
     unsigned long currentBasicBlock; /**<Index of basic block. */
     unsigned long fetchedInst;       /**<Number of instructions fetched */
     int currentInst; /**<Index of instruction inside basic block. */
@@ -41,21 +43,13 @@ struct ThreadData {
     int Allocate(const char* sourceDir, const char* imageName, int tid);
 
     inline ThreadData()
-        : dynFile(0),
-          memFile(0),
-          currentBasicBlock(0),
-          currentInst(0),
-          isInsideBasicBlock(0) {}
-    inline ~ThreadData() {
-        if (this->memFile) delete this->memFile;
-        if (this->dynFile) delete this->dynFile;
-    }
+        : currentBasicBlock(0), currentInst(0), isInsideBasicBlock(0) {}
 };
 
 /** @brief Check trace_reader.hpp documentation for details */
 class SinucaTraceReader : public TraceReader {
   private:
-    ThreadData* threadDataArray;
+    std::vector<ThreadData*> threadDataVec;
     StaticTraceReader* staticTrace;
     StaticInstructionInfo** instructionDict;
     StaticInstructionInfo* instructionPool;
@@ -72,16 +66,17 @@ class SinucaTraceReader : public TraceReader {
 
   public:
     inline SinucaTraceReader()
-        : threadDataArray(0),
-          staticTrace(0),
+        : staticTrace(0),
           instructionDict(0),
           instructionPool(0),
           basicBlockSizeArr(0),
           totalBasicBlocks(0),
           totalThreads(0) {}
     virtual inline ~SinucaTraceReader() {
-        if (this->threadDataArray) {
-            delete[] this->threadDataArray;
+        for (unsigned long i = 0; i < this->threadDataVec.size(); ++i) {
+            if (this->threadDataVec[i]) {
+                delete this->threadDataVec[i];
+            }
         }
         delete[] this->instructionDict;
         delete[] this->instructionPool;
@@ -94,11 +89,10 @@ class SinucaTraceReader : public TraceReader {
     virtual void PrintStatistics();
 
     virtual unsigned long GetNumberOfFetchedInst(int tid) {
-        return this->threadDataArray[tid].fetchedInst;
+        return this->threadDataVec[tid]->fetchedInst;
     }
     virtual unsigned long GetTotalInstToBeFetched(int tid) {
-        return this->threadDataArray[tid]
-            .dynFile->GetTotalExecutedInstructions();
+        return this->threadDataVec[tid]->dynFile.GetTotalExecutedInstructions();
     }
 
     virtual inline int GetTotalThreads() { return this->totalThreads; }

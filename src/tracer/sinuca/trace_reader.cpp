@@ -43,19 +43,18 @@ int SinucaTraceReader::OpenTrace(const char *imageName, const char *sourceDir) {
     this->totalBasicBlocks = this->staticTrace->GetTotalBasicBlocks();
     this->totalStaticInst = this->staticTrace->GetTotalInstInStaticTrace();
 
-    this->threadDataArray = new ThreadData[this->totalThreads];
-    if (this->threadDataArray == NULL) {
+    /* thread 0 or main thread */
+    ThreadData* tData = new ThreadData;
+    if (tData == NULL) {
         SINUCA3_ERROR_PRINTF("Failed to create thread data array\n");
         return 1;
     }
-
-    for (int tid = 0; tid < this->totalThreads; ++tid) {
-        if (this->threadDataArray[tid].Allocate(sourceDir, imageName, tid)) {
-            SINUCA3_ERROR_PRINTF("Failed to allocate [%d] tid data array!\n",
-                                 tid);
-            return 1;
-        }
+    if (tData->Allocate(sourceDir, imageName, 0)) {
+        SINUCA3_ERROR_PRINTF("OpenTrace failed to allocate tData!\n");
+        return 1;
     }
+
+    this->threadDataVec.push_back(tData);
 
     if (this->GenerateInstructionDict()) {
         SINUCA3_ERROR_PRINTF("Failed to generate instruction dictionary\n");
@@ -131,18 +130,23 @@ int SinucaTraceReader::GenerateInstructionDict() {
 FetchResult SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
     unsigned char recordType;
 
+    /* thread not yet created */
+    if ((unsigned long)tid >= this->threadDataVec.size()) {
+        return FetchResultNop;
+    }
+
     for (int i = 0; i < this->totalThreads; i++) {
-        if (this->threadDataArray[tid].dynFile->ReachedDynamicTraceEnd()) {
+        if (this->threadDataVec[tid]->dynFile.ReachedDynamicTraceEnd()) {
             return FetchResultEnd;
         }
     }
 
-    if (this->threadDataArray[tid].dynFile->ReachedDynamicTraceEnd()) {
+    if (this->threadDataVec[tid]->dynFile.ReachedDynamicTraceEnd()) {
         return FetchResultNop;
     }
 
-    if (!this->threadDataArray[tid].isInsideBasicBlock) {
-        this->threadDataArray[tid].currentInst = 0;
+    if (!this->threadDataVec[tid]->isInsideBasicBlock) {
+        this->threadDataVec[tid]->currentInst = 0;
 
         /* Loop
          * - if new thread is created: create and continue
@@ -150,7 +154,7 @@ FetchResult SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
          * - if new inst is fetched, break
          */
         do {
-            if (this->threadDataArray[tid].dynFile->ReadDynamicRecord()) {
+            if (this->threadDataVec[tid]->dynFile.ReadDynamicRecord()) {
                 return FetchResultError;
             }
 
@@ -158,43 +162,43 @@ FetchResult SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
     }
 
     ret->staticInfo =
-        &this->instructionDict[this->threadDataArray[tid].currentBasicBlock]
-                              [this->threadDataArray[tid].currentInst];
+        &this->instructionDict[this->threadDataVec[tid]->currentBasicBlock]
+                              [this->threadDataVec[tid]->currentInst];
 
     unsigned long arraySize;
 
     if (ret->staticInfo->instReadsMemory || ret->staticInfo->instWritesMemory) {
-        if (this->threadDataArray[tid].memFile->ReadMemoryOperations()) {
+        if (this->threadDataVec[tid]->memFile.ReadMemoryOperations()) {
             SINUCA3_ERROR_PRINTF("Failed to read memory operations\n");
             return FetchResultError;
         }
 
         ret->dynamicInfo.numReadings =
-            this->threadDataArray[tid].memFile->GetNumberOfLoads();
+            this->threadDataVec[tid]->memFile.GetNumberOfLoads();
         ret->dynamicInfo.numWritings =
-            this->threadDataArray[tid].memFile->GetNumberOfStores();
+            this->threadDataVec[tid]->memFile.GetNumberOfStores();
 
         arraySize = sizeof(ret->dynamicInfo.readsAddr) / sizeof(unsigned long);
 
-        if (this->threadDataArray[tid].memFile->CopyLoadOperations(
+        if (this->threadDataVec[tid]->memFile.CopyLoadOperations(
                 ret->dynamicInfo.readsAddr, arraySize,
                 ret->dynamicInfo.readsSize, arraySize)) {
             return FetchResultError;
         }
-        if (this->threadDataArray[tid].memFile->CopyStoreOperations(
+        if (this->threadDataVec[tid]->memFile.CopyStoreOperations(
                 ret->dynamicInfo.writesAddr, arraySize,
                 ret->dynamicInfo.writesSize, arraySize)) {
             return FetchResultError;
         }
     }
 
-    ++this->threadDataArray[tid].currentInst;
-    if (this->threadDataArray[tid].currentInst >=
-        this->basicBlockSizeArr[this->threadDataArray[tid].currentBasicBlock]) {
-        this->threadDataArray[tid].isInsideBasicBlock = false;
+    ++this->threadDataVec[tid]->currentInst;
+    if (this->threadDataVec[tid]->currentInst >=
+        this->basicBlockSizeArr[this->threadDataVec[tid]->currentBasicBlock]) {
+        this->threadDataVec[tid]->isInsideBasicBlock = false;
     }
 
-    this->threadDataArray[tid].fetchedInst++;
+    this->threadDataVec[tid]->fetchedInst++;
 
     return FetchResultOk;
 }
@@ -207,19 +211,11 @@ void SinucaTraceReader::PrintStatistics() {
 
 int ThreadData::Allocate(const char *sourceDir, const char *imageName,
                          int tid) {
-    if (!(this->dynFile = new DynamicTraceReader())) {
-        SINUCA3_ERROR_PRINTF("Failed to alloc dynamic trace\n");
-        return 1;
-    }
-    if (this->dynFile->OpenFile(sourceDir, imageName, tid)) {
+    if (this->dynFile.OpenFile(sourceDir, imageName, tid)) {
         SINUCA3_ERROR_PRINTF("Failed to open dynamic trace\n");
         return 1;
     }
-    if (!(this->memFile = new MemoryTraceReader())) {
-        SINUCA3_ERROR_PRINTF("Failed to alloc memory trace\n");
-        return 1;
-    }
-    if (this->memFile->OpenFile(sourceDir, imageName, tid)) {
+    if (this->memFile.OpenFile(sourceDir, imageName, tid)) {
         SINUCA3_ERROR_PRINTF("Failed to open memory trace\n");
         return 1;
     }
@@ -228,7 +224,7 @@ int ThreadData::Allocate(const char *sourceDir, const char *imageName,
 
 #ifndef NDEBUG
 int TestTraceReader() {
-    TraceReader *reader = new sinucaTracer::SinucaTraceReader;
+    TraceReader *reader = new SinucaTraceReader;
 
     char traceDir[1024];
     char imageName[1024];
