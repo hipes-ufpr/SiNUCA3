@@ -33,6 +33,7 @@
 
 #include "pin.H"
 
+#include "tracer/sinuca/file_handler.hpp"
 #include "utils/dynamic_trace_writer.hpp"
 #include "utils/memory_trace_writer.hpp"
 #include "utils/static_trace_writer.hpp"
@@ -91,12 +92,14 @@ std::vector<std::string> rtnsWithPauseInst;
 static PIN_LOCK debugPrintLock;
 /** @brief OnThreadStart writes in global structures. */
 static PIN_LOCK threadStartLock;
-/** @ */
+/** @brief */
 static PIN_LOCK getParentThreadLock;
 
 static const char* traceDir = NULL;
 static const char* imageName = NULL;
 static bool wasInitInstrumentationCalled = false;
+/** @brief */
+static unsigned int numberOfActiveThreads = 1;
 /** @brief */
 static THREADID parentThreadId;
 
@@ -119,7 +122,7 @@ KNOB<BOOL> knobForceInstrumentation(
 int Usage() {
     SINUCA3_LOG_PRINTF(
         "Example command: "
-        "\t./pin/pin -t ./obj_intel64/my_pintool.so -o ./my_trace -- "
+        "\t./pin/pin -t ./obj-intel64/my_pintool.so -o ./my_trace -- "
         "./my_program\n"
         "------------------------------------------------------------"
         "-f: force instrumentation even when no blocks are defined.\n"
@@ -164,9 +167,6 @@ VOID DisableInstrumentationInThread(THREADID tid) {
 VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
     PIN_GetLock(&threadStartLock, tid);
 
-    PINTOOL_DEBUG_PRINTF("Thread [%d] created! Parent is [%d]\n", tid,
-                         parentThreadId);
-
     /* check if tid is sequential */
     if (tid != threadDataVec.size()) {
         SINUCA3_ERROR_PRINTF("Thread data not created. Tid isnt sequential.\n");
@@ -191,11 +191,6 @@ VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
 
     threadData->isThreadAnalysisEnabled = false;
     threadDataVec.push_back(threadData);
-    if (parentThreadId != tid) {
-        threadDataVec[parentThreadId]->dynamicTrace.AddThreadEvent(
-            ThreadEventCreateThread, tid);
-    }
-
     staticTrace->IncThreadCount();
 
     PIN_ReleaseLock(&threadStartLock);
@@ -215,6 +210,16 @@ VOID AppendToDynamicTrace(THREADID tid, UINT32 bblId, UINT32 numInst) {
         PINTOOL_DEBUG_PRINTF("Failed to add basic block id to file\n");
     }
     threadDataVec[tid]->dynamicTrace.IncExecutedInstructions(numInst);
+
+    /* new thread created or reused */
+    if (numberOfActiveThreads <= tid) {
+        threadDataVec[parentThreadId]->dynamicTrace.AddThreadEvent(
+            ThreadEventCreateThread, tid);
+        ++numberOfActiveThreads;
+
+        PINTOOL_DEBUG_PRINTF("Thread [%d] created and parent is [%d]\n", tid,
+                         parentThreadId);
+    }
 }
 
 /** @brief Append non standard memory op to memory trace. */
@@ -223,6 +228,7 @@ VOID AppendToMemTrace(THREADID tid, PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
         return;
     }
 
+    /* comment */
     int totalOps = accessInfo->numberOfMemops;
     if (threadDataVec[tid]->memoryTrace.AddNumberOfMemOperations(totalOps)) {
         PINTOOL_DEBUG_PRINTF("Failed to add number of mem ops to file\n");
@@ -269,7 +275,7 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
     /* comment */
     for (std::string& str : rtnsWithPauseInst) {
         if (rtnName == str) {
-            PINTOOL_DEBUG_PRINTF("Not instrumenting [%s]. Skipping...\n", rtnName.c_str());
+            return;
         }
     }
 
@@ -315,14 +321,19 @@ VOID OnThreadEvent(THREADID tid, INT32 eid, UINT32 event) {
         PINTOOL_DEBUG_PRINTF("Error while adding thread event [1]\n");
         return;
     }
-    if (threadDataVec[tid]->dynamicTrace.AddThreadEvent(event, eid)) {
-        PINTOOL_DEBUG_PRINTF("Error while adding thread event [2]\n");
-        return;
-    }
     if (event == ThreadEventCreateThread) {
         PIN_GetLock(&getParentThreadLock, tid);
         parentThreadId = tid;
         PIN_ReleaseLock(&getParentThreadLock);
+    } else {
+        if (threadDataVec[tid]->dynamicTrace.AddThreadEvent(event, eid)) {
+            PINTOOL_DEBUG_PRINTF("Error while adding thread event [2]\n");
+            return;
+        }
+    }
+
+    if (event == ThreadEventDestroyThread) {
+        numberOfActiveThreads = parentThreadId + 1;
     }
 }
 
@@ -346,7 +357,8 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
         {"omp_unset_nest_lock", ThreadEventUnlock},
         {"GOMP_barrier", ThreadEventBarrier},
         {"GOMP_parallel_end", ThreadEventDestroyThread},
-        {"GOMP_parallel", ThreadEventCreateThread}};
+        {"gomp_team_start", ThreadEventCreateThread},
+        {"gomp_team_end", ThreadEventDestroyThread}};
 
     std::string absoluteImgPath = IMG_Name(img);
     long size = absoluteImgPath.length() + sizeof('\0');
@@ -402,14 +414,11 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
                                    IARG_THREAD_ID, IARG_UINT32, eventIdentifier,
                                    IARG_UINT32, GOMP_RTNS[i].type, IARG_END);
 
-                    PINTOOL_DEBUG_PRINTF("Found %s; Event Id is [%d]!\n",
-                                         rtnName, eventIdentifier);
-
                     ++eventIdentifier;
                 }
             }
 
-            /* pause is spin lock hint */
+            /* pause instruction is spin lock hint */
             for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins)) {
                 if (INS_Mnemonic(ins) == "PAUSE") {
                     PINTOOL_DEBUG_PRINTF("Found pause in [%s]\n", rtnName);
