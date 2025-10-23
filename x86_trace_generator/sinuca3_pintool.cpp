@@ -320,9 +320,8 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
 
 }
 
-VOID OnThreadEvent(THREADID tid, VOID* rtnAddr, UINT32 event) {
-    PINTOOL_DEBUG_PRINTF("Thread event is [%d]; tid [%u]\n", event,
-                         eid, tid);
+VOID OnThreadEvent(THREADID tid, ADDRINT rtnAddr, UINT32 event) {
+    PINTOOL_DEBUG_PRINTF("Thread event is [%d]; tid [%u]\n", event, tid);
 
     if (threadDataVec.size() - tid <= 0) {
         PINTOOL_DEBUG_PRINTF("Error while adding thread event [1]\n");
@@ -334,9 +333,9 @@ VOID OnThreadEvent(THREADID tid, VOID* rtnAddr, UINT32 event) {
         parendThreadStack.push(tid);
         PIN_ReleaseLock(&getParentThreadLock);
         return;
-    } 
-    
-    if (threadDataVec[tid]->dynamicTrace.AddThreadEvent(event, eid)) {
+    }
+
+    if (threadDataVec[tid]->dynamicTrace.AddThreadEvent(event, 0)) {
         PINTOOL_DEBUG_PRINTF("Error while adding thread event [2]\n");
         return;
     }
@@ -346,8 +345,7 @@ VOID OnThreadEvent(THREADID tid, VOID* rtnAddr, UINT32 event) {
             parendThreadStack.pop();
         }
     } else if (event == ThreadEventLockRequest) {
-        RTN rtn = RTN_FindByAddress(rtnAddr);
-        PINTOOL_DEBUG_PRINTF("%s\n", )
+        // RTN rtn = RTN_FindByAddress(rtnAddr);
     }
 }
 
@@ -355,23 +353,37 @@ VOID OnThreadEvent(THREADID tid, VOID* rtnAddr, UINT32 event) {
 VOID OnImageLoad(IMG img, VOID* ptr) {
     if (!IMG_IsMainExecutable(img)) return;
 
-    struct ThreadEvent {
+    struct DefaultRtnEvent {
         std::string name;
-        ThreadEventType type;
+        unsigned char type;
+    };
+    struct LockRtnEvent {
+        std::string name;
+        unsigned char type;
+        bool usesDefaultLock;
     };
 
-    static ThreadEvent gompRtnsArr[] = {
-        {"GOMP_critical_start", ThreadEventLockRequest},
-        {"omp_set_lock", ThreadEventLockRequest},
-        {"omp_set_nest_lock", ThreadEventNestLockRequest},
-        {"omp_test_lock", ThreadEventLockAttempt},
-        {"omp_test_nest_lock", ThreadEventNestLockAttempt},
-        {"GOMP_critical_end", ThreadEventUnlock},
-        {"omp_unset_lock", ThreadEventUnlock},
-        {"omp_unset_nest_lock", ThreadEventUnlock},
+    static LockRtnEvent gompRtnsLock[] = {
+        {"GOMP_critical_start", ThreadEventLockRequest, true},
+        {"GOMP_critical_end", ThreadEventUnlock, true},
+        {"GOMP_critical_name_start", ThreadEventLockRequest, false},
+        {"GOMP_critical_name_end", ThreadEventUnlock, false},
+        {"omp_set_lock", ThreadEventLockRequest, false},
+        {"omp_set_nest_lock", ThreadEventNestLockRequest, false},
+        {"omp_test_lock", ThreadEventLockAttempt, false},
+        {"omp_test_nest_lock", ThreadEventNestLockAttempt, false},
+        {"omp_unset_lock", ThreadEventUnlock, false},
+        {"omp_unset_nest_lock", ThreadEventUnlock, false},
+    };
+
+    static DefaultRtnEvent gompRtnsBarrier[] = {
         {"GOMP_barrier", ThreadEventBarrier},
+    }
+
+    static DefaultRtnEvent gompRtnsThrCreation[] = {
         {"gomp_team_start", ThreadEventCreateThread},
-        {"gomp_team_end", ThreadEventDestroyThread}};
+        {"gomp_team_end", ThreadEventDestroyThread}
+    };
 
     std::string absoluteImgPath = IMG_Name(img);
     long size = absoluteImgPath.length() + sizeof('\0');
@@ -392,6 +404,9 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
         PINTOOL_DEBUG_PRINTF("Failed to open static trace file\n");
         return;
     }
+
+    unsigned long iter;
+    unsigned long iterMax;
 
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
         for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn)) {
@@ -417,17 +432,14 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
                                IARG_THREAD_ID, IARG_END);
             }
 
-            for (unsigned long i = 0;
-                 i < sizeof(gompRtnsArr) / sizeof(ThreadEvent); ++i) {
-                if (rtnName == gompRtnsArr[i].name) {
-                    /* this rtn insert call logic is wrong */
-                    /* the code must me inserted before every call inst */
-                    /* currently the code is inserted before the rtn */
+            iterMax = sizeof(gompRtnsArr) / sizeof(ThreadEvent);
+
+            for (iter = 0; i < iterMax; ++iter) {
+                if (rtnName == gompRtnsArr[iter].name) {
                     RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadEvent,
                                    IARG_THREAD_ID, IARG_PTR, RTN_Address(rtn),
-                                   IARG_UINT32, gompRtnsArr[i].type, IARG_END);
+                                   IARG_UINT32, gompRtnsArr[iter].type, IARG_END);
 
-                    ++eventIdentifier;
                 }
             }
 

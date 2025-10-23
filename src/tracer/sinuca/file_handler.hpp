@@ -40,6 +40,8 @@ extern "C" {
 #include <stdint.h>
 }
 
+#define _PACKED __attribute__((packed))
+
 const char TRACE_VERSION[] = "0.0.1"; /**<Used to detect incompatibility.> */
 const int MAX_IMAGE_NAME_SIZE = 255;
 const int RECORD_ARRAY_SIZE = 10000;
@@ -104,11 +106,11 @@ struct Instruction {
     uint8_t instReadsMemory;
     uint8_t instWritesMemory;
     char instructionMnemonic[INST_MNEMONIC_LEN]; /**<Used for debug. */
-} __attribute__((packed));
+} _PACKED;
 
 /** @brief Written to static trace file. */
 struct StaticTraceRecord {
-    union {
+    union _PACKED {
         uint16_t basicBlockSize;
         Instruction instruction;
     } data;
@@ -117,35 +119,43 @@ struct StaticTraceRecord {
     inline StaticTraceRecord() {
         memset(this, 0, sizeof(*this));
     }
-} __attribute__((packed));
+} _PACKED;
 
 /** @brief Written to dynamic trace file. */
 struct DynamicTraceRecord {
-    union {
-        struct {
+    union _PACKED {
+        struct _PACKED {
             uint32_t basicBlockIdentifier;
         } bbl;
-        struct {
-            uint32_t eventId;
-            uint8_t event;
-        } thr;
+        struct _PACKED {
+            uint8_t eventType;
+            union _PACKED {
+                struct _PACKED {
+                    uint64_t lockAddress;
+                    uint8_t isDefaultLock;
+                } lockInfo;
+                struct _PACKED {
+                    uint32_t tid;
+                } thrCreate;
+            } eventData;
+        } thrEvent;
     } data;
     uint8_t recordType;
 
     inline DynamicTraceRecord() {
         memset(this, 0, sizeof(*this));
     }
-} __attribute__((packed));
+} _PACKED;
 
 /** @brief Written to memory trace file. */
 struct MemoryTraceRecord {
-    union {
-        struct {
+    union _PACKED {
+        struct _PACKED {
             uint64_t address; /**<Virtual address accessed. */
             uint16_t size;    /**<Size in bytes of memory read or written. */
             uint8_t type;     /**<Load or Store. */
         } operation;
-        struct {
+        struct _PACKED {
             int32_t numberOfMemoryOps;
         } opHeader;
     } data;
@@ -154,17 +164,17 @@ struct MemoryTraceRecord {
     inline MemoryTraceRecord() {
         memset(this, 0, sizeof(*this));
     }
-} __attribute__((packed));
+} _PACKED;
 
 /** @brief General usage. */
 struct FileHeader {
-    union {
-        struct {
+    union _PACKED {
+        struct _PACKED {
             uint32_t instCount;
             uint32_t bblCount;
             uint16_t threadCount;
         } staticHeader;
-        struct {
+        struct _PACKED {
             uint64_t totalExecutedInstructions;
         } dynamicHeader;
     } data;
@@ -187,7 +197,7 @@ struct FileHeader {
     inline void ReserveHeaderSpace(FILE* file) {
         fseek(file, sizeof(*this), SEEK_SET);
     }
-} __attribute__((packed));
+} _PACKED;
 
 inline void printFileErrorLog(const char *path, const char *mode) {
     SINUCA3_ERROR_PRINTF("Could not open [%s] in [%s] mode: ", path, mode);
