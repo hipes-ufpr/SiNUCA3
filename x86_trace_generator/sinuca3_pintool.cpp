@@ -135,7 +135,9 @@ int Usage() {
 /** @brief Enables instrumentation. */
 VOID InitInstrumentation() {
     if (isInstrumentating) return;
+    PINTOOL_DEBUG_PRINTF("-----------------------------------\n");
     PINTOOL_DEBUG_PRINTF("Start of tool instrumentation block\n");
+    PINTOOL_DEBUG_PRINTF("-----------------------------------\n");
     wasInitInstrumentationCalled = true;
     isInstrumentating = true;
 }
@@ -143,14 +145,17 @@ VOID InitInstrumentation() {
 /** @brief Disables instrumentation. */
 VOID StopInstrumentation() {
     if (!isInstrumentating || knobForceInstrumentation.Value()) return;
-    PINTOOL_DEBUG_PRINTF("End of tool instrumentation block\n")
+    PINTOOL_DEBUG_PRINTF("---------------------------------\n");
+    PINTOOL_DEBUG_PRINTF("End of tool instrumentation block\n");
+    PINTOOL_DEBUG_PRINTF("---------------------------------\n");
     isInstrumentating = false;
 }
 
 /** @brief Enables execution of analysis code. */
 VOID EnableInstrumentationInThread(THREADID tid) {
     if (threadDataVec[tid]->isThreadAnalysisEnabled) return;
-    PINTOOL_DEBUG_PRINTF("Enabled  thread [%d] to run analysis code\n", tid);
+    PINTOOL_DEBUG_PRINTF("[EnableInstrumentationInThread]:\n");
+    PINTOOL_DEBUG_PRINTF("\tThread [%d] analysis enabled\n", tid);
     threadDataVec[tid]->isThreadAnalysisEnabled = true;
 }
 
@@ -160,7 +165,8 @@ VOID DisableInstrumentationInThread(THREADID tid) {
         knobForceInstrumentation.Value()) {
         return;
     }
-    PINTOOL_DEBUG_PRINTF("Disabled thread [%d] to run analysis code\n", tid);
+    PINTOOL_DEBUG_PRINTF("[DisableInstrumentationInThread]:\n");
+    PINTOOL_DEBUG_PRINTF("\tThread [%d] analysis disabled\n", tid);
     threadDataVec[tid]->isThreadAnalysisEnabled = false;
 }
 
@@ -219,12 +225,14 @@ VOID AppendToDynamicTrace(THREADID tid, UINT32 bblId, UINT32 numInst) {
                                  tid);
             return;
         }
-        threadDataVec[parendThreadStack.top()]
-            ->dynamicTrace.AddThreadCreateEvent(tid);
+
+        THREADID parentThr = parendThreadStack.top();
+
+        threadDataVec[parentThr]->dynamicTrace.AddThreadCreateEvent(tid);
         ++numberOfActiveThreads;
 
-        PINTOOL_DEBUG_PRINTF("Thread [%d] created and parent is [%d]\n", tid,
-                             parendThreadStack.top());
+        PINTOOL_DEBUG_PRINTF("[AppendToDynamicTrace] Thread id [%d]:\n", tid);
+        PINTOOL_DEBUG_PRINTF("\tThread created; parent is [%d]\n", parentThr);
     }
 }
 
@@ -281,6 +289,8 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
     /* comment */
     for (std::string& str : rtnsWithPauseInst) {
         if (rtnName == str) {
+            PINTOOL_DEBUG_PRINTF("[OnTrace] Thread id [%d]:\n", PIN_ThreadId());
+            PINTOOL_DEBUG_PRINTF("\tIgnoring [%s]!\n", str.c_str());
             return;
         }
     }
@@ -372,7 +382,7 @@ VOID OnPrivateLockThreadEvent(THREADID tid, CONTEXT* ctxt, BOOL isLock,
     PINTOOL_DEBUG_PRINTF("[OnPrivateLockThreadEvent] Thread id [%d]:\n", tid);
 
     ADDRINT lockAddr = PIN_GetContextReg(ctxt, REG_RDI);
-    PINTOOL_DEBUG_PRINTF("\tLock address is %p!\n", (void *)lockAddr);
+    PINTOOL_DEBUG_PRINTF("\tLock address is %p!\n", (void*)lockAddr);
 
     if (isLock) {
         threadDataVec[tid]->dynamicTrace.AddLockEventPrivateLock(
@@ -466,13 +476,8 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
             rtnWasTreated = false;
 
             /* pause instruction is spin lock hint */
-            for (INS ins = RTN_InsHead(rtn); INS_Valid(ins);
-                 ins = INS_Next(ins)) {
-                if (INS_Mnemonic(ins) == "PAUSE") {
-                    PINTOOL_DEBUG_PRINTF("Found pause in [%s]\n",
-                                         rtnName.c_str());
-                    rtnsWithPauseInst.push_back(rtnName);
-                }
+            if (FindInstInRtn(rtn, "PAUSE") != INS_Invalid()) {
+                rtnsWithPauseInst.push_back(rtnName);
             }
 
             if (rtnName == "BeginInstrumentationBlock") {
