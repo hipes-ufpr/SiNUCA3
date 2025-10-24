@@ -29,7 +29,7 @@ int main(void) {
 
     BeginInstrumentationBlock();
 
-#pragma omp parallel shared(arr) num_threads(2)
+#pragma omp parallel shared(arr) num_threads(1)
     {
 
 #pragma omp for
@@ -40,7 +40,7 @@ int main(void) {
         }
     }
 
-#pragma omp parallel num_threads(3)
+#pragma omp parallel num_threads(1)
     {
         volatile int b = 5;
 #pragma omp critical(crit1)

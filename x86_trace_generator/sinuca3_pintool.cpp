@@ -96,7 +96,7 @@ static PIN_LOCK debugPrintLock;
 /** @brief OnThreadStart writes in global structures. */
 static PIN_LOCK threadStartLock;
 /** @brief */
-static PIN_LOCK getParentThreadLock;
+static PIN_LOCK getThreadDataLock;
 
 static const char* traceDir = NULL;
 static const char* imageName = NULL;
@@ -219,7 +219,8 @@ VOID AppendToDynamicTrace(THREADID tid, UINT32 bblId, UINT32 numInst) {
                                  tid);
             return;
         }
-        threadDataVec[parendThreadStack.top()]->dynamicTrace.AddThreadCreateEvent(tid);
+        threadDataVec[parendThreadStack.top()]
+            ->dynamicTrace.AddThreadCreateEvent(tid);
         ++numberOfActiveThreads;
 
         PINTOOL_DEBUG_PRINTF("Thread [%d] created and parent is [%d]\n", tid,
@@ -329,55 +330,72 @@ int CheckThreadId(THREADID tid) {
 VOID OnThreadCreationEvent(THREADID tid, UINT32 eventType) {
     CheckThreadId(tid);
 
+    PINTOOL_DEBUG_PRINTF("[OnThreadCreationEvent] Thread id [%d]:\n", tid);
+
     switch (eventType) {
         case ThreadEventCreateThread:
-            PIN_GetLock(&getParentThreadLock, tid);
+            PIN_GetLock(&getThreadDataLock, tid);
             parendThreadStack.push(tid);
-            PIN_ReleaseLock(&getParentThreadLock);
+            PIN_ReleaseLock(&getThreadDataLock);
+            PINTOOL_DEBUG_PRINTF("\tThread event create thread!\n");
             break;
         case ThreadEventDestroyThread:
             numberOfActiveThreads = parendThreadStack.top() + 1;
             parendThreadStack.pop();
             threadDataVec[tid]->dynamicTrace.AddThreadDestroyEvent();
+            PINTOOL_DEBUG_PRINTF("\tThread event destroy thread!\n");
             break;
         default:
-            PINTOOL_DEBUG_PRINTF("OnThreadCreationEvent unkown type\n");
+            PINTOOL_DEBUG_PRINTF("\tOnThreadCreationEvent unkown type!\n");
             break;
     }
 }
 
-VOID OnGlobalLockThreadEvent(THREADID tid, UINT32 isLock) {
+VOID OnGlobalLockThreadEvent(THREADID tid, BOOL isLock) {
     CheckThreadId(tid);
+
+    PINTOOL_DEBUG_PRINTF("[OnGlobalLockThreadEvent] Thread id [%d]:\n", tid);
 
     if (isLock) {
         threadDataVec[tid]->dynamicTrace.AddLockEventGlobalLock();
+        PINTOOL_DEBUG_PRINTF("\tThread event global lock!\n");
     } else {
         threadDataVec[tid]->dynamicTrace.AddUnlockEventGlobalLock();
+        PINTOOL_DEBUG_PRINTF("\tThread event global unlock!\n");
     }
 }
 
-VOID OnPrivateLockThreadEvent(THREADID tid, ADDRINT lockAddr, UINT32 isLock,
-                              UINT32 isNested, UINT32 isTest) {
+VOID OnPrivateLockThreadEvent(THREADID tid, CONTEXT* ctxt, BOOL isLock,
+                              BOOL isNested, BOOL isTest) {
     CheckThreadId(tid);
+
+    PINTOOL_DEBUG_PRINTF("[OnPrivateLockThreadEvent] Thread id [%d]:\n", tid);
+
+    ADDRINT lockAddr = PIN_GetContextReg(ctxt, REG_RDI);
+    PINTOOL_DEBUG_PRINTF("\tLock address is %p!\n", (void *)lockAddr);
 
     if (isLock) {
         threadDataVec[tid]->dynamicTrace.AddLockEventPrivateLock(
             lockAddr, isNested, isTest);
+        PINTOOL_DEBUG_PRINTF("\tThread event private lock!\n");
     } else {
-        threadDataVec[tid]->dynamicTrace.AddUnlockEventPrivateLock(
-            lockAddr, isNested);
+        threadDataVec[tid]->dynamicTrace.AddUnlockEventPrivateLock(lockAddr,
+                                                                   isNested);
+        PINTOOL_DEBUG_PRINTF("\tThread event private unlock!\n");
     }
 }
 
 VOID OnBarrierThreadEvent(THREADID tid) {
     CheckThreadId(tid);
 
+    PINTOOL_DEBUG_PRINTF("[OnBarrierThreadEvent] Thread id [%d]:\n", tid);
+    PINTOOL_DEBUG_PRINTF("\tThread event barrier!\n");
+
     threadDataVec[tid]->dynamicTrace.AddBarrierEvent();
 }
 
 INS FindInstInRtn(RTN rtn, std::string instName) {
     for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins)) {
-        PINTOOL_DEBUG_PRINTF("%s\n", INS_Mnemonic(ins).c_str());
         if (INS_Mnemonic(ins) == instName) {
             return ins;
         }
@@ -439,29 +457,45 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
 
     unsigned long iter;
     unsigned long iterMax;
+    bool rtnWasTreated;
 
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
         for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn)) {
             RTN_Open(rtn);
             std::string rtnName = RTN_Name(rtn);
+            rtnWasTreated = false;
+
+            /* pause instruction is spin lock hint */
+            for (INS ins = RTN_InsHead(rtn); INS_Valid(ins);
+                 ins = INS_Next(ins)) {
+                if (INS_Mnemonic(ins) == "PAUSE") {
+                    PINTOOL_DEBUG_PRINTF("Found pause in [%s]\n",
+                                         rtnName.c_str());
+                    rtnsWithPauseInst.push_back(rtnName);
+                }
+            }
 
             if (rtnName == "BeginInstrumentationBlock") {
                 RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)InitInstrumentation,
                                IARG_END);
+                rtnWasTreated = true;
             }
             if (rtnName == "EndInstrumentationBlock") {
                 RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)StopInstrumentation,
                                IARG_END);
+                rtnWasTreated = true;
             }
             if (rtnName == "EnableThreadInstrumentation") {
                 RTN_InsertCall(rtn, IPOINT_BEFORE,
                                (AFUNPTR)EnableInstrumentationInThread,
                                IARG_THREAD_ID, IARG_END);
+                rtnWasTreated = true;
             }
             if (rtnName == "DisableThreadInstrumentation") {
                 RTN_InsertCall(rtn, IPOINT_BEFORE,
                                (AFUNPTR)DisableInstrumentationInThread,
                                IARG_THREAD_ID, IARG_END);
+                rtnWasTreated = true;
             }
 
             iterMax = sizeof(globalLockRtns) / sizeof(RtnEvent);
@@ -472,39 +506,63 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
                     RTN_InsertCall(
                         rtn, IPOINT_BEFORE, (AFUNPTR)OnGlobalLockThreadEvent,
                         IARG_THREAD_ID, IARG_UINT32, isLock, IARG_END);
+                    rtnWasTreated = true;
                 }
             }
             iterMax = sizeof(privateLockRtns) / sizeof(LockRtnEvent);
             for (iter = 0; iter < iterMax; ++iter) {
-                if (rtnName == globalLockRtns[iter].name) {
+                if (rtnName == privateLockRtns[iter].event.name) {
+                    PINTOOL_DEBUG_PRINTF("Routine is %s:\n", rtnName.c_str());
                     INS inst;
-                    if (globalLockRtns[iter].type == ThreadEventLockRequest) {
-                        inst = FindInstInRtn(rtn, "LOCK");
+                    if (privateLockRtns[iter].event.type ==
+                        ThreadEventLockRequest) {
+                        inst = FindInstInRtn(rtn, "CMPXCHG_LOCK");
+                        INS_InsertCall(
+                            inst, IPOINT_BEFORE,
+                            (AFUNPTR)OnPrivateLockThreadEvent, IARG_THREAD_ID,
+                            IARG_CONTEXT, IARG_BOOL, true, IARG_BOOL,
+                            privateLockRtns[iter].isNestedLock, IARG_BOOL,
+                            privateLockRtns[iter].isTestLock, IARG_END);
+                    } else {
+                        inst = FindInstInRtn(rtn, "XCHG");
+                        INS_InsertCall(
+                            inst, IPOINT_BEFORE,
+                            (AFUNPTR)OnPrivateLockThreadEvent, IARG_THREAD_ID,
+                            IARG_CONTEXT, IARG_BOOL, false, IARG_BOOL,
+                            privateLockRtns[iter].isNestedLock, IARG_BOOL,
+                            privateLockRtns[iter].isTestLock, IARG_END);
                     }
-                    // INS_InsertCall();
+                    rtnWasTreated = true;
                 }
             }
             iterMax = sizeof(barrierRtns) / sizeof(RtnEvent);
             for (iter = 0; iter < iterMax; ++iter) {
-                if (rtnName == globalLockRtns[iter].name) {
-                    
+                if (rtnName == barrierRtns[iter].name) {
+                    RTN_InsertCall(rtn, IPOINT_BEFORE,
+                                   (AFUNPTR)OnBarrierThreadEvent,
+                                   IARG_THREAD_ID, IARG_END);
+                    rtnWasTreated = true;
                 }
             }
             iterMax = sizeof(threadCreationRtns) / sizeof(RtnEvent);
             for (iter = 0; iter < iterMax; ++iter) {
-                if (rtnName == globalLockRtns[iter].name) {
-                    
+                if (rtnName == threadCreationRtns[iter].name) {
+                    RTN_InsertCall(rtn, IPOINT_AFTER,
+                                   (AFUNPTR)OnThreadCreationEvent,
+                                   IARG_THREAD_ID, IARG_UINT32,
+                                   threadCreationRtns[iter].type, IARG_END);
+                    rtnWasTreated = true;
                 }
             }
 
-            /* pause instruction is spin lock hint */
-            for (INS ins = RTN_InsHead(rtn); INS_Valid(ins);
-                 ins = INS_Next(ins)) {
-                if (INS_Mnemonic(ins) == "PAUSE") {
-                    PINTOOL_DEBUG_PRINTF("Found pause in [%s]\n",
-                                         rtnName.c_str());
-                    rtnsWithPauseInst.push_back(rtnName);
-                }
+            if (!rtnWasTreated) {
+                /*     if (rtnName.find("gomp") != std::string::npos ||
+                 *         rtnName.find("GOMP") != std::string::npos ||
+                 *         rtnName.find("omp") != std::string::npos) {
+                 *         PINTOOL_DEBUG_PRINTF("Routine [%s] was not
+                 * treated\n", rtnName.c_str());
+                 *    }
+                 */
             }
 
             RTN_Close(rtn);
@@ -543,7 +601,7 @@ int main(int argc, char* argv[]) {
 
     PIN_InitLock(&debugPrintLock);
     PIN_InitLock(&threadStartLock);
-    PIN_InitLock(&getParentThreadLock);
+    PIN_InitLock(&getThreadDataLock);
 
     if (knobForceInstrumentation.Value()) {
         SINUCA3_WARNING_PRINTF("Instrumenting entire program\n");
