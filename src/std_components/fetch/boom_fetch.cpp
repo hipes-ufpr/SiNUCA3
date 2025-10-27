@@ -244,6 +244,7 @@ void BoomFetch::ClockSendBuffered() {
 
     // BTBPacket btbPacket;
     PredictorPacket predictorPacket;
+    // BTBPacket btbPacket;
 
     /* Skip instructions we already sent. */
     i = 0;
@@ -254,13 +255,13 @@ void BoomFetch::ClockSendBuffered() {
 
     if (!(btbAvailable)) return;
 
-    //    if (i < this->fetchBufferUsage) {
-    //        btbPacket.type = BTBPacketTypeRequestQuery;
-    //        btbPacket.data.requestQuery =
-    //            this->fetchBuffer[i].instruction.staticInfo;
-    //        this->btb->SendRequest(this->btbID, &btbPacket);
-    //        this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSendToBTB;
-    //    }
+    // if (i < this->fetchBufferUsage) {
+    //     btbPacket.type = BTBPacketTypeRequestQuery;
+    //     btbPacket.data.requestQuery =
+    //         this->fetchBuffer[i].instruction.staticInfo;
+    //     this->btb->SendRequest(this->btbID, &btbPacket);
+    //     this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToBTB;
+    // }
 
     while (i < this->fetchBufferUsage) {
         instMemAvailable = this->instructionMemory->IsComponentAvailable(
@@ -337,7 +338,7 @@ int BoomFetch::ClockCheckPredictor() {
 int BoomFetch::ClockCheckRas() {
     if (this->ras == NULL) return 0;
 
-    unsigned long target;
+    unsigned long target = 0;
     PredictorPacket response;
 
     this->ras->Clock();
@@ -357,6 +358,8 @@ int BoomFetch::ClockCheckRas() {
 
 int BoomFetch::ClockCheckBTB() {
     if (this->btb == NULL) return 0;
+
+    return 0;
 
     BTBPacket response;
     bool validResponse, isNext;
@@ -510,12 +513,10 @@ void BoomFetch::Clock() {
     this->ClockSendBuffered();
     const int predictionResult = this->ClockCheckPredictor();
     const int rasResult = this->ClockCheckRas();
-    // const int btbResult = this->ClockCheckBTB();
+    const int btbResult = this->ClockCheckBTB();
     this->ClockUnbuffer();
 
-    if ((predictionResult != 0) || (rasResult != 0))
-    //|| (btbResult != 0))
-    {
+    if (((predictionResult != 0) || (rasResult != 0)) || (btbResult != 0)) {
         ++this->misspredictions;
         this->currentPenalty = this->misspredictPenalty;
         this->fetchClock = 0;

@@ -31,7 +31,7 @@ int Ras::FinishSetup() {
         return 1;
     }
 
-    this->buffer = new unsigned long[this->size];
+    this->buffer = new unsigned long[this->size]();
 
     if (this->sendTo != NULL) {
         this->forwardToID = this->sendTo->Connect(0);
