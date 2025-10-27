@@ -285,9 +285,9 @@ void BoomFetch::ClockSendBuffered() {
         this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToMemory;
         this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToPredictor;
 
-        // if (this->SendToRas(i)) {
-        //     this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToRas;
-        // }
+        if (this->SendToRas(i)) {
+            this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToRas;
+        }
 
         i++;
     }
@@ -509,12 +509,11 @@ void BoomFetch::Clock() {
 
     this->ClockSendBuffered();
     const int predictionResult = this->ClockCheckPredictor();
-    // const int rasResult = this->ClockCheckRas();
+    const int rasResult = this->ClockCheckRas();
     // const int btbResult = this->ClockCheckBTB();
     this->ClockUnbuffer();
 
-    if (predictionResult != 0)
-    // || (rasResult != 0))
+    if ((predictionResult != 0) || (rasResult != 0))
     //|| (btbResult != 0))
     {
         ++this->misspredictions;
