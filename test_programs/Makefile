@@ -11,6 +11,7 @@ ifndef CC
   endif
 endif
 
+NOOPT  = -O0 -fno-inline -fno-builtin -fno-omit-frame-pointer
 CFLAGS = -Wall -Wextra -std=c99 -O3 -I../x86_trace_generator/ -g
 OPENMP = -static -fopenmp
 SRCS = $(shell find *.c)
@@ -19,10 +20,10 @@ EXEC = $(SRCS:.c=)
 all: $(EXEC)
 
 %_mthr: %_mthr.c
-	$(CC) $(CFLAGS) -o $@ $^ $(OPENMP)
+	$(CC) $(CFLAGS) -o $@ $^ $(NOOPT) $(OPENMP)
 
 %_seq: %_seq.c
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(NOOPT)
 
 clean:
 	rm -f $(EXEC)
