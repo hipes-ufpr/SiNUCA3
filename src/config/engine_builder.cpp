@@ -236,7 +236,7 @@ int EngineBuilder::FillParametersAndClass(
 
         // If we're on the last item and class was not provided, appending would
         // overflow, but we know that class was not provided!
-        if (i == config->size() && definition->clazz == NULL) {
+        if (i == config->size() - 1 && definition->clazz == NULL) {
             SINUCA3_ERROR_PRINTF(
                 "While trying to define component %s: parameter `class` was "
                 "not provided.\n",

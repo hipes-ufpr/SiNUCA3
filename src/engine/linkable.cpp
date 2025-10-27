@@ -50,7 +50,7 @@ inline int Connection::GetBufferSize() const { return this->bufferSize; }
 
 inline int Connection::GetMessageSize() const { return this->messageSize; }
 
-void Connection::SwapBuffers() {
+void Connection::CommitBuffers() {
     CircularBuffer* aux;
 
     aux = this->requestBuffers[0];
@@ -60,6 +60,9 @@ void Connection::SwapBuffers() {
     aux = this->responseBuffers[0];
     this->responseBuffers[0] = this->responseBuffers[1];
     this->responseBuffers[1] = aux;
+
+    this->requestBuffers[SOURCE_ID]->Flush();
+    this->responseBuffers[DEST_ID]->Flush();
 }
 
 bool Connection::InsertIntoRequestBuffer(int id, void* messageInput) {
@@ -103,8 +106,9 @@ void Linkable::AddConnection(Connection* newConnection) {
 long Linkable::GetNumberOfConnections() { return this->numberOfConnections; }
 
 void Linkable::PosClock() {
-    for (unsigned int i = 0; i < this->connections.size(); ++i)
-        this->connections[i]->SwapBuffers();
+    for (unsigned int i = 0; i < this->connections.size(); ++i){
+        this->connections[i]->CommitBuffers();
+    }
 }
 
 int Linkable::ConnectUnsafe(int bufferSize) {
