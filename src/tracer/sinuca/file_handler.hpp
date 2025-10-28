@@ -31,7 +31,6 @@
  * coexist.
  */
 
-#include <cstdint>
 #include <cstring>
 #include <sinuca3.hpp>
 #include "engine/default_packets.hpp"
@@ -137,9 +136,6 @@ struct DynamicTraceRecord {
                 struct {
                     uint32_t tid;
                 } thrCreate;
-                struct {
-                    uint64_t barrierAddress;
-                } barrierInfo;
             } eventData;
         } thrEvent;
     } data;
@@ -177,7 +173,7 @@ struct FileHeader {
             uint32_t bblCount;
             uint16_t threadCount;
         } staticHeader;
-        struct _PACKED {
+        struct {
             uint64_t totalExecutedInstructions;
         } dynamicHeader;
     } data;

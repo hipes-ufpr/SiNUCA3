@@ -26,7 +26,7 @@
 #include <tracer/sinuca/utils/dynamic_trace_reader.hpp>
 #include <tracer/sinuca/utils/memory_trace_reader.hpp>
 #include <tracer/sinuca/utils/static_trace_reader.hpp>
-#include <tracer/sinuca/utils/synchronizer.hpp>
+
 #include <tracer/trace_reader.hpp>
 
 #include "engine/default_packets.hpp"
@@ -34,7 +34,6 @@
 struct ThreadData {
     DynamicTraceReader dynFile;
     MemoryTraceReader memFile;
-    Synchro sync; /**<Component responsible for handling synchronization. */
     unsigned long currentBasicBlock; /**<Index of basic block. */
     unsigned long fetchedInst;       /**<Number of instructions fetched */
     int currentInst; /**<Index of instruction inside basic block. */

@@ -29,6 +29,22 @@
 
 #include "utils/logging.hpp"
 
+typedef int THREADID;
+
+enum ThreadState {
+    ThreadStateUndefined,
+    ThreadStateSleeping,
+    ThreadStateActive
+};
+
+struct ThreadLock {
+    bool busy;
+};
+
+struct ThreadBarrier {
+    int cont;
+};
+
 /** @brief Check dynamic_trace_reader.hpp documentation for details */
 class DynamicTraceReader {
   private:
@@ -38,6 +54,12 @@ class DynamicTraceReader {
     int recordArraySize;
     int recordArrayIndex;
     bool reachedEnd;
+
+    bool isThreadAwake;
+    bool isThreadStateUndefined;
+    bool createdThreads;
+    bool destroyedThreads;
+    int idOfChildThread;
 
     int LoadRecordArray();
 
@@ -55,7 +77,7 @@ class DynamicTraceReader {
     }
 
     int OpenFile(const char* sourceDir, const char* imageName, int tid);
-    int ReadDynamicRecord();
+    ThreadState ReadDynamicRecord();
 
     inline bool ReachedDynamicTraceEnd() {
         return (this->reachedEnd &&
@@ -71,11 +93,25 @@ class DynamicTraceReader {
     inline unsigned long GetTotalExecutedInstructions() {
         return this->header.data.dynamicHeader.totalExecutedInstructions;
     }
-    inline unsigned char GetThreadEvent() {
-        return this->recordArray[this->recordArrayIndex].data.thr.event;
+    inline void SetThreadStateUndefined() {
+        this->isThreadStateUndefined = true;
     }
-    inline unsigned int GetThreadIdentifier() {
-        return this->recordArray[this->recordArrayIndex].data.thr.threadId;
+    inline int GetIdOfChildThread() {
+        return this->idOfChildThread;
+    }
+    inline bool CheckThreadCreation() {
+        if (this->createdThreads) {
+            this->createdThreads = false;
+            return true;
+        }
+        return false;
+    }
+    inline bool CheckThreadDestruction() {
+        if (this->destroyedThreads) {
+            this->destroyedThreads = false;
+            return true;
+        }
+        return false;
     }
 };
 

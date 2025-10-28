@@ -160,8 +160,6 @@ int IsThreadAnalysisActive(THREADID tid) {
         return 0;
     }
     if (!threadDataVec[tid]->isThreadAnalysisEnabled) {
-        PINTOOL_DEBUG_PRINTF(
-            "[IsThreadAnalysisActive] thread analysis disabled!\n");
         return 0;
     }
 
@@ -171,8 +169,8 @@ int IsThreadAnalysisActive(THREADID tid) {
 /** @brief Enables execution of analysis code. */
 VOID EnableInstrumentationInThread(THREADID tid) {
     if (!WasThreadCreated(tid)) return;
-    PINTOOL_DEBUG_PRINTF("[EnableInstrumentationInThread]:\n");
-    PINTOOL_DEBUG_PRINTF("\tThread [%d] analysis enabled\n", tid);
+    PINTOOL_DEBUG_PRINTF(
+        "[EnableInstrumentationInThread]: Thread [%d] analysis enabled\n", tid);
     threadDataVec[tid]->isThreadAnalysisEnabled = true;
 }
 
@@ -181,8 +179,9 @@ VOID DisableInstrumentationInThread(THREADID tid) {
     if (!WasThreadCreated(tid) || knobForceInstrumentation.Value()) {
         return;
     }
-    PINTOOL_DEBUG_PRINTF("[DisableInstrumentationInThread]:\n");
-    PINTOOL_DEBUG_PRINTF("\tThread [%d] analysis disabled\n", tid);
+    PINTOOL_DEBUG_PRINTF(
+        "[DisableInstrumentationInThread]: Thread [%d] analysis disabled\n",
+        tid);
     threadDataVec[tid]->isThreadAnalysisEnabled = false;
 }
 
@@ -192,13 +191,13 @@ VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
 
     /* check if tid is sequential */
     if (tid != threadDataVec.size()) {
-        SINUCA3_ERROR_PRINTF("Thread data not created. Tid isnt sequential.\n");
+        PINTOOL_DEBUG_PRINTF("Thread data not created. Tid isnt sequential.\n");
         return;
     }
 
     struct ThreadData* threadData = new ThreadData;
     if (!threadData) {
-        SINUCA3_ERROR_PRINTF("Failed to alloc thread data.\n");
+        PINTOOL_DEBUG_PRINTF("Failed to alloc thread data.\n");
         return;
     }
 
@@ -213,7 +212,7 @@ VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
     }
 
     threadData->isThreadAnalysisEnabled = false;
-    threadData->isThreadActive = true;
+    threadData->isThreadActive = (tid == 0);
 
     threadDataVec.push_back(threadData);
     staticTrace->IncThreadCount();
@@ -239,10 +238,12 @@ VOID AppendToDynamicTrace(THREADID tid, UINT32 bblId, UINT32 numInst) {
 
     /* detect thread being reused */
     if (!threadDataVec[tid]->isThreadActive) {
-        PINTOOL_DEBUG_PRINTF("[AppendToDynamicTrace] Thread id [%d]:\n", tid);
         threadDataVec[0]->dynamicTrace.AddThreadCreateEvent(tid);
         threadDataVec[tid]->isThreadActive = true;
-        PINTOOL_DEBUG_PRINTF("\tThread reused; parent is [0]\n");
+        PINTOOL_DEBUG_PRINTF(
+            "[AppendToDynamicTrace] Thread id [%d]: Thread created or reused; "
+            "parent is [0]\n",
+            tid);
     }
 }
 
@@ -295,13 +296,13 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
     /*
      * Every routine that performs spinlock has a 'pause' asm instruction;
      * since the thread syncronization is simulated by the trace reader,
-     * there is no sense in adding code executed during busy waiting;
+     * there is no sense in adding code executed during busy wait;
      * hence the routines that have this instruction are not instrumented.
      */
     for (std::string& str : rtnsWithPauseInst) {
         if (rtnName == str) {
-            PINTOOL_DEBUG_PRINTF("[OnTrace] Thread id [%d]:\n", PIN_ThreadId());
-            PINTOOL_DEBUG_PRINTF("\tIgnoring [%s]!\n", str.c_str());
+            PINTOOL_DEBUG_PRINTF("[OnTrace] Thread id [%d]: Ignoring [%s]!\n",
+                                 PIN_ThreadId(), str.c_str());
             return;
         }
     }
@@ -351,15 +352,16 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
 VOID OnThreadCreationEvent(THREADID tid, UINT32 eventType) {
     if (!WasThreadCreated(tid)) return;
 
-    PINTOOL_DEBUG_PRINTF("[OnThreadCreationEvent] Thread id [%d]:\n", tid);
+    PINTOOL_DEBUG_PRINTF(
+        "[OnThreadCreationEvent] Thread id [%d]: event is [%d]\n", tid,
+        eventType);
 
     switch (eventType) {
         case ThreadEventCreateThread:
-            PINTOOL_DEBUG_PRINTF("\tThread event create thread!\n");
             if (tid != 0) {
                 PINTOOL_DEBUG_PRINTF(
-                    "\tThread id is not zero! Beware that there is no support "
-                    "for nested parallel block!\n")
+                    "[OnThreadCreationEvent] Thread id is not zero! Beware "
+                    "that there is no support for nested parallel block!\n");
             }
             break;
         case ThreadEventDestroyThread:
@@ -374,10 +376,9 @@ VOID OnThreadCreationEvent(THREADID tid, UINT32 eventType) {
             }
 
             threadDataVec[tid]->dynamicTrace.AddThreadDestroyEvent();
-            PINTOOL_DEBUG_PRINTF("\tThread event destroy thread!\n");
             break;
         default:
-            PINTOOL_DEBUG_PRINTF("\tOnThreadCreationEvent unkown type!\n");
+            PINTOOL_DEBUG_PRINTF("[OnThreadCreationEvent] unkown type!\n");
             break;
     }
 }
@@ -385,14 +386,18 @@ VOID OnThreadCreationEvent(THREADID tid, UINT32 eventType) {
 VOID OnGlobalLockThreadEvent(THREADID tid, BOOL isLock) {
     if (!WasThreadCreated(tid)) return;
 
-    PINTOOL_DEBUG_PRINTF("[OnGlobalLockThreadEvent] Thread id [%d]:\n", tid);
-
     if (isLock) {
         threadDataVec[tid]->dynamicTrace.AddLockEventGlobalLock();
-        PINTOOL_DEBUG_PRINTF("\tThread event global lock!\n");
+        PINTOOL_DEBUG_PRINTF(
+            "[OnGlobalLockThreadEvent] Thread id [%d]: Thread event global "
+            "lock!\n",
+            tid);
     } else {
         threadDataVec[tid]->dynamicTrace.AddUnlockEventGlobalLock();
-        PINTOOL_DEBUG_PRINTF("\tThread event global unlock!\n");
+        PINTOOL_DEBUG_PRINTF(
+            "[OnGlobalLockThreadEvent] Thread id [%d]: Thread event global "
+            "unlock!\n",
+            tid);
     }
 }
 
@@ -538,7 +543,6 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
             iterMax = sizeof(privateLockRtns) / sizeof(LockRtnEvent);
             for (iter = 0; iter < iterMax; ++iter) {
                 if (rtnName == privateLockRtns[iter].event.name) {
-                    PINTOOL_DEBUG_PRINTF("Routine is %s:\n", rtnName.c_str());
                     INS inst;
                     if (privateLockRtns[iter].event.type ==
                         ThreadEventLockRequest) {

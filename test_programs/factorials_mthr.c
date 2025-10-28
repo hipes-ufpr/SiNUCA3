@@ -27,44 +27,32 @@ int __attribute__((noinline)) RecursiveFactorial(int x) {
 void TestOneThread() {
 #pragma omp parallel num_threads(1)
     {
+        EnableThreadInstrumentation();
         int a = 10;
         a = IterativeFactorial(a);
         int b = 5;
         b = RecursiveFactorial(b);
+        DisableThreadInstrumentation();
     }
-}
-
-void TestNestedParallelBlock() {
-    omp_set_nested(1);
-
-#pragma omp parallel
-    {
-#pragma omp parallel
-        {
-            int a = 10;
-            a = IterativeFactorial(a);
-            int b = 5;
-            b = RecursiveFactorial(b);
-        }
-    }
-
-    omp_set_nested(0);
 }
 
 void TestOmpBarrier() {
 #pragma omp parallel
     {
+        EnableThreadInstrumentation();
         int a = 10;
         a = IterativeFactorial(a);
 #pragma omp barrier
         int b = 5;
         b = RecursiveFactorial(b);
+        DisableThreadInstrumentation();
     }
 }
 
 void TestOmpGlobalCriticalBlock() {
 #pragma omp parallel
     {
+        EnableThreadInstrumentation();
         int a = 10;
         int b = 5;
 #pragma omp critical
@@ -72,12 +60,14 @@ void TestOmpGlobalCriticalBlock() {
             a = IterativeFactorial(a);
             b = RecursiveFactorial(b);
         }
+        DisableThreadInstrumentation();
     }
 }
 
 void TestOmpNamedCriticalBlock() {
 #pragma omp parallel
     {
+        EnableThreadInstrumentation();
         int a = 10;
         int b = 5;
 #pragma omp critical(crit)
@@ -85,6 +75,7 @@ void TestOmpNamedCriticalBlock() {
             a = IterativeFactorial(a);
             b = RecursiveFactorial(b);
         }
+        DisableThreadInstrumentation();
     }
 }
 
@@ -93,6 +84,7 @@ void TestOmpLock() {}
 void TestOmpSingleBlock() {
 #pragma omp parallel
     {
+        EnableThreadInstrumentation();
         int a = 10;
         int b = 5;
 #pragma omp single
@@ -100,6 +92,7 @@ void TestOmpSingleBlock() {
             a = IterativeFactorial(a);
             b = RecursiveFactorial(b);
         }
+        DisableThreadInstrumentation();
     }
 }
 
@@ -112,18 +105,18 @@ void TestOmpFor() {
 
 #pragma omp parallel shared(arr)
     {
+        EnableThreadInstrumentation();
 #pragma omp for
         for (int i = 0; i < TEST_SIZE; ++i) {
             arr[i] = IterativeFactorial(i);
         }
+        DisableThreadInstrumentation();
     }
 }
 
 #define TEST(func)                      \
     if (!strcmp(test, #func)) {         \
-        EnableThreadInstrumentation();  \
         func();                         \
-        DisableThreadInstrumentation(); \
     }
 
 int main(int argc, char* argv[]) {
@@ -136,7 +129,6 @@ int main(int argc, char* argv[]) {
     BeginInstrumentationBlock();
 
     TEST(TestOneThread)
-    TEST(TestNestedParallelBlock)
     TEST(TestOmpGlobalCriticalBlock)
     TEST(TestOmpNamedCriticalBlock)
     TEST(TestOmpSingleBlock)
