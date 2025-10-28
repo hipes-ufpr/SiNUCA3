@@ -29,10 +29,11 @@
 #include "tests.hpp"
 
 #include <sinuca3.hpp>
-#include <std_components/misc/queue.hpp>
 #include <std_components/misc/delay_queue.hpp>
-#include <std_components/predictors/ras.hpp>
+#include <std_components/misc/queue.hpp>
 #include <std_components/predictors/gshare_predictor.hpp>
+#include <std_components/predictors/ras.hpp>
+#include <utils/map.hpp>
 
 int TestExample() {
     SINUCA3_LOG_PRINTF("Hello, World!\n");
@@ -49,6 +50,7 @@ int Test(const char* test) {
     TEST(TestQueue);
     TEST(TestDelayQueue);
     TEST(TestGshare);
+    TEST(TestHashMap);
 
     return -1;
 }
