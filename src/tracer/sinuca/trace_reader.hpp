@@ -26,11 +26,11 @@
 #include <tracer/sinuca/utils/dynamic_trace_reader.hpp>
 #include <tracer/sinuca/utils/memory_trace_reader.hpp>
 #include <tracer/sinuca/utils/static_trace_reader.hpp>
-
 #include <tracer/trace_reader.hpp>
 
 #include "engine/default_packets.hpp"
 #include "utils/circular_buffer.hpp"
+#include "utils/logging.hpp"
 
 struct Lock {
     unsigned long addr;
@@ -51,13 +51,17 @@ struct ThreadData {
     unsigned long currentBasicBlock; /**<Index of basic block. */
     unsigned long fetchedInst;       /**<Number of instructions fetched */
     int currentInst; /**<Index of instruction inside basic block. */
+    int parentThreadId;
     bool isInsideBasicBlock;
     bool isThreadAwake;
 
     int Allocate(const char* sourceDir, const char* imageName, int tid);
 
     inline ThreadData()
-        : currentBasicBlock(0), currentInst(0), isInsideBasicBlock(0), isThreadAwake(false) {}
+        : currentBasicBlock(0),
+          currentInst(0),
+          isInsideBasicBlock(0),
+          isThreadAwake(false) {}
 };
 
 /** @brief Check trace_reader.hpp documentation for details */
@@ -83,7 +87,8 @@ class SinucaTraceReader : public TraceReader {
      */
     int GenerateInstructionDict();
     int FetchBasicBlock(int tid);
-    int FetchMemoryData(InstructionPacket *ret, int tid);
+    int FetchMemoryData(InstructionPacket* ret, int tid);
+    bool HasExecutionEnded();
 
     inline void SetNewLock(Lock* lock) {
         lock->waitingThreadsQueue.Allocate(0, sizeof(int));
@@ -95,11 +100,10 @@ class SinucaTraceReader : public TraceReader {
         lock->isBusy = false;
         lock->recCont = 1;
     }
-    inline void SetNewBarrier(Barrier* barrier) {
-        barrier->thrCont = 0;
-    }
-    inline void ResetBarrier(Barrier* barrier) {
-        barrier->thrCont = 0;
+    inline void SetNewBarrier(Barrier* barrier) { barrier->thrCont = 0; }
+    inline void ResetBarrier(Barrier* barrier) { barrier->thrCont = 0; }
+    inline bool IsThreadSleeping(int tid) {
+        return (this->threadDataArr[tid]->isThreadAwake == false);
     }
 
   public:

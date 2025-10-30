@@ -24,6 +24,7 @@
 
 #include <cstdlib>
 
+#include "tracer/sinuca/file_handler.hpp"
 #include "utils/logging.hpp"
 
 extern "C" {
@@ -56,6 +57,18 @@ int DynamicTraceWriter::CheckRecordArray() {
         }
         this->ResetRecordArray();
     }
+    return 0;
+}
+
+int DynamicTraceWriter::AddThreadHaltEvent() {
+    this->SetRecordTypeThreadEvent();
+
+    this->recordArray[this->recordArrayOccupation].data.thrEvent.eventType =
+        ThreadEventHaltThread;
+
+    ++this->recordArrayOccupation;
+    if (this->CheckRecordArray()) return 1;
+
     return 0;
 }
 

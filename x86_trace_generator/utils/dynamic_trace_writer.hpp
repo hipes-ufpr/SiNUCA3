@@ -71,6 +71,7 @@ class DynamicTraceWriter {
 
     int AddThreadCreateEvent(int tid);
     int AddThreadDestroyEvent();
+    int AddThreadHaltEvent();
     int AddUnlockEventGlobalLock();
     int AddLockEventGlobalLock();
     int AddBarrierEvent();

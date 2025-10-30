@@ -34,7 +34,6 @@
 #include "pin.H"
 #include "tracer/sinuca/file_handler.hpp"
 #include "utils/dynamic_trace_writer.hpp"
-#include "utils/logging.hpp"
 #include "utils/memory_trace_writer.hpp"
 #include "utils/static_trace_writer.hpp"
 
@@ -367,15 +366,15 @@ VOID OnThreadCreationEvent(THREADID tid, UINT32 eventType) {
             break;
         case ThreadEventDestroyThread:
             /*
-             * All threads with tid value greater than parent's tid will be
-             * destroyed, so the loop sets their 'isThreadActive' attribute to
-             * false. If the thread is reused, the call 'AppendToDynamicTrace'
-             * detects the reuse by checking the same attribute.
+             * If the thread is destroyed threads are reused, the call
+             * 'AppendToDynamicTrace' detects the reuse by checking if it is
+             * active.
              */
-            for (unsigned int it = 0; it < threadDataVec.size(); ++it) {
+            for (unsigned int it = 1; it < threadDataVec.size(); ++it) {
                 threadDataVec[it]->isThreadActive = false;
+                threadDataVec[it]->dynamicTrace.AddThreadHaltEvent();
             }
-
+            /* thread 0 destroys created threads */
             threadDataVec[tid]->dynamicTrace.AddThreadDestroyEvent();
             break;
         default:

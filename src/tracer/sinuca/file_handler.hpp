@@ -65,6 +65,7 @@ enum DynamicTraceRecordType : uint8_t {
 enum ThreadEventType : uint8_t {
     ThreadEventCreateThread,
     ThreadEventDestroyThread,
+    ThreadEventHaltThread,
     ThreadEventLockRequest,
     ThreadEventUnlockRequest,
     ThreadEventBarrier
