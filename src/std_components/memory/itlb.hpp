@@ -28,10 +28,16 @@
 
 #include "config/config.hpp"
 #include "engine/component.hpp"
+#include "utils/circular_buffer.hpp"
 
 typedef unsigned long Address;
 
 static const int NO_PENALTY = -1;
+
+struct TLBRequest {
+    int id;
+    Address addr;
+};
 
 class iTLB : public Component<Address> {
   public:
@@ -62,8 +68,10 @@ class iTLB : public Component<Address> {
         currentPenalty; /**< Counter to control the paying of penalties >*/
     unsigned long missPenalty; /**< Amount of cycles to idle when a
                                   miss happens >*/
-    Address requestAddr; /**< Address currently being processed by the iTLB >*/
-    long requestID;
+
+    struct TLBRequest curRequest; /**< Address currently being processed by the iTLB >*/
+
+    CircularBuffer pendingRequests; /**< Stores requests that have not yet been processed. >*/
 
     CacheMemory<Address>* cache;
     CacheMemoryNS::ReplacementPoliciesID policyID;

@@ -54,6 +54,8 @@ int iTLB::FinishSetup() {
         return 1;
     }
 
+    this->pendingRequests.Allocate(0, sizeof(struct TLBRequest));
+
     return 0;
 }
 
@@ -158,43 +160,53 @@ int iTLB::SetConfigParameter(const char* parameter, ConfigValue value) {
 void iTLB::Clock() {
     SINUCA3_DEBUG_PRINTF("%p: iTLB Clock!\n", this);
 
+    long numberOfConnections = this->GetNumberOfConnections();
+    for (int id = 0; id < numberOfConnections; ++id) {
+        struct TLBRequest newRequest;
+        if (this->ReceiveRequestFromConnection(id, &newRequest.addr) == 0) {
+            ++this->numberOfRequests;
+            newRequest.id = id;
+            this->pendingRequests.Enqueue(&newRequest);
+            SINUCA3_DEBUG_PRINTF("%p: iTLB Message (%p) Received!\n",
+                                 this, (void*)newRequest.addr);
+        }
+    }
+
     /* If paying a miss penalty */
     if (this->currentPenalty > 0) {
         --this->currentPenalty;
 
         if(this->currentPenalty == 0){
             this->currentPenalty = NO_PENALTY;
-            SINUCA3_DEBUG_PRINTF("%p: iTLB Waiting ended! Sending response\n", this);;
-            this->SendResponseToConnection(this->requestID, &this->requestAddr);
+            SINUCA3_DEBUG_PRINTF("%p: iTLB Waiting ended! Sending response\n", this);
+            this->SendResponseToConnection(this->curRequest.id, &this->curRequest.addr);
         }
 
         return;
     }
 
-    long numberOfConnections = this->GetNumberOfConnections();
-    for (this->requestID = 0; this->requestID < numberOfConnections; ++this->requestID) {
-        if (this->ReceiveRequestFromConnection(this->requestID, &this->requestAddr) == 0) {
-            ++this->numberOfRequests;
-
-            // We dont have (and dont need) data to send back, so
-            // the same address is send back to to signal
-            // that the iTLB's operation has been completed.
-
-            SINUCA3_DEBUG_PRINTF("%p: iTLB Message (%lu) Received!\n",
-                                 this, this->requestAddr);
-
-            // Read() returns NULL if it was a miss.
-            if (this->cache->Read(this->requestAddr)) {
-                SINUCA3_DEBUG_PRINTF("%p: iTLB HIT Sending response!\n", this);
-                this->SendResponseToConnection(this->requestID, &this->requestAddr);
-            } else {
-                SINUCA3_DEBUG_PRINTF("%p: iTLB MISS Waiting cycles!\n", this);
-                this->currentPenalty = this->missPenalty;
-                this->cache->Write(this->requestAddr, &this->requestAddr);
-                break;
-            }
-        }
+    struct TLBRequest request;
+    if(this->pendingRequests.Dequeue(&request)){
+        SINUCA3_DEBUG_PRINTF("%p: iTLB No work avaliable: Stall.\n", this);
+        return;
     }
+    this->curRequest = request;
+
+    // We dont have (and dont need) data to send back, so
+    // the same address is send back to to signal
+    // that the iTLB's operation has been completed.
+
+    // Read() returns NULL if it was a miss.
+    if (this->cache->Read(this->curRequest.addr)) {
+        SINUCA3_DEBUG_PRINTF("%p: iTLB (%p) HIT Sending response!\n", this, (void*)this->curRequest.addr);
+        this->SendResponseToConnection(this->curRequest.id, &this->curRequest.addr);
+    } else {
+        SINUCA3_DEBUG_PRINTF("%p: iTLB (%p) MISS Waiting %lu cycles!\n", this, (void*)this->curRequest.addr, this->missPenalty);
+        this->currentPenalty = this->missPenalty;
+        this->cache->Write(this->curRequest.addr, &this->curRequest.addr);
+    }
+
+    return;
 }
 
 void iTLB::PrintStatistics() {
