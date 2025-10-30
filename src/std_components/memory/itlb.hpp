@@ -48,11 +48,9 @@ class iTLB : public Component<Address> {
           pageSize(4096),
           currentPenalty(NO_PENALTY),
           missPenalty(0),
-          cache(NULL)
-          {};
+          cache(NULL) {};
     virtual ~iTLB() {};
 
-    virtual int FinishSetup();
     virtual int Configure(Config config);
     virtual void Clock();
     virtual void PrintStatistics();
