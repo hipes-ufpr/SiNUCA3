@@ -39,7 +39,6 @@
 #include <std_components/predictors/interleavedBTB.hpp>
 #include <std_components/predictors/ras.hpp>
 #include <std_components/memory/itlb.hpp>
-#include "std_components/memory/simple_cache.hpp"
 #include <std_components/trace_dumper_component.hpp>
 
 Linkable* CreateDefaultComponentByClass(const char* name) {
@@ -60,7 +59,6 @@ Linkable* CreateDefaultComponentByClass(const char* name) {
     COMPONENT(SimpleExecutionUnit);
     COMPONENT(HardwiredPredictor);
     COMPONENT(iTLB);
-    COMPONENT(SimpleCache);
     COMPONENT(TraceDumperComponent);
 
     return NULL;
