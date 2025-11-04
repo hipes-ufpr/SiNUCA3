@@ -92,7 +92,6 @@ struct BTBPacket {
                                                         instructions in the
                                                         block are expected to be
                                                         executed. */
-            bool isInBTB; /**<The instruction block is not in the BTB. */
             int interleavingBits; /**<The number of bits used to index
                                      instruction blocks. */
         } response;

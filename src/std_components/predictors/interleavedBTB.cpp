@@ -271,7 +271,6 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
          * taken branch as valid.
          */
         bool branchTaken = false;
-        response.data.response.isInBTB = true;
 
         for (unsigned int i = 0; i < this->interleavingFactor; ++i) {
             if (!(branchTaken)) {
@@ -294,8 +293,6 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
          * In a BTB Miss, it assumes that all instructions are valid and that
          * the next fetch block is sequential.
          */
-        response.data.response.isInBTB = false;
-
         for (unsigned int i = 0; i < this->interleavingFactor; ++i) {
             response.data.response.validBits[i] = true;
         }
