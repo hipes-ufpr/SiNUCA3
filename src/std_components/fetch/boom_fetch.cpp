@@ -236,26 +236,10 @@ bool BoomFetch::SentToRas(unsigned long i) {
     return false;
 }
 
-void BoomFetch::ClockSendBuffered() {
-    unsigned long i;
-    bool instMemAvailable;
-    bool predictorAvailable;
-    bool btbAvailable;
-    bool rasAvailable;
-
+bool BoomFetch::SentToBTB(unsigned long i) {
     BTBPacket btbPacket;
-    PredictorPacket predictorPacket;
 
-    /* Skip instructions we already sent. */
-    i = 0;
-    while (this->fetchBuffer[i].flags & BoomFetchBufferEntryFlagsSentToMemory)
-        ++i;
-
-    btbAvailable = this->btb->IsComponentAvailable(this->btbID);
-
-    if (!(btbAvailable)) return;
-
-    if (i < this->fetchBufferUsage) {
+    if (this->fetchBuffer[i].instruction.staticInfo->isControlFlow) {
         btbPacket.type = BTBPacketTypeRequestQuery;
         btbPacket.data.requestQuery =
             this->fetchBuffer[i].instruction.staticInfo;
@@ -265,7 +249,26 @@ void BoomFetch::ClockSendBuffered() {
             "BTB: [%lx] : %s\n",
             this->fetchBuffer[i].instruction.staticInfo->opcodeAddress,
             this->fetchBuffer[i].instruction.staticInfo->opcodeAssembly);
+
+        return true;
     }
+
+    return false;
+}
+
+void BoomFetch::ClockSendBuffered() {
+    unsigned long i;
+    bool instMemAvailable;
+    bool predictorAvailable;
+    bool btbAvailable;
+    bool rasAvailable;
+
+    PredictorPacket predictorPacket;
+
+    /* Skip instructions we already sent. */
+    i = 0;
+    while (this->fetchBuffer[i].flags & BoomFetchBufferEntryFlagsSentToMemory)
+        ++i;
 
     while (i < this->fetchBufferUsage) {
         instMemAvailable = this->instructionMemory->IsComponentAvailable(
@@ -276,7 +279,10 @@ void BoomFetch::ClockSendBuffered() {
 
         rasAvailable = this->ras->IsComponentAvailable(this->rasID);
 
-        if (!(instMemAvailable) || !(predictorAvailable) || !(rasAvailable)) {
+        btbAvailable = this->btb->IsComponentAvailable(this->btbID);
+
+        if (!(instMemAvailable) || !(predictorAvailable) || !(rasAvailable) ||
+            !(btbAvailable)) {
             break;
         }
 
@@ -292,6 +298,10 @@ void BoomFetch::ClockSendBuffered() {
 
         if (this->SentToRas(i)) {
             this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToRas;
+        }
+
+        if (this->SentToBTB(i)) {
+            this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToBTB;
         }
 
         i++;
@@ -366,8 +376,8 @@ int BoomFetch::ClockCheckBTB() {
     BTBPacket response;
     BTBPacket updateRequest;
 
-    bool validResponse, isNext, btbAvailable, taken;
-    unsigned int i, index, next, nextInstruction, targetBlock;
+    bool btbAvailable, taken;
+    unsigned int i, next;
 
     this->btb->Clock();
     this->btb->PosClock();
@@ -416,87 +426,18 @@ int BoomFetch::ClockCheckBTB() {
             if (next != response.data.response.target) {
                 return 1;
             }
-        }
+        } else {
+            updateRequest.type = BTBPacketTypeRequestAddEntry;
+            updateRequest.data.requestAddEntry.instruction =
+                this->fetchBuffer[i].instruction.staticInfo;
+            updateRequest.data.requestAddEntry.target =
+                this->fetchBuffer[i].instruction.nextInstruction;
 
-        index = i;
+            if (btbAvailable)
+                this->btb->SendRequest(this->btbID, &updateRequest);
 
-        /* Checks whether the instructions actually executed as intended */
-        for (i = 1; i < response.data.response.numberOfInstructions; ++i) {
-            validResponse = response.data.response.validBits[i];
-
-            nextInstruction = this->fetchBuffer[index + (i - 1)]
-                                  .instruction.staticInfo->opcodeAddress +
-                              this->fetchBuffer[index + (i - 1)]
-                                  .instruction.staticInfo->opcodeSize;
-
-            isNext =
-                nextInstruction == this->fetchBuffer[index + i]
-                                       .instruction.staticInfo->opcodeAddress;
-
-            if (validResponse != isNext) {
-                /* In this case, the prediction was wrong. */
-                if (validResponse) {
-                    /*
-                     * If it was valid, the previous instruction (branch) was
-                     * executed and the current instruction contains the jump
-                     * destination address.
-                     */
-                    targetBlock = this->fetchBuffer[index + i]
-                                      .instruction.staticInfo->opcodeAddress;
-                } else {
-                    /*
-                     * If it was not valid, the previous instruction (branch)
-                     * was considered to have been taken, and the address of the
-                     * next block is given by the base address + the number of
-                     * instructions per block.
-                     */
-                    targetBlock =
-                        ((this->fetchBuffer[index]
-                              .instruction.staticInfo->opcodeAddress >>
-                          response.data.response.interleavingBits)
-                         << response.data.response.interleavingBits) +
-                        response.data.response.numberOfInstructions;
-                }
-
-                if (response.data.response.isInBTB) {
-                    updateRequest.data.requestUpdate.instruction =
-                        this->fetchBuffer[index + (i - 1)]
-                            .instruction.staticInfo;
-
-                    updateRequest.data.requestUpdate.branchState =
-                        validResponse;
-
-                    updateRequest.type = BTBPacketTypeRequestUpdate;
-                } else {
-                    updateRequest.data.requestAddEntry.instruction =
-                        this->fetchBuffer[index + (i - 1)]
-                            .instruction.staticInfo;
-
-                    updateRequest.data.requestAddEntry.target = targetBlock;
-
-                    updateRequest.type = BTBPacketTypeRequestAddEntry;
-                }
-
-                if (this->btb->SendRequest(this->btbID, &updateRequest) != 0) {
-                    break;
-                }
-            } else {
-                /* The prediction was correct. */
-                BTBPacket updateRequest;
-
-                updateRequest.data.requestUpdate.instruction =
-                    this->fetchBuffer[index + (i - 1)].instruction.staticInfo;
-                /*
-                 * If it was taken, the validity bit of the next sequential
-                 * instruction is 0. If it was not taken, the validity bit of
-                 * the next sequential instruction is 1.
-                 */
-                updateRequest.data.requestUpdate.branchState = (!validResponse);
-                updateRequest.type = BTBPacketTypeRequestUpdate;
-
-                if (this->btb->SendRequest(this->btbID, &updateRequest) != 0) {
-                    break;
-                }
+            if (next != response.data.response.target) {
+                return 1;
             }
         }
     }
