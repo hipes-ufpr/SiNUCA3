@@ -133,6 +133,9 @@ class BoomFetch : public Component<FetchPacket> {
 
     /** @brief Helper for sending instructions to the RAS. */
     bool SentToRas(unsigned long i);
+    /** @brief Helper for sending instructions to the RAS. */
+    bool SentToBTB(unsigned long i);
+
     /** @brief Helper to send the fetched instructions to the memory, predictor
      * and btb. */
     void ClockSendBuffered();

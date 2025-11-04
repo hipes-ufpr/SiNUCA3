@@ -31,9 +31,9 @@ const unsigned int TRACE_LINE_SIZE = 256;
 
 /** @brief Enumerates the types of branches. */
 enum Branch {
+    BranchReturn,
     BranchSyscall,
     BranchCall,
-    BranchReturn,
     BranchUncond,
     BranchCond
 };
