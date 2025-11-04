@@ -24,6 +24,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstdio>
 
 #include "config/config.hpp"
 #include "engine/component.hpp"
@@ -203,7 +204,7 @@ int BoomFetch::FinishSetup() {
     return 0;
 }
 
-bool BoomFetch::SendToRas(unsigned long i) {
+bool BoomFetch::SentToRas(unsigned long i) {
     PredictorPacket rasPacket;
     if (this->fetchBuffer[i].instruction.staticInfo->branchType == BranchCall) {
         /* Fills the packet with the instruction and target info. */
@@ -242,9 +243,8 @@ void BoomFetch::ClockSendBuffered() {
     bool btbAvailable;
     bool rasAvailable;
 
-    // BTBPacket btbPacket;
+    BTBPacket btbPacket;
     PredictorPacket predictorPacket;
-    // BTBPacket btbPacket;
 
     /* Skip instructions we already sent. */
     i = 0;
@@ -255,13 +255,17 @@ void BoomFetch::ClockSendBuffered() {
 
     if (!(btbAvailable)) return;
 
-    // if (i < this->fetchBufferUsage) {
-    //     btbPacket.type = BTBPacketTypeRequestQuery;
-    //     btbPacket.data.requestQuery =
-    //         this->fetchBuffer[i].instruction.staticInfo;
-    //     this->btb->SendRequest(this->btbID, &btbPacket);
-    //     this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToBTB;
-    // }
+    if (i < this->fetchBufferUsage) {
+        btbPacket.type = BTBPacketTypeRequestQuery;
+        btbPacket.data.requestQuery =
+            this->fetchBuffer[i].instruction.staticInfo;
+        this->btb->SendRequest(this->btbID, &btbPacket);
+        this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToBTB;
+        SINUCA3_DEBUG_PRINTF(
+            "BTB: [%lx] : %s\n",
+            this->fetchBuffer[i].instruction.staticInfo->opcodeAddress,
+            this->fetchBuffer[i].instruction.staticInfo->opcodeAssembly);
+    }
 
     while (i < this->fetchBufferUsage) {
         instMemAvailable = this->instructionMemory->IsComponentAvailable(
@@ -286,7 +290,7 @@ void BoomFetch::ClockSendBuffered() {
         this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToMemory;
         this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToPredictor;
 
-        if (this->SendToRas(i)) {
+        if (this->SentToRas(i)) {
             this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToRas;
         }
 
@@ -359,20 +363,30 @@ int BoomFetch::ClockCheckRas() {
 int BoomFetch::ClockCheckBTB() {
     if (this->btb == NULL) return 0;
 
-    return 0;
-
     BTBPacket response;
     bool validResponse, isNext;
     unsigned int i, index, nextInstruction, targetBlock, miss;
 
     this->btb->Clock();
+    this->btb->PosClock();
 
     miss = 0;
     if (this->btb->ReceiveResponse(this->btbID, &response) == 0) {
         i = 0;
-        while (this->fetchBuffer[i].flags &
-               BoomFetchBufferEntryFlagsSentToMemory)
+        while (
+            (this->fetchBuffer[i].flags & BoomFetchBufferEntryFlagsSentToBTB) !=
+            BoomFetchBufferEntryFlagsSentToBTB)
             ++i;
+
+        SINUCA3_DEBUG_PRINTF(
+            "BTB Check: [%lx] : %s\n",
+            this->fetchBuffer[i].instruction.staticInfo->opcodeAddress,
+            this->fetchBuffer[i].instruction.staticInfo->opcodeAssembly);
+
+        this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsBTBCheck;
+
+        return 0;
+
         assert(this->fetchBuffer[i].instruction.staticInfo ==
                response.data.response.instruction);
 
@@ -471,6 +485,12 @@ void BoomFetch::ClockUnbuffer() {
     while (i < this->fetchBufferUsage &&
            ((this->fetchBuffer[i].flags & this->flagsToCheck) ==
             this->flagsToCheck)) {
+        if (((this->fetchBuffer[i].flags &
+              BoomFetchBufferEntryFlagsSentToBTB) ==
+             BoomFetchBufferEntryFlagsSentToBTB) &&
+            ((this->fetchBuffer[i].flags & BoomFetchBufferEntryFlagsBTBCheck) !=
+             BoomFetchBufferEntryFlagsBTBCheck))
+            break;
         ++i;
     }
 

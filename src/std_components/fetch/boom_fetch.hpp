@@ -49,9 +49,11 @@ const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSentToRas = (1 << 2);
 /** @brief This instruction was send to btb. */
 const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSentToBTB = (1 << 3);
 
+const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsBTBCheck = (1 << 4);
+
 /** @brief This instruction was send to memory. */
 const BoomFetchBufferEntryFlags BoomFetchBufferEntryFlagsSentToMemory =
-    (1 << 4);
+    (1 << 5);
 
 struct BoomFetchBufferEntry {
     InstructionPacket instruction;   /**< Fetched instruction >*/
@@ -130,7 +132,7 @@ class BoomFetch : public Component<FetchPacket> {
     int MisspredictPenaltyConfigParameter(ConfigValue value);
 
     /** @brief Helper for sending instructions to the RAS. */
-    bool SendToRas(unsigned long i);
+    bool SentToRas(unsigned long i);
     /** @brief Helper to send the fetched instructions to the memory, predictor
      * and btb. */
     void ClockSendBuffered();

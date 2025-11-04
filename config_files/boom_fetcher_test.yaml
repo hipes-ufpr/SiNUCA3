@@ -2,9 +2,9 @@ instantiate:
   class: BoomFetch
   fetch: *ENGINE
   fetchSize: 16
-  fetchInterval: 8
+  fetchInterval: 4
   misspredictPenalty: 12
-  interleavingFactor: 4
+  interleavingFactor: 1
   numberOfEntries: 1024
   size: 1024
   instructionMemory:

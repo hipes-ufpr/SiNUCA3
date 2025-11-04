@@ -18,6 +18,7 @@
 #include "interleavedBTB.hpp"
 
 #include <cmath>
+#include <cstdio>
 #include <sinuca3.hpp>
 
 BTBEntry::BTBEntry()
@@ -353,6 +354,7 @@ void BranchTargetBuffer::PrintStatistics() {
     }
 
     SINUCA3_LOG_PRINTF("Branch Target Buffer [%p]\n", this);
+    SINUCA3_LOG_PRINTF("    Total Queries: %lu\n", this->queries);
     SINUCA3_LOG_PRINTF("    Total Branches: %lu\n", this->totalBranch);
     SINUCA3_LOG_PRINTF("    BTB Hits: %lu\n", this->btbHits);
     SINUCA3_LOG_PRINTF("    BTB Occupation: %lu\n", this->occupation);
