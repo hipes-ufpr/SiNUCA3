@@ -364,19 +364,25 @@ int BoomFetch::ClockCheckBTB() {
     if (this->btb == NULL) return 0;
 
     BTBPacket response;
-    bool validResponse, isNext;
-    unsigned int i, index, nextInstruction, targetBlock, miss;
+    BTBPacket updateRequest;
+
+    bool validResponse, isNext, btbAvailable, taken;
+    unsigned int i, index, next, nextInstruction, targetBlock;
 
     this->btb->Clock();
     this->btb->PosClock();
 
-    miss = 0;
-    if (this->btb->ReceiveResponse(this->btbID, &response) == 0) {
+    next = 0;
+    while (this->btb->ReceiveResponse(this->btbID, &response) == 0) {
         i = 0;
         while (
-            (this->fetchBuffer[i].flags & BoomFetchBufferEntryFlagsSentToBTB) !=
-            BoomFetchBufferEntryFlagsSentToBTB)
+            ((this->fetchBuffer[i].flags &
+              BoomFetchBufferEntryFlagsSentToBTB) !=
+             BoomFetchBufferEntryFlagsSentToBTB) ||
+            (this->fetchBuffer[i].flags & BoomFetchBufferEntryFlagsBTBCheck) ==
+                BoomFetchBufferEntryFlagsBTBCheck) {
             ++i;
+        }
 
         SINUCA3_DEBUG_PRINTF(
             "BTB Check: [%lx] : %s\n",
@@ -385,10 +391,32 @@ int BoomFetch::ClockCheckBTB() {
 
         this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsBTBCheck;
 
-        return 0;
-
         assert(this->fetchBuffer[i].instruction.staticInfo ==
                response.data.response.instruction);
+
+        btbAvailable = this->btb->IsComponentAvailable(this->btbID);
+
+        next = this->fetchBuffer[i].instruction.nextInstruction;
+
+        if (response.type == BTBPacketTypeResponseBTBHit) {
+            updateRequest.type = BTBPacketTypeRequestUpdate;
+            updateRequest.data.requestUpdate.instruction =
+                this->fetchBuffer[i].instruction.staticInfo;
+
+            taken =
+                (next !=
+                 this->fetchBuffer[i].instruction.staticInfo->opcodeAddress +
+                     this->fetchBuffer[i].instruction.staticInfo->opcodeSize);
+
+            updateRequest.data.requestUpdate.branchState = taken;
+
+            if (btbAvailable)
+                this->btb->SendRequest(this->btbID, &updateRequest);
+
+            if (next != response.data.response.target) {
+                return 1;
+            }
+        }
 
         index = i;
 
@@ -407,7 +435,6 @@ int BoomFetch::ClockCheckBTB() {
 
             if (validResponse != isNext) {
                 /* In this case, the prediction was wrong. */
-                miss = 1;
                 if (validResponse) {
                     /*
                      * If it was valid, the previous instruction (branch) was
@@ -430,8 +457,6 @@ int BoomFetch::ClockCheckBTB() {
                          << response.data.response.interleavingBits) +
                         response.data.response.numberOfInstructions;
                 }
-
-                BTBPacket updateRequest;
 
                 if (response.data.response.isInBTB) {
                     updateRequest.data.requestUpdate.instruction =
@@ -476,7 +501,7 @@ int BoomFetch::ClockCheckBTB() {
         }
     }
 
-    return miss;
+    return 0;
 }
 
 void BoomFetch::ClockUnbuffer() {

@@ -255,7 +255,9 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
 
     response.data.response.instruction = instruction;
     response.data.response.target =
-        instruction->opcodeAddress + this->interleavingFactor;
+        instruction->opcodeAddress + ((this->interleavingFactor == 1)
+                                          ? instruction->opcodeSize
+                                          : (this->interleavingFactor));
     response.data.response.numberOfInstructions = this->interleavingFactor;
     response.data.response.interleavingBits = this->interleavingBits;
 
