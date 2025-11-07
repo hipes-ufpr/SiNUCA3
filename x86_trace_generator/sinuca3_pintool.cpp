@@ -34,7 +34,6 @@
 #include <sinuca3.hpp>
 
 #include "pin.H"
-
 #include "tracer/sinuca/file_handler.hpp"
 #include "utils/dynamic_trace_writer.hpp"
 #include "utils/logging.hpp"
@@ -152,18 +151,17 @@ bool WasThreadCreated(THREADID tid) {
 }
 
 inline int IsThreadAnalysisActive(THREADID tid) {
-    return (WasThreadCreated(tid) && threadDataVec[tid]->isThreadAnalysisEnabled);
+    return (WasThreadCreated(tid) &&
+            threadDataVec[tid]->isThreadAnalysisEnabled);
 }
 
 /** @brief Enables execution of analysis code. */
 VOID EnableInstrumentationInThread(THREADID tid) {
     if (!WasThreadCreated(tid)) return;
 
-    PIN_GetLock(&threadAnalysisLock, tid);
     SINUCA3_DEBUG_PRINTF(
         "[EnableInstrumentationInThread] Thread [%d] analysis enabled\n", tid);
     threadDataVec[tid]->isThreadAnalysisEnabled = true;
-    PIN_ReleaseLock(&threadAnalysisLock);
 }
 
 /** @brief Disables execution of analysis code. */
@@ -172,19 +170,15 @@ VOID DisableInstrumentationInThread(THREADID tid) {
         return;
     }
 
-    PIN_GetLock(&threadAnalysisLock, tid);
     SINUCA3_DEBUG_PRINTF(
         "[DisableInstrumentationInThread] Thread [%d] analysis disabled\n",
         tid);
     threadDataVec[tid]->isThreadAnalysisEnabled = false;
-    PIN_ReleaseLock(&threadAnalysisLock);
 }
 
 /** @brief Set up thread data */
 VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
     SINUCA3_DEBUG_PRINTF("[OnThreadStart] thread id [%d]\n", tid);
-
-    PIN_GetLock(&threadAnalysisLock, tid);
 
     struct ThreadData* threadData = new ThreadData;
     if (!threadData) {
@@ -205,9 +199,9 @@ VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v) {
     threadData->isThreadAnalysisEnabled = false;
     threadData->isThreadActive = (tid == 0);
 
+    PIN_GetLock(&threadAnalysisLock, tid);
     threadDataVec.push_back(threadData);
     staticTrace->IncThreadCount();
-
     PIN_ReleaseLock(&threadAnalysisLock);
 }
 
@@ -224,7 +218,6 @@ VOID OnThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 code, VOID* v) {
 VOID AppendToDynamicTrace(THREADID tid, UINT32 bblId, UINT32 numInst) {
     if (!IsThreadAnalysisActive(tid)) return;
 
-    PIN_GetLock(&threadAnalysisLock, tid);
     threadDataVec[tid]->dynamicTrace.IncExecutedInstructions(numInst);
 
     if (threadDataVec[tid]->dynamicTrace.AddBasicBlockId(bblId)) {
@@ -234,17 +227,16 @@ VOID AppendToDynamicTrace(THREADID tid, UINT32 bblId, UINT32 numInst) {
 
     /* detect thread being reused */
     if (!threadDataVec[tid]->isThreadActive) {
+        PIN_GetLock(&threadAnalysisLock, tid);
         threadDataVec[0]->dynamicTrace.AddThreadCreateEvent(tid);
+        PIN_ReleaseLock(&threadAnalysisLock);
         threadDataVec[tid]->isThreadActive = true;
     }
-    PIN_ReleaseLock(&threadAnalysisLock);
 }
 
 /** @brief Append non standard memory op to memory trace. */
 VOID AppendToMemTrace(THREADID tid, PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
     if (!IsThreadAnalysisActive(tid)) return;
-
-    PIN_GetLock(&threadAnalysisLock, tid);
 
     /* comment */
     int totalOps = accessInfo->numberOfMemops;
@@ -275,7 +267,6 @@ VOID AppendToMemTrace(THREADID tid, PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
                 "[AppendToMemTrace] Failed to add memory operation!\n");
         }
     }
-    PIN_ReleaseLock(&threadAnalysisLock);
 }
 
 int TranslatePinInst(Instruction* inst, const INS* pinInst) {
@@ -399,7 +390,8 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
          * ends to create the basic block dictionary.
          */
         if (staticTrace->AddBasicBlockSize(numberInstInBasicBlock)) {
-            SINUCA3_ERROR_PRINTF("[OnTrace] Failed to add basic block count to file\n");
+            SINUCA3_ERROR_PRINTF(
+                "[OnTrace] Failed to add basic block count to file\n");
         }
 
         staticTrace->IncBasicBlockCount();
@@ -410,7 +402,8 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
                 SINUCA3_ERROR_PRINTF("[OnTrace] Failed to translate ins\n");
             }
             if (staticTrace->AddInstruction(&sinucaInstruction)) {
-                SINUCA3_ERROR_PRINTF("[OnTrace] Failed to add instruction to file\n");
+                SINUCA3_ERROR_PRINTF(
+                    "[OnTrace] Failed to add instruction to file\n");
             }
             /*
              * The number of static instructions will later be useful while
@@ -435,6 +428,7 @@ VOID OnThreadCreationEvent(THREADID tid, UINT32 eventType) {
 
     PIN_GetLock(&threadAnalysisLock, tid);
     SINUCA3_DEBUG_PRINTF("[OnThreadCreationEvent] Thread id [%d]\n", tid);
+    PIN_ReleaseLock(&threadAnalysisLock);
 
     switch (eventType) {
         case ThreadEventCreateThread:
@@ -462,7 +456,6 @@ VOID OnThreadCreationEvent(THREADID tid, UINT32 eventType) {
             SINUCA3_DEBUG_PRINTF("[OnThreadCreationEvent] unkown type!\n");
             break;
     }
-    PIN_ReleaseLock(&threadAnalysisLock);
 }
 
 VOID OnGlobalLockThreadEvent(THREADID tid, BOOL isLock) {
@@ -470,12 +463,12 @@ VOID OnGlobalLockThreadEvent(THREADID tid, BOOL isLock) {
 
     PIN_GetLock(&threadAnalysisLock, tid);
     SINUCA3_DEBUG_PRINTF("[OnGlobalLockThreadEvent] Thread id [%d]\n", tid);
+    PIN_ReleaseLock(&threadAnalysisLock);
     if (isLock) {
         threadDataVec[tid]->dynamicTrace.AddLockEventGlobalLock();
     } else {
         threadDataVec[tid]->dynamicTrace.AddUnlockEventGlobalLock();
     }
-    PIN_ReleaseLock(&threadAnalysisLock);
 }
 
 VOID OnPrivateLockThreadEvent(THREADID tid, CONTEXT* ctxt, BOOL isLock,
@@ -484,9 +477,9 @@ VOID OnPrivateLockThreadEvent(THREADID tid, CONTEXT* ctxt, BOOL isLock,
 
     PIN_GetLock(&threadAnalysisLock, tid);
     SINUCA3_DEBUG_PRINTF("[OnPrivateLockThreadEvent] Thread id [%d]\n", tid);
-
     ADDRINT lockAddr = PIN_GetContextReg(ctxt, REG_RDI);
     SINUCA3_DEBUG_PRINTF("\tLock Address is %p!\n", (void*)lockAddr);
+    PIN_ReleaseLock(&threadAnalysisLock);
 
     if (isLock) {
         threadDataVec[tid]->dynamicTrace.AddLockEventPrivateLock(
@@ -495,7 +488,6 @@ VOID OnPrivateLockThreadEvent(THREADID tid, CONTEXT* ctxt, BOOL isLock,
         threadDataVec[tid]->dynamicTrace.AddUnlockEventPrivateLock(lockAddr,
                                                                    isNested);
     }
-    PIN_ReleaseLock(&threadAnalysisLock);
 }
 
 VOID OnBarrierThreadEvent(THREADID tid) {
