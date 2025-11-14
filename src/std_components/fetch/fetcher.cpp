@@ -131,6 +131,7 @@ int Fetcher::ClockCheckPredictor() {
 
     PredictorPacket response;
     unsigned long i = 0;
+    int ret = 0;
     // We depend on the predictor sending the responses in order and, of course,
     // sending only what we actually asked for.
     while (this->predictor->ReceiveResponse(this->predictorID, &response) ==
@@ -148,12 +149,12 @@ int Fetcher::ClockCheckPredictor() {
         }
         // If a missprediction happened.
         if (target != this->fetchBuffer[i].instruction.nextInstruction) {
-            return 1;
+            ret = 1;
         }
         ++i;
     }
 
-    return 0;
+    return ret;
 }
 
 void Fetcher::ClockUnbuffer() {
@@ -196,19 +197,23 @@ void Fetcher::ClockFetch() {
 }
 
 void Fetcher::Clock() {
-    // If paying a misspredict penalty.
-    if (this->currentPenalty > 0) {
-        --this->currentPenalty;
-        return;
-    }
-
     this->ClockSendBuffered();
     const int predictionResult = this->ClockCheckPredictor();
     this->ClockUnbuffer();
 
+    bool forceFetch = false;
+    // If paying a misspredict penalty.
+    if (this->currentPenalty > 0) {
+        --this->currentPenalty;
+        // In the last cycle of paying the prediction, we need to force fetching
+        // new instructions.
+        if (this->currentPenalty > 0) return;
+        forceFetch = true;
+    }
+
     // Don't fetch if a misspredict happened. The fetchClock is set to 0 so when
     // the missprediction is paid, we start fetching immediatly.
-    if (predictionResult != 0) {
+    if (!forceFetch && predictionResult != 0) {
         ++this->misspredictions;
         this->currentPenalty = this->misspredictPenalty;
         this->fetchClock = 0;
