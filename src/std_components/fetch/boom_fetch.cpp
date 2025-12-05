@@ -245,10 +245,6 @@ bool BoomFetch::SentToBTB(unsigned long i) {
             this->fetchBuffer[i].instruction.staticInfo;
         this->btb->SendRequest(this->btbID, &btbPacket);
         this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsSentToBTB;
-        SINUCA3_DEBUG_PRINTF(
-            "BTB: [%lx] : %s\n",
-            this->fetchBuffer[i].instruction.staticInfo->opcodeAddress,
-            this->fetchBuffer[i].instruction.staticInfo->opcodeAssembly);
 
         return true;
     }
@@ -393,11 +389,6 @@ int BoomFetch::ClockCheckBTB() {
                 BoomFetchBufferEntryFlagsBTBCheck) {
             ++i;
         }
-
-        SINUCA3_DEBUG_PRINTF(
-            "BTB Check: [%lx] : %s\n",
-            this->fetchBuffer[i].instruction.staticInfo->opcodeAddress,
-            this->fetchBuffer[i].instruction.staticInfo->opcodeAssembly);
 
         this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsBTBCheck;
 
