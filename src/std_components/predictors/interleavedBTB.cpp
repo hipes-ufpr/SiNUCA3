@@ -183,7 +183,6 @@ int BranchTargetBuffer::FinishSetup() {
     this->interleavingBits = floor(log(this->interleavingFactor));
     this->entriesBits = floor(log(this->numEntries));
     this->interleavingFactor = (1 << this->interleavingBits);
-    this->numEntries = (1 << this->entriesBits);
     this->btb = new BTBEntry*[this->numEntries];
     if (!(this->btb)) {
         SINUCA3_ERROR_PRINTF("BTB could not be allocated.\n");
@@ -320,7 +319,7 @@ void BranchTargetBuffer::Clock() {
     long numberOfConnections = this->GetNumberOfConnections();
     BTBPacket packet;
     for (long i = 0; i < numberOfConnections; ++i) {
-        if (this->ReceiveRequestFromConnection(i, &packet) == 0) {
+        while (this->ReceiveRequestFromConnection(i, &packet) == 0) {
             switch (packet.type) {
                 case BTBPacketTypeRequestQuery:
                     this->Query(packet.data.requestQuery, i);
@@ -353,14 +352,14 @@ void BranchTargetBuffer::PrintStatistics() {
     }
 
     SINUCA3_LOG_PRINTF("Branch Target Buffer [%p]\n", this);
+    SINUCA3_LOG_PRINTF("    Entries: %d\n", this->numEntries);
     SINUCA3_LOG_PRINTF("    Total Queries: %lu\n", this->queries);
     SINUCA3_LOG_PRINTF("    Total Branches: %lu\n", this->totalBranch);
     SINUCA3_LOG_PRINTF("    BTB Hits: %lu\n", this->btbHits);
     SINUCA3_LOG_PRINTF("    BTB Occupation: %lu\n", this->occupation);
     SINUCA3_LOG_PRINTF("    Entry Replacements: %lu\n", this->replacements);
-    SINUCA3_LOG_PRINTF(
-        "    Hit Ratio: %lf%%\n",
-        ((double)this->btbHits / (double)this->totalBranch) * 100);
+    SINUCA3_LOG_PRINTF("    Hit Ratio: %lf%%\n",
+                       ((double)this->btbHits / (double)this->queries) * 100);
     SINUCA3_LOG_PRINTF(
         "    Occupation Ratio: %lf%%\n",
         ((double)this->occupation / (double)this->numEntries) * 100);
