@@ -24,30 +24,9 @@
 
 #include <sinuca3.hpp>
 
-int SimpleInstructionMemory::SetConfigParameter(const char* parameter,
-                                                ConfigValue value) {
-    if (strcmp(parameter, "sendTo") == 0) {
-        if (value.type == ConfigValueTypeComponentReference) {
-            this->sendTo = dynamic_cast<Component<InstructionPacket>*>(
-                value.value.componentReference);
-            if (this->sendTo != NULL) return 0;
-        }
-
-        SINUCA3_ERROR_PRINTF(
-            "SimpleInstructionMemory parameter `sendTo` is not a "
-            "Component<InstructionPacket>.\n");
-        return 1;
-    }
-
-    SINUCA3_ERROR_PRINTF(
-        "SimpleInstructionMemory received unknown parameter %s.\n", parameter);
-    return 1;
-}
-
-int SimpleInstructionMemory::FinishSetup() {
-    if (this->sendTo != NULL) {
-        this->sendToID = this->sendTo->Connect(0);
-    }
+int SimpleInstructionMemory::Configure(Config config) {
+    if (config.ComponentReference("sendTo", &this->sendTo)) return 1;
+    if (this->sendTo != NULL) this->sendToID = this->sendTo->Connect(0);
     return 0;
 }
 

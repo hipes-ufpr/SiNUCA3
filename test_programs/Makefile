@@ -12,18 +12,16 @@ ifndef CC
 endif
 
 NOOPT  = -O0 -fno-inline -fno-builtin -fno-omit-frame-pointer
-CFLAGS = -Wall -Wextra -std=c99 -O3 -I../x86_trace_generator/ -g
-OPENMP = -static -fopenmp
-SRCS = $(shell find *.c)
-EXEC = $(SRCS:.c=)
+CFLAGS = -Wall -Wextra -std=c11 -O3 -g -I../x86_trace_generator/
+ADD_FILES = ../x86_trace_generator/instrumentation_control.s
 
-all: $(EXEC)
+all: factorials intrinsics
 
-%_mthr: %_mthr.c
-	$(CC) $(CFLAGS) -o $@ $^ $(NOOPT) $(OPENMP)
+factorials: factorials.c $(ADD_FILES)
+	$(CC) $(CFLAGS) -o $@ $^
 
-%_seq: %_seq.c
-	$(CC) $(CFLAGS) -o $@ $^ $(NOOPT)
+intrinsics: intrinsics.c $(ADD_FILES)
+	$(CC) $(CFLAGS) -o $@ $^
 
-clean:
-	rm -f $(EXEC)
+pi: pi.c $(ADD_FILES)
+	$(CC) $(CFLAGS) -o $@ $^ -fopenmp

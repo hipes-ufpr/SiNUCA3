@@ -49,160 +49,6 @@ int DynamicTraceWriter::OpenFile(const char* sourceDir, const char* imageName,
     return 0;
 }
 
-int DynamicTraceWriter::CheckRecordArray() {
-    if (this->IsRecordArrayFull()) {
-        if (this->FlushRecordArray()) {
-            SINUCA3_ERROR_PRINTF("Failed to flush mem record array!\n")
-            return 1;
-        }
-        this->ResetRecordArray();
-    }
-    return 0;
-}
-
-int DynamicTraceWriter::AddThreadHaltEvent() {
-    this->SetRecordTypeThreadEvent();
-
-    this->recordArray[this->recordArrayOccupation].data.thrEvent.eventType =
-        ThreadEventHaltThread;
-
-    ++this->recordArrayOccupation;
-    if (this->CheckRecordArray()) return 1;
-
-    return 0;
-}
-
-int DynamicTraceWriter::AddThreadAbruptEndEvent() {
-    this->SetRecordTypeThreadEvent();
-
-    this->recordArray[this->recordArrayOccupation].data.thrEvent.eventType =
-        ThreadEventAbruptEnd;
-
-    ++this->recordArrayOccupation;
-    if (this->CheckRecordArray()) return 1;
-
-    return 0;
-}
-
-int DynamicTraceWriter::AddThreadCreateEvent(int tid) {
-    this->SetRecordTypeThreadEvent();
-
-    this->recordArray[this->recordArrayOccupation].data.thrEvent.eventType =
-        ThreadEventCreateThread;
-    this->recordArray[this->recordArrayOccupation]
-        .data.thrEvent.eventData.thrCreate.tid = tid;
-
-    ++this->recordArrayOccupation;
-    if (this->CheckRecordArray()) return 1;
-
-    return 0;
-}
-
-int DynamicTraceWriter::AddThreadDestroyEvent() {
-    this->SetRecordTypeThreadEvent();
-
-    this->recordArray[this->recordArrayOccupation].data.thrEvent.eventType =
-        ThreadEventDestroyThread;
-
-    ++this->recordArrayOccupation;
-    if (this->CheckRecordArray()) return 1;
-
-    return 0;
-}
-
-int DynamicTraceWriter::AddLockEventPrivateLock(unsigned long lockAddress,
-                                                bool isNested, bool isTest) {
-    this->SetRecordTypeThreadEvent();
-
-    this->recordArray[this->recordArrayOccupation].data.thrEvent.eventType =
-        ThreadEventLockRequest;
-    this->recordArray[this->recordArrayOccupation]
-        .data.thrEvent.eventData.lockInfo.isDefaultLock = 0;
-    this->recordArray[this->recordArrayOccupation]
-        .data.thrEvent.eventData.lockInfo.isNestedLock =
-        (isNested == true) ? 1 : 0;
-    this->recordArray[this->recordArrayOccupation]
-        .data.thrEvent.eventData.lockInfo.isTestLock = (isTest == true) ? 1 : 0;
-    this->recordArray[this->recordArrayOccupation]
-        .data.thrEvent.eventData.lockInfo.lockAddress = lockAddress;
-
-    ++this->recordArrayOccupation;
-    if (this->CheckRecordArray()) return 1;
-
-    return 0;
-}
-int DynamicTraceWriter::AddUnlockEventPrivateLock(unsigned long lockAddress,
-                                                  bool isNested) {
-    this->SetRecordTypeThreadEvent();
-
-    this->recordArray[this->recordArrayOccupation].data.thrEvent.eventType =
-        ThreadEventUnlockRequest;
-    this->recordArray[this->recordArrayOccupation]
-        .data.thrEvent.eventData.lockInfo.isDefaultLock = 0;
-    this->recordArray[this->recordArrayOccupation]
-        .data.thrEvent.eventData.lockInfo.isNestedLock =
-        (isNested == true) ? 1 : 0;
-    this->recordArray[this->recordArrayOccupation]
-        .data.thrEvent.eventData.lockInfo.lockAddress = lockAddress;
-
-    ++this->recordArrayOccupation;
-    if (this->CheckRecordArray()) return 1;
-
-    return 0;
-}
-
-int DynamicTraceWriter::AddLockEventGlobalLock() {
-    this->SetRecordTypeThreadEvent();
-
-    this->recordArray[this->recordArrayOccupation].data.thrEvent.eventType =
-        ThreadEventLockRequest;
-    this->recordArray[this->recordArrayOccupation]
-        .data.thrEvent.eventData.lockInfo.isDefaultLock = 1;
-
-    ++this->recordArrayOccupation;
-    if (this->CheckRecordArray()) return 1;
-
-    return 0;
-}
-
-int DynamicTraceWriter::AddUnlockEventGlobalLock() {
-    this->SetRecordTypeThreadEvent();
-
-    this->recordArray[this->recordArrayOccupation].data.thrEvent.eventType =
-        ThreadEventUnlockRequest;
-    this->recordArray[this->recordArrayOccupation]
-        .data.thrEvent.eventData.lockInfo.isDefaultLock = 1;
-
-    ++this->recordArrayOccupation;
-    if (this->CheckRecordArray()) return 1;
-
-    return 0;
-}
-
-int DynamicTraceWriter::AddBarrierEvent() {
-    this->SetRecordTypeThreadEvent();
-
-    this->recordArray[this->recordArrayOccupation].data.thrEvent.eventType =
-        ThreadEventBarrier;
-
-    ++this->recordArrayOccupation;
-    if (this->CheckRecordArray()) return 1;
-
-    return 0;
-}
-
-int DynamicTraceWriter::AddBasicBlockId(int id) {
-    this->SetRecordTypeBasicBlockId();
-
-    this->recordArray[this->recordArrayOccupation]
-        .data.bbl.basicBlockIdentifier = id;
-
-    ++this->recordArrayOccupation;
-    if (this->CheckRecordArray()) return 1;
-
-    return 0;
-}
-
 int DynamicTraceWriter::FlushRecordArray() {
     if (this->file == NULL) {
         SINUCA3_ERROR_PRINTF("File pointer is nil in mem trace!\n");
@@ -219,4 +65,65 @@ int DynamicTraceWriter::FlushRecordArray() {
     }
 
     return 0;
+}
+
+int DynamicTraceWriter::CheckRecordArray() {
+    if (this->IsRecordArrayFull()) {
+        if (this->FlushRecordArray()) {
+            SINUCA3_ERROR_PRINTF("Failed to flush mem record array!\n")
+            return 1;
+        }
+        this->ResetRecordArray();
+    }
+    return 0;
+}
+
+int DynamicTraceWriter::AddDynamicRecord(DynamicTraceRecord record) {
+    this->recordArray[this->recordArrayOccupation] = record;
+    ++this->recordArrayOccupation;
+    if (this->CheckRecordArray()) return 1;
+    return 0;
+}
+
+int DynamicTraceWriter::AddThreadCreateEvent() {
+    DynamicTraceRecord record;
+    record.recordType = DynamicRecordCreateThread;
+    return (this->AddDynamicRecord(record));
+}
+
+int DynamicTraceWriter::AddThreadDestructionEvent() {
+    DynamicTraceRecord record;
+    record.recordType = DynamicRecordDestroyThread;
+    return (this->AddDynamicRecord(record));
+}
+
+int DynamicTraceWriter::AddMutexEvent(bool isLockReq, bool isGlobalMutex, unsigned long mutexAddr) {
+    DynamicTraceRecord record;
+    if (isLockReq) {
+        record.recordType = DynamicRecordLockRequest;
+    } else {
+        record.recordType = DynamicRecordUnlockRequest;
+    }
+    record.data.lockInfo.mutexAddress = mutexAddr;
+    record.data.lockInfo.isGlobalMutex = (isGlobalMutex) ? 1 : 0;
+    return (this->AddDynamicRecord(record));
+}
+
+int DynamicTraceWriter::AddBarrierEvent() {
+    DynamicTraceRecord record;
+    record.recordType = DynamicRecordBarrier;
+    return (this->AddDynamicRecord(record));
+}
+
+int DynamicTraceWriter::AddThreadAbruptEndEvent() {
+    DynamicTraceRecord record;
+    record.recordType = DynamicRecordAbruptEnd;
+    return (this->AddDynamicRecord(record));
+}
+
+int DynamicTraceWriter::AddBasicBlockId(int identifier) {
+    DynamicTraceRecord record;
+    record.recordType = DynamicRecordBasicBlockIdentifier;
+    record.data.basicBlockIdentifier = identifier;
+    return (this->AddDynamicRecord(record));
 }

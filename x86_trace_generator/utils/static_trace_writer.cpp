@@ -23,7 +23,6 @@
 #include "static_trace_writer.hpp"
 
 #include <cstdlib>
-#include <string>
 
 #include "tracer/sinuca/file_handler.hpp"
 #include "utils/logging.hpp"
@@ -49,71 +48,9 @@ int StaticTraceWriter::OpenFile(const char* sourceDir, const char* imageName) {
     return 0;
 }
 
-int StaticTraceWriter::ReallocBasicBlock() {
-    if (this->basicBlockArraySize == 0) {
-        this->basicBlockArraySize = 128;
-    }
-    this->basicBlockArraySize <<= 1;
-    this->basicBlock = (StaticTraceRecord*)realloc(this->basicBlock,
-                                                   sizeof(StaticTraceRecord) * this->basicBlockArraySize);
-
-    return (this->basicBlock == NULL);
-}
-
-int StaticTraceWriter::AddBasicBlockSize(unsigned int basicBlockSize) {
-    if (this->IsBasicBlockArrayFull()) {
-        if (this->ReallocBasicBlock()) {
-            SINUCA3_ERROR_PRINTF("[1] Failed to realloc basic block!\n");
-            return 1;
-        }
-    }
-
-    if (!this->WasBasicBlockReset()) {
-        SINUCA3_ERROR_PRINTF("Basic block control variables were not reset!\n");
-    }
-    this->basicBlock[0].recordType = StaticRecordBasicBlockSize;
-    this->basicBlock[0].data.basicBlockSize = basicBlockSize;
-    this->currentBasicBlockSize = basicBlockSize;
-
-    if (this->IsBasicBlockReadyToBeFlushed()) {
-        if (this->FlushBasicBlock()) {
-            SINUCA3_ERROR_PRINTF("[1] Failed to flush basic block!\n");
-            return 1;
-        }
-        this->ResetBasicBlock();
-    }
-
-    return 0;
-}
-
-int StaticTraceWriter::AddInstruction(const Instruction* inst) {
-    if (this->IsBasicBlockArrayFull()) {
-        if (this->ReallocBasicBlock()) {
-            SINUCA3_ERROR_PRINTF("[2] Failed to realloc basic block!\n");
-            return 1;
-        }
-    }
-
-    this->basicBlock[this->basicBlockOccupation].recordType =
-        StaticRecordInstruction;
-    this->basicBlock[this->basicBlockOccupation].data.instruction = *inst;
-
-    ++this->basicBlockOccupation;
-
-    if (this->IsBasicBlockReadyToBeFlushed()) {
-        if (this->FlushBasicBlock()) {
-            SINUCA3_ERROR_PRINTF("[2] Failed to flush basic block!\n");
-            return 1;
-        }
-        this->ResetBasicBlock();
-    }
-
-    return 0;
-}
-
 int StaticTraceWriter::FlushBasicBlock() {
     if (this->file == NULL) {
-        SINUCA3_ERROR_PRINTF("[3] File pointer is nil in static trace obj!\n");
+        SINUCA3_ERROR_PRINTF("File pointer is nil in static trace obj!\n");
         return 1;
     }
 
@@ -127,4 +64,59 @@ int StaticTraceWriter::FlushBasicBlock() {
     }
 
     return 0;
+}
+
+int StaticTraceWriter::ReallocBasicBlock() {
+    this->basicBlockArraySize <<= 1;
+    this->basicBlock = (StaticTraceRecord*)realloc(
+        this->basicBlock,
+        sizeof(StaticTraceRecord) * this->basicBlockArraySize);
+    return (this->basicBlock == NULL);
+}
+
+int StaticTraceWriter::AddStaticRecord(StaticTraceRecord record, int pos) {
+    if (this->IsBasicBlockArrayFull()) {
+        if (this->ReallocBasicBlock()) {
+            SINUCA3_ERROR_PRINTF("Failed to realloc basic block!\n");
+            return 1;
+        }
+    }
+
+    this->basicBlock[pos] = record;
+    if (pos != 0) {
+        ++this->basicBlockOccupation;
+    }
+
+    if (this->IsBasicBlockReadyToBeFlushed()) {
+        if (this->FlushBasicBlock()) {
+            SINUCA3_ERROR_PRINTF("Failed to flush basic block!\n");
+            return 1;
+        }
+        this->ResetBasicBlock();
+    }
+
+    return 0;
+}
+
+int StaticTraceWriter::AddBasicBlockSize(unsigned int basicBlockSize) {
+    if (!this->WasBasicBlockReset()) {
+        SINUCA3_ERROR_PRINTF("Basic block control variables were not reset!\n");
+    }
+
+    StaticTraceRecord record;
+
+    record.recordType = StaticRecordBasicBlockSize;
+    record.data.basicBlockSize = basicBlockSize;
+    this->currentBasicBlockSize = basicBlockSize;
+
+    return (this->AddStaticRecord(record, 0));
+}
+
+int StaticTraceWriter::AddInstruction(const Instruction* inst) {
+    StaticTraceRecord record;
+
+    record.recordType = StaticRecordInstruction;
+    record.data.instruction = *inst;
+
+    return (this->AddStaticRecord(record, this->basicBlockOccupation));
 }

@@ -20,24 +20,25 @@
  * @brief Implementation of a test of the delay queue.
  */
 
-#include "delay_queue.hpp"
-
-#include "config/config.hpp"
-#include "queue.hpp"
-
 #ifndef NDEBUG
 
-const long inherentDelay = 2;
-const long delay = 3 - inherentDelay;
+#include <sinuca3.hpp>
+#include <std_components/misc/delay_queue.hpp>
+#include <std_components/misc/queue.hpp>
 
 int TestDelayQueue() {
     DelayQueue<long> dq1;
     QueueTester component1;
 
-    dq1.SetConfigParameter("delay", ConfigValue((long)delay));
-    dq1.SetConfigParameter("throughput", ConfigValue((long)4));
-    dq1.SetConfigParameter("sendTo", ConfigValue(&component1));
-    dq1.FinishSetup();
+    Map<Linkable*> aliases;
+    yaml::Parser parser;
+    aliases.Insert("component1", &component1);
+
+    dq1.Configure(CreateFakeConfig(&parser,
+                                   "delay: 1\n"
+                                   "throughput: 4\n"
+                                   "sendTo: *component1\n",
+                                   &aliases));
 
     long id = dq1.Connect(4);
     long msg1 = 0xcafeefac;
@@ -137,10 +138,16 @@ int TestDelayQueue() {
 
     DelayQueue<long> dq2;
     QueueTester component2;
-    dq2.SetConfigParameter("delay", ConfigValue((long)0));  // Zero delay
-    dq2.SetConfigParameter("throughput", ConfigValue((long)1));
-    dq2.SetConfigParameter("sendTo", ConfigValue(&component2));
-    dq2.FinishSetup();
+
+    aliases.Insert("component2", &component2);
+
+    yaml::Parser parser2;
+    dq2.Configure(CreateFakeConfig(&parser2,
+                                   "delay: 0\n"
+                                   "throughput: 1\n"
+                                   "sendTo: *component2\n",
+                                   &aliases));
+
     id = dq2.Connect(1);
 
     long msg8 = 0xb00b1e;

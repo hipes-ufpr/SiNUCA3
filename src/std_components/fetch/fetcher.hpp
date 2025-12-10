@@ -99,19 +99,6 @@ class Fetcher : public Component<int> {
                          wether the instruction was predicted. If there's no
                          predictor, we don't. */
 
-    /** @brief Helper to set the fetch config parameter. */
-    int FetchConfigParameter(ConfigValue value);
-    /** @brief Helper to set the instruction memory config parameter. */
-    int InstructionMemoryConfigParameter(ConfigValue value);
-    /** @brief Helper to set the fetch size config parameter. */
-    int FetchSizeConfigParameter(ConfigValue value);
-    /** @brief Helper to set the fetch interval config parameter. */
-    int FetchIntervalConfigParameter(ConfigValue value);
-    /** @brief Helper to set the predictor config parameter. */
-    int PredictorConfigParameter(ConfigValue value);
-    /** @brief Helper to set the missprediction penalty config parameter. */
-    int MisspredictPenaltyConfigParameter(ConfigValue value);
-
     /** @brief Helper to send the fetched instructions to the memory and the
      * predictor. */
     void ClockSendBuffered();
@@ -140,7 +127,7 @@ class Fetcher : public Component<int> {
           fetchedInstructions(0),
           flagsToCheck(FetchBufferEntryFlagsSentToMemory) {}
     virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+    virtual int Configure(Config config);
     virtual void Clock();
     virtual void PrintStatistics();
 

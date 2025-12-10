@@ -37,8 +37,7 @@ class SimpleExecutionUnit : public Component<InstructionPacket> {
 
   public:
     inline SimpleExecutionUnit() : numberOfInstructions(0) {};
-    virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+    virtual int Configure(Config config);
     virtual void Clock();
     virtual void PrintStatistics();
     ~SimpleExecutionUnit();

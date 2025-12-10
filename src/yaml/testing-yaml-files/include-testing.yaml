@@ -1,0 +1,6 @@
+include: include-single.yaml
+include:
+  - include-array1.yaml
+  - include-array2.yaml
+
+foo: bar

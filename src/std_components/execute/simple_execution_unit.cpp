@@ -24,15 +24,10 @@
 
 #include <sinuca3.hpp>
 
-int SimpleExecutionUnit::SetConfigParameter(const char* parameter,
-                                            ConfigValue value) {
-    (void)parameter;
-    (void)value;
-
-    return 1;
+int SimpleExecutionUnit::Configure(Config config) {
+    (void)config;
+    return 0;
 }
-
-int SimpleExecutionUnit::FinishSetup() { return 0; }
 
 void SimpleExecutionUnit::Clock() {
     unsigned long numberOfConnections = this->GetNumberOfConnections();

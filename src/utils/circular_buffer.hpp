@@ -109,6 +109,9 @@ class CircularBuffer {
      */
     bool Dequeue(void* elementOutput);
 
+    /* @brief Removes all elements from the CircularBuffer. */
+    void Flush();
+
     ~CircularBuffer() { this->Deallocate(); };
 };
 

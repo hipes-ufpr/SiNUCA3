@@ -10,6 +10,6 @@ otherComponent: &otherComponent
   parameter2: 69
   parameter3: true
 
-instantiate:
+engineDebug: &engineDebug
   class: EngineDebugComponent
   fetch: *ENGINE

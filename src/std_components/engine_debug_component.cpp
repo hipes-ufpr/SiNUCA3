@@ -1,5 +1,3 @@
-#include <cstddef>
-#include <cstring>
 #ifndef NDEBUG
 
 //
@@ -25,93 +23,21 @@
  * CALLED BY CODE PATHS THAT ONLY COMPILE IN DEBUG MODE.
  */
 
-#include <sinuca3.hpp>
-
 #include "engine_debug_component.hpp"
 
-void EngineDebugComponent::PrintConfigValue(const char* parameter,
-                                            ConfigValue value,
-                                            unsigned char indent) {
-    // This is not good code. Please don't use this kind of stuff outside this
-    // very specific niche where we want to avoid allocations and have a very
-    // specific reason to use SINUCA3_DEBUG_PRINTF to print stuff and etc.
-    char indentChars[sizeof(unsigned char) << 8];
-    memset(indentChars, ' ', sizeof(unsigned char) << 8);
-    indentChars[indent] = '\0';
+#include <sinuca3.hpp>
 
-    switch (value.type) {
-        case ConfigValueTypeArray:
-            SINUCA3_DEBUG_PRINTF("%p: %s %s%s%s\n", this, parameter,
-                                 indentChars, indentChars, "array: ");
-            for (unsigned long i = 0; i < value.value.array->size(); ++i)
-                this->PrintConfigValue(parameter, (*value.value.array)[i],
-                                       indent + 1);
-            return;
-        case ConfigValueTypeBoolean:
-            SINUCA3_DEBUG_PRINTF("%p: %s %s%sbool: %s\n", this, parameter,
-                                 indentChars, indentChars,
-                                 value.value.boolean ? "true" : "false");
-            return;
-        case ConfigValueTypeNumber:
-            SINUCA3_DEBUG_PRINTF("%p: %s %s%snumber: %f\n", this, parameter,
-                                 indentChars, indentChars, value.value.number);
-            return;
-        case ConfigValueTypeInteger:
-            SINUCA3_DEBUG_PRINTF("%p: %s %s%sinteger: %ld\n", this, parameter,
-                                 indentChars, indentChars, value.value.integer);
-            return;
-        case ConfigValueTypeComponentReference:
-            SINUCA3_DEBUG_PRINTF("%p: %s %s%sreference: %p\n", this, parameter,
-                                 indentChars, indentChars,
-                                 value.value.componentReference);
-            return;
-    }
-}
+int EngineDebugComponent::Configure(Config config) {
+    bool failNow = false;
+    if (config.Bool("failNow", &failNow)) return 1;
+    if (failNow) return config.Error("failNow", "it's true");
+    if (config.ComponentReference("pointerOther", &this->other)) return 1;
+    if (config.ComponentReference("fetch", &this->fetch)) return 1;
 
-int EngineDebugComponent::SetConfigParameter(const char* parameter,
-                                             ConfigValue value) {
-    this->PrintConfigValue(parameter, value);
-    if (strcmp(parameter, "failNow") == 0) {
-        SINUCA3_DEBUG_PRINTF("%p: SetConfigParameter returning failure.\n",
-                             this);
-        return 1;
-    }
-    if (strcmp(parameter, "failOnFinish") == 0) {
-        SINUCA3_DEBUG_PRINTF("%p: Will fail on finish.\n", this);
-        this->shallFailOnFinish = true;
-        return 0;
-    }
-    if (strcmp(parameter, "pointerOther") == 0) {
-        this->other =
-            dynamic_cast<EngineDebugComponent*>(value.value.componentReference);
-        if (this->other == NULL) {
-            SINUCA3_DEBUG_PRINTF(
-                "%p: Failed to cast pointerOther to EngineDebugComponent.\n",
-                this);
-            return 1;
-        }
-        this->otherConnectionID = this->other->Connect(4);
-        return 0;
-    }
-    if (strcmp(parameter, "fetch") == 0) {
-        this->fetch = dynamic_cast<Component<FetchPacket>*>(
-            value.value.componentReference);
-        if (this->fetch == NULL) {
-            SINUCA3_DEBUG_PRINTF(
-                "%p: Failed to cast fetch to Component<InstructionPacket>.\n",
-                this);
-            return 1;
-        }
-        this->fetchConnectionID = this->fetch->Connect(0);
-    }
+    if (this->other != NULL) this->otherConnectionID = this->other->Connect(0);
+    if (this->fetch != NULL) this->fetchConnectionID = this->fetch->Connect(0);
 
     return 0;
-}
-
-int EngineDebugComponent::FinishSetup() {
-    SINUCA3_DEBUG_PRINTF("%p: Finishing setup with %s.\n", this,
-                         this->shallFailOnFinish ? "FAILURE" : "SUCCESS");
-    return this->shallFailOnFinish;
 }
 
 void EngineDebugComponent::Clock() {

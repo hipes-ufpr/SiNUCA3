@@ -1,0 +1,23 @@
+# The &sharedl2Cache makes so a single sharedl2Cache is instantiated with that
+# reference. The name can still be used to instantiate new ones.
+l2Cache: &sharedl2Cache
+  class: SimpleCache
+  memory:
+    class: SimpleMemory
+
+# Having no alias makes so that this is just like a class definition: there's no
+# instantiation.
+l1Cache:
+  class: SimpleCache
+  memory: *sharedl2Cache
+
+# Same as in the l1Cache, this only declares the abstract idea of a core.
+core:
+  class: SimpleFetch
+  # This tho, as it's referencing the l1Cache with it's name, is instantiating
+  # a l1Cache every time core is instantiated.
+  cache: l1Cache
+
+cores:
+  - core
+  - core

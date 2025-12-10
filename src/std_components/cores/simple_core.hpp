@@ -53,8 +53,7 @@ class SimpleCore : public Component<InstructionPacket> {
           dataMemory(NULL),
           fetching(NULL),
           numFetchedInstructions(0) {}
-    virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+    virtual int Configure(Config config);
     virtual void Clock();
     virtual void PrintStatistics();
     ~SimpleCore();

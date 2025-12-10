@@ -20,7 +20,11 @@
 
 /**
  * @file dynamic_trace_writer.hpp
- * @details .
+ * @details A dynamic trace stores the basic blocks that were executed and
+ * thread events (e.g. when a thread reaches a barrier). The trace reader uses
+ * this info to simulate an execution. This file defines the DynamicTraceWriter
+ * class which encapsulates the dynamic trace file and the methods that may
+ * modify it.
  */
 
 #include <cstdio>
@@ -33,21 +37,20 @@ class DynamicTraceWriter {
   private:
     FILE* file;
     FileHeader header;
-    DynamicTraceRecord recordArray[RECORD_ARRAY_SIZE];
-    int recordArrayOccupation;
+    DynamicTraceRecord recordArray[RECORD_ARRAY_SIZE]; /**<Buffer of records. */
+    int recordArrayOccupation; /**<The number of records currently stored. */
 
     inline void ResetRecordArray() { this->recordArrayOccupation = 0; }
-    inline void SetRecordTypeThreadEvent() {
-        this->recordArray[this->recordArrayOccupation].recordType =
-            DynamicRecordThreadEvent;
+    inline int IsRecordArrayEmpty() {
+        return (this->recordArrayOccupation <= 0);
     }
-    inline void SetRecordTypeBasicBlockId() {
-        this->recordArray[this->recordArrayOccupation].recordType =
-            DynamicRecordBasicBlockIdentifier;
+    inline int IsRecordArrayFull() {
+        return (this->recordArrayOccupation == RECORD_ARRAY_SIZE);
     }
 
     int FlushRecordArray();
     int CheckRecordArray();
+    int AddDynamicRecord(DynamicTraceRecord record);
 
   public:
     inline DynamicTraceWriter() : file(0), recordArrayOccupation(0) {
@@ -67,30 +70,24 @@ class DynamicTraceWriter {
         }
     }
 
-    int OpenFile(const char* source, const char* img, int tid);
-
-    int AddThreadCreateEvent(int tid);
-    int AddThreadDestroyEvent();
-    int AddThreadHaltEvent();
-    int AddUnlockEventGlobalLock();
-    int AddLockEventGlobalLock();
+    /** @brief Create the [tid] dynamic file in the [sourceDir] directory. */
+    int OpenFile(const char* sourceDir, const char* img, int tid);
+    /** @brief Add event to indicate the creation of threads. */
+    int AddThreadCreateEvent();
+    /** @brief Add event to indicate the destruction of threads. */
+    int AddThreadDestructionEvent();
+    /** @brief Add event to indicate that a mutex was requested to be locked or
+     * it was unlocked. */
+    int AddMutexEvent(bool isLockReq, bool isGlobalMutex, unsigned long addr);
+    /** @brief Add event to indicate that a barrier was reached. */
     int AddBarrierEvent();
+    /** @brief Add event to indicate that the execution was halted abruptly. */
     int AddThreadAbruptEndEvent();
-
-    int AddUnlockEventPrivateLock(unsigned long lockAddress, bool isNested);
-    int AddLockEventPrivateLock(unsigned long lockAddress, bool isNested,
-                                bool isTest);
-
+    /** @brief Add the identifier of basic block executed. */
     int AddBasicBlockId(int basicBlockId);
 
     inline void IncExecutedInstructions(int ins) {
         this->header.data.dynamicHeader.totalExecutedInstructions += ins;
-    }
-    inline int IsRecordArrayEmpty() {
-        return (this->recordArrayOccupation <= 0);
-    }
-    inline int IsRecordArrayFull() {
-        return (this->recordArrayOccupation == RECORD_ARRAY_SIZE);
     }
 };
 

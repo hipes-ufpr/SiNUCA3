@@ -1,0 +1,9 @@
+exemple: &exemple
+  class: iTLBDebugComponent
+  fetch: *ENGINE
+  itlb:
+    class: iTLB
+    entries: 64
+    missPenalty: 5
+    policy: lru
+    associativity: 1

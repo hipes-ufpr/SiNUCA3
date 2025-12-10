@@ -52,55 +52,20 @@ class Queue : public Component<Type> {
 
   public:
     inline Queue() : sendTo(NULL), throughput(0) {}
-    virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+    virtual int Configure(Config config);
     virtual void Clock();
     virtual void PrintStatistics();
     virtual ~Queue();
 };
 
 template <typename Type>
-int Queue<Type>::FinishSetup() {
-    if (this->sendTo == NULL) {
-        SINUCA3_ERROR_PRINTF("Queue didn't received a sendTo parameter.\n");
-        return 1;
-    }
+int Queue<Type>::Configure(Config config) {
+    if (config.ComponentReference("sendTo", &this->sendTo, true)) return 1;
+    if (config.Integer("throughput", &this->throughput)) return 1;
 
     this->connectionID = this->sendTo->Connect(this->throughput);
 
     return 0;
-}
-
-template <typename Type>
-int Queue<Type>::SetConfigParameter(const char* parameter, ConfigValue value) {
-    if (strcmp(parameter, "sendTo") == 0) {
-        if (value.type == ConfigValueTypeComponentReference) {
-            Linkable* linkable = value.value.componentReference;
-            Component<Type>* component =
-                dynamic_cast<Component<Type>*>(linkable);
-            if (component != NULL) {
-                this->sendTo = component;
-                return 0;
-            }
-
-            SINUCA3_ERROR_PRINTF(
-                "Queue parameter is not a component of the queue type.\n");
-        }
-
-        SINUCA3_ERROR_PRINTF(
-            "Queue parameter sendTo is not a component pointer.\n");
-        return 1;
-    } else if (strcmp(parameter, "throughput") == 0) {
-        if (value.type == ConfigValueTypeInteger) {
-            this->throughput = value.value.integer;
-        }
-
-        return 0;
-    }
-
-    SINUCA3_ERROR_PRINTF("Queue received unknown parameter %s.\n", parameter);
-
-    return 1;
 }
 
 template <typename Type>
@@ -127,11 +92,8 @@ Queue<Type>::~Queue() {}
 /** @brief Component for testing the Queue template class. */
 class QueueTester : public Component<long> {
   public:
-    virtual int FinishSetup() { return 0; }
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value) {
-        (void)parameter;
-        (void)value;
-
+    virtual int Configure(Config config) {
+        (void)config;
         return 0;
     }
     virtual void Clock() {}

@@ -23,61 +23,106 @@
  * @brief Configuration public API for SiNUCA3.
  */
 
+#include <cassert>
+#include <engine/build_definitions.hpp>
+#include <engine/component.hpp>
+#include <utils/logging.hpp>
+#include <utils/map.hpp>
 #include <vector>
-
-// Pre-declaration for ConfigValue as Linkable should not be included here as it
-// already includes us.
-class Linkable;
+#include <yaml/yaml_parser.hpp>
 
 /**
- * @brief Each configuration parameter type supported for components.
+ * @brief Don't call, used by the engine when building itself.
+ * @details Allocates a default component by it's class name.
  */
-enum ConfigValueType {
-    ConfigValueTypeInteger,
-    ConfigValueTypeNumber,
-    ConfigValueTypeBoolean,
-    ConfigValueTypeArray,
-    ConfigValueTypeComponentReference,
-};
+Linkable* CreateDefaultComponentByClass(const char* name);
+/**
+ * @brief Don't call, used by the engine when building itself.
+ * @details Allocates a custom component by it's class name.
+ */
+Linkable* CreateCustomComponentByClass(const char* name);
+/**
+ * @brief Don't call, used by the engine when building itself.
+ * @details Allocates a component by it's class name.
+ */
+Linkable* CreateComponentByClass(const char* clazz);
 
-struct ConfigValue;
-struct ConfigArray {
-    ConfigValue* items;
-    long size;
+class Config {
+  private:
+    Map<yaml::YamlValue>* config;
+    std::vector<Linkable*>* components;
+    Map<Linkable*>* aliases;
+    Map<Definition>* definitions;
+    yaml::YamlLocation location;
+
+    inline void RequiredParameterNotPassed(const char* const parameter) {
+        SINUCA3_ERROR_PRINTF("%s:%lu:%lu Required parameter not passed: %s.\n",
+                             this->location.file, this->location.line,
+                             this->location.column, parameter);
+    }
+
+    Linkable* GetComponentByMapping(Map<yaml::YamlValue>* mapping,
+                                    yaml::YamlLocation location);
+    Linkable* GetComponentByAlias(const char* alias,
+                                  yaml::YamlLocation location);
+    Linkable* GetComponentByString(const char* string,
+                                   yaml::YamlLocation location);
+    Linkable* GetComponentFromYaml(yaml::YamlValue* yaml);
+
+  public:
+    inline Config(std::vector<Linkable*>* components, Map<Linkable*>* aliases,
+                  Map<Definition>* definitions, Map<yaml::YamlValue>* config,
+                  yaml::YamlLocation location)
+        : config(config),
+          components(components),
+          aliases(aliases),
+          definitions(definitions),
+          location(location) {}
+
+    template <typename ComponentType>
+    int ComponentReference(const char* parameter, ComponentType** ret,
+                           bool required = false) {
+        yaml::YamlValue* value = this->config->Get(parameter);
+        if (value == NULL) {
+            if (!required) return 0;
+            this->RequiredParameterNotPassed(parameter);
+            return 1;
+        }
+        *ret = dynamic_cast<ComponentType*>(this->GetComponentFromYaml(value));
+        return *ret == NULL;
+    }
+
+    int Bool(const char* parameter, bool* ret, bool required = false);
+    int Integer(const char* parameter, long* ret, bool required = false);
+    int Floating(const char* parameter, double* ret, bool required = false);
+    int String(const char* parameter, const char** ret, bool required = false);
+
+    int Error(const char* parameter, const char* reason);
+
+    /** @brief Only use if you know what you're doing. */
+    Map<yaml::YamlValue>* RawYaml() { return this->config; }
+
+    /** @brief Only use if you know what you're doing. Probably never except
+     * when coding the Engine. */
+    std::vector<Linkable*>* Components() { return this->components; }
+
+    /** @brief Only use if you know what you're doing. Probably never except
+     * when coding the Engine. */
+    Map<Linkable*>* Aliases() { return this->aliases; }
+
+    /** @brief Only use if you know what you're doing. Probably never except
+     * when coding the Engine. */
+    Map<Definition>* Definitions() { return this->definitions; }
 };
 
 /**
- * @brief A single configuration parameter.
+ * @brief Creates a "fake" configuration for testing a component.
+ * @param parser It's lifetime is the lifetime of the configuration itself, so
+ * the caller should pass one.
+ * @param content The content.
+ * @param aliases An aliases mapping.
  */
-struct ConfigValue {
-    union {
-        long integer;
-        double number;
-        bool boolean;
-        std::vector<ConfigValue>* array;
-        Linkable* componentReference;
-    } value;
-    ConfigValueType type;
-
-    inline ConfigValue() {}
-
-    inline ConfigValue(long integer) : type(ConfigValueTypeInteger) {
-        this->value.integer = integer;
-    }
-    inline ConfigValue(double number) : type(ConfigValueTypeNumber) {
-        this->value.number = number;
-    }
-    inline ConfigValue(bool boolean) : type(ConfigValueTypeBoolean) {
-        this->value.boolean = boolean;
-    }
-    inline ConfigValue(std::vector<ConfigValue>* array)
-        : type(ConfigValueTypeArray) {
-        this->value.array = array;
-    }
-    inline ConfigValue(Linkable* componentReference)
-        : type(ConfigValueTypeComponentReference) {
-        this->value.componentReference = componentReference;
-    }
-};
+Config CreateFakeConfig(yaml::Parser* parser, const char* content,
+                        Map<Linkable*>* aliases);
 
 #endif  // SINUCA3_CONFIG_HPP

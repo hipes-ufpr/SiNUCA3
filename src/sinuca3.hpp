@@ -41,16 +41,5 @@
         return 0;                                              \
     }
 
-/**
- * @brief Don't call, used by the SimulatorBuilder.
- * @details Allocates a default component by it's class name.
- */
-Linkable* CreateDefaultComponentByClass(const char* name);
-/**
- * @brief Don't call, used by the SimulatorBuilder.
- * @details Allocates a custom component by it's class name.
- */
-Linkable* CreateCustomComponentByClass(const char* name);
-
 #define SINUCA3_HPP_
 #endif  // SINUCA3_HPP_

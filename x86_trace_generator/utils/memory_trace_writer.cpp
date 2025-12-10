@@ -22,12 +22,12 @@
 
 #include "memory_trace_writer.hpp"
 
+#include "tracer/sinuca/file_handler.hpp"
 #include "utils/logging.hpp"
 
 extern "C" {
 #include <alloca.h>
 }
-
 
 int MemoryTraceWriter::OpenFile(const char* sourceDir, const char* imageName,
                                 int tid) {
@@ -46,61 +46,9 @@ int MemoryTraceWriter::OpenFile(const char* sourceDir, const char* imageName,
     return 0;
 }
 
-int MemoryTraceWriter::AddNumberOfMemOperations(unsigned int memOps) {
-    if (this->file == NULL) {
-        SINUCA3_ERROR_PRINTF("[1] File pointer is nil in mem trace!\n");
-        return 1;
-    }
-
-    this->recordArray[this->recordArrayOccupation].recordType =
-        MemoryRecordOperationHeader;
-    this->recordArray[this->recordArrayOccupation]
-        .data.opHeader.numberOfMemoryOps = memOps;
-
-    ++this->recordArrayOccupation;
-
-    if (this->IsRecordArrayFull()) {
-        if (this->FlushRecordArray()) {
-            SINUCA3_ERROR_PRINTF("[1] Failed to flush mem record array!\n")
-            return 1;
-        }
-        this->ResetRecordArray();
-    }
-
-    return 0;
-}
-
-int MemoryTraceWriter::AddMemoryOperation(unsigned long address,
-                                          unsigned int size,
-                                          unsigned char type) {
-    if (this->file == NULL) {
-        SINUCA3_ERROR_PRINTF("[2] File pointer is nil in mem trace!\n");
-        return 1;
-    }
-
-    this->recordArray[this->recordArrayOccupation].recordType =
-        MemoryRecordOperation;
-    this->recordArray[this->recordArrayOccupation].data.operation.type = type;
-    this->recordArray[this->recordArrayOccupation].data.operation.address =
-        address;
-    this->recordArray[this->recordArrayOccupation].data.operation.size = size;
-
-    ++this->recordArrayOccupation;
-
-    if (this->IsRecordArrayFull()) {
-        if (this->FlushRecordArray()) {
-            SINUCA3_ERROR_PRINTF("[1] Failed to flush mem record array!\n")
-            return 1;
-        }
-        this->ResetRecordArray();
-    }
-
-    return 0;
-}
-
 int MemoryTraceWriter::FlushRecordArray() {
     if (this->file == NULL) {
-        SINUCA3_ERROR_PRINTF("[3] File pointer is nil in mem trace!\n");
+        SINUCA3_ERROR_PRINTF("File pointer is nil in mem trace!\n");
         return 1;
     }
 
@@ -116,3 +64,36 @@ int MemoryTraceWriter::FlushRecordArray() {
     return 0;
 }
 
+int MemoryTraceWriter::CheckRecordArray() {
+    if (this->IsRecordArrayFull()) {
+        if (this->FlushRecordArray()) {
+            SINUCA3_ERROR_PRINTF("Failed to flush mem record array!\n")
+            return 1;
+        }
+        this->ResetRecordArray();
+    }
+    return 0;
+}
+
+int MemoryTraceWriter::AddMemoryRecord(MemoryTraceRecord record) {
+    this->recordArray[this->recordArrayOccupation] = record;
+    ++this->recordArrayOccupation;
+    if (this->CheckRecordArray()) return 1;
+    return 0;
+}
+
+int MemoryTraceWriter::AddNumberOfMemOperations(unsigned int numMemOps) {
+    MemoryTraceRecord record;
+    record.recordType = MemoryRecordHeader;
+    record.data.numberOfMemoryOps = numMemOps;
+    return (this->AddMemoryRecord(record));
+}
+
+int MemoryTraceWriter::AddMemOp(unsigned long address, unsigned int size,
+                                bool isLoadOp) {
+    MemoryTraceRecord record;
+    record.recordType = (isLoadOp) ? MemoryRecordLoad : MemoryRecordStore;
+    record.data.operation.address = address;
+    record.data.operation.size = size;
+    return (this->AddMemoryRecord(record));
+}

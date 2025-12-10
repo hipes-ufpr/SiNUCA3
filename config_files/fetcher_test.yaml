@@ -1,4 +1,4 @@
-instantiate:
+fetcher: &fetcher
   class: Fetcher
   fetch: *ENGINE
   fetchSize: 16

@@ -20,7 +20,15 @@
 
 /**
  * @file memory_trace_writer.hpp
- * @details .
+ * @details A memory trace file stacks the memory operations. Each instruction
+ * may perform a variable number of accesses to the main memory, therefore
+ * this information must be stored somewhere. Since it may change dynamically,
+ * it is not suitable to be in the static trace, which means that the trace
+ * reader expects a MemoryTraceRecord with the number of operations performed by
+ * the instruction being fetched before the operations per se. Each access is
+ * stored in an individual MemoryTraceRecord. Note that the trace reader knowns
+ * if an instruction accesses the main memory, either writing or reading from
+ * it, because this is saved in the static trace.
  */
 
 #include <cstdio>
@@ -31,29 +39,32 @@ class MemoryTraceWriter {
   private:
     FILE* file;
     FileHeader header;
-    MemoryTraceRecord recordArray[RECORD_ARRAY_SIZE];
-    int recordArrayOccupation;
+    MemoryTraceRecord recordArray[RECORD_ARRAY_SIZE]; /**<Record buffer. */
+    int recordArrayOccupation; /**<Number of records currently stored. */
 
-    inline void ResetRecordArray() {
-        this->recordArrayOccupation = 0;
+    inline void ResetRecordArray() { this->recordArrayOccupation = 0; }
+    inline int IsRecordArrayEmpty() {
+        return (this->recordArrayOccupation <= 0);
+    }
+    inline int IsRecordArrayFull() {
+        return (this->recordArrayOccupation == RECORD_ARRAY_SIZE);
     }
 
     int FlushRecordArray();
+    int CheckRecordArray();
+    int AddMemoryRecord(MemoryTraceRecord record);
 
   public:
-    inline MemoryTraceWriter()
-        : file(0),
-          recordArrayOccupation(0)
-          {
-            this->header.fileType = FileTypeMemoryTrace;
-          };
+    inline MemoryTraceWriter() : file(0), recordArrayOccupation(0) {
+        this->header.fileType = FileTypeMemoryTrace;
+    };
     inline ~MemoryTraceWriter() {
         if (this->header.FlushHeader(this->file)) {
             SINUCA3_ERROR_PRINTF("Failed to write memory file header!\n");
         }
         if (!this->IsRecordArrayEmpty()) {
             if (this->FlushRecordArray()) {
-                SINUCA3_ERROR_PRINTF("[1] Failed to flush memory records!\n");
+                SINUCA3_ERROR_PRINTF("Failed to flush memory records!\n");
             }
         }
         if (file) {
@@ -61,17 +72,17 @@ class MemoryTraceWriter {
         }
     }
 
+    /** @brief Create the [tid] memory file in the [sourceDir] directory. */
     int OpenFile(const char* sourceDir, const char* imageName, int tid);
+    /** @brief Add the number of memory operations. */
     int AddNumberOfMemOperations(unsigned int memoryOperations);
-    int AddMemoryOperation(unsigned long address, unsigned int size,
-                           unsigned char type);
-
-    inline int IsRecordArrayEmpty() {
-        return (this->recordArrayOccupation <= 0);
-    }
-    inline int IsRecordArrayFull() {
-        return (this->recordArrayOccupation == RECORD_ARRAY_SIZE);
-    }
+    /**
+     * @brief Add a memory operation.
+     * @param address Is the virtual address accessed.
+     * @param size Number of bytes accessed.
+     * @param isLoad True if it is a load op, false if it is a store op.
+     */
+    int AddMemOp(unsigned long address, unsigned int size, bool isLoadOp);
 };
 
 #endif

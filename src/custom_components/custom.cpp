@@ -1,6 +1,5 @@
+#include <custom_components/custom_example.hpp>
 #include <sinuca3.hpp>
-
-#include "custom_example.hpp"
 
 // clang-format off
 COMPONENTS(

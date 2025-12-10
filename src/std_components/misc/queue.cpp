@@ -35,10 +35,16 @@ int TestQueue() {
     Queue<long> queue;
     QueueTester tester;
 
-    queue.SetConfigParameter("sendTo", ConfigValue(&tester));
-    queue.SetConfigParameter("throughput", ConfigValue((long)3));
+    Map<Linkable*> aliases;
+    yaml::Parser parser;
+    aliases.Insert("tester", &tester);
+
+    queue.Configure(CreateFakeConfig(&parser,
+                                     "sendTo: *tester\n"
+                                     "throughput: 3\n",
+                                     &aliases));
+
     int id = queue.Connect(3);
-    queue.FinishSetup();
 
     queue.Clock();
     queue.PosClock();

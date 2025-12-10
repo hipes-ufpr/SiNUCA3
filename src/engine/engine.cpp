@@ -23,14 +23,114 @@
 #include "engine.hpp"
 
 #include <cstdio>
+#include <cstring>
 #include <ctime>
 #include <sinuca3.hpp>
+#include <vector>
 
-int Engine::FinishSetup() { return 0; }
+int NewComponentDefinition(Map<Definition>* definitions,
+                           Map<Linkable*>* aliases,
+                           std::vector<InstanceWithDefinition>* instances,
+                           Map<yaml::YamlValue>* config, const char* name,
+                           const char* alias, yaml::YamlLocation location) {
+    yaml::YamlValue* clazzYaml = config->Get("class");
 
-int Engine::SetConfigParameter(const char* parameter, ConfigValue value) {
-    (void)parameter;
-    (void)value;
+    if (clazzYaml == NULL) {
+        SINUCA3_ERROR_PRINTF("%s:%lu:%lu Component class not passed.\n",
+                             location.file, location.line, location.column);
+        return 1;
+    }
+    if (clazzYaml->type != yaml::YamlValueTypeString) {
+        SINUCA3_ERROR_PRINTF("%s:%lu:%lu Component class is not a string.\n",
+                             clazzYaml->location.file, clazzYaml->location.line,
+                             clazzYaml->location.column);
+        return 1;
+    }
+    const char* clazz = clazzYaml->value.string;
+
+    Definition definition;
+    definition.config = config;
+    definition.location = location;
+    definitions->Insert(name, definition);
+
+    if (alias != NULL) {
+        Linkable* newComponent = CreateComponentByClass(clazz);
+        if (newComponent == NULL) {
+            SINUCA3_ERROR_PRINTF(
+                "%s:%lu:%lu Component class %s doesn't exists.\n",
+                clazzYaml->location.file, clazzYaml->location.line,
+                clazzYaml->location.column, clazz);
+            return 1;
+        }
+        aliases->Insert(alias, newComponent);
+
+        InstanceWithDefinition instanceWithDefinition;
+        instanceWithDefinition.definition = name;
+        instanceWithDefinition.component = newComponent;
+        instances->push_back(instanceWithDefinition);
+    }
+
+    return 0;
+}
+
+int Engine::Configure(Config config) {
+    std::vector<InstanceWithDefinition> instances;
+    Map<Definition>* definitions = config.Definitions();
+    Map<Linkable*>* aliases = config.Aliases();
+    // Heuristic.
+    instances.reserve(32);
+
+    aliases->Insert("ENGINE", this);
+
+    Map<yaml::YamlValue>* map = config.RawYaml();
+
+    yaml::YamlValue value;
+    map->ResetIterator();
+    for (const char* key = map->Next(&value); key != NULL;
+         key = map->Next(&value)) {
+        if (value.type != yaml::YamlValueTypeMapping) {
+            SINUCA3_ERROR_PRINTF(
+                "%s:%ld:%ld Toplevel configuration parameter is not a mapping: "
+                "%s",
+                value.location.file, value.location.line, value.location.column,
+                key);
+            return 1;
+        }
+        if (NewComponentDefinition(definitions, aliases, &instances,
+                                   value.value.mapping, key, value.anchor,
+                                   value.location) != 0) {
+            for (unsigned int i = 0; i < instances.size(); ++i)
+                delete instances[i].component;
+            return 1;
+        }
+    }
+
+    std::vector<Linkable*>* components = config.Components();
+
+    components->reserve(instances.size() + 32);  // Heuristic.
+    components->push_back(this);
+    for (unsigned int i = 0; i < instances.size(); ++i)
+        components->push_back(instances[i].component);
+
+    for (unsigned int i = 0; i < instances.size(); ++i) {
+        Linkable* component = instances[i].component;
+        Definition* definition = definitions->Get(instances[i].definition);
+        assert(definition != NULL);
+        Config config = Config(components, aliases, definitions,
+                               definition->config, definition->location);
+        if (component->Configure(config)) {
+            // Skip the engine.
+            for (unsigned int i = 1; i < components->size(); ++i)
+                delete (*components)[i];
+            return 1;
+        }
+    }
+
+    this->numberOfComponents = components->size();
+    this->components = new Linkable*[this->numberOfComponents];
+    for (unsigned int i = 0; i < this->numberOfComponents; ++i)
+        this->components[i] = (*components)[i];
+
     return 0;
 }
 
@@ -106,10 +206,11 @@ void Engine::PrintTime(time_t start, unsigned long cycle) {
     const unsigned long remaining = this->traceSize - this->fetchedInstructions;
 
     SINUCA3_LOG_PRINTF("engine: Heartbeat at cycle %ld.\n", cycle);
-    SINUCA3_LOG_PRINTF("engine: Remaining instructions: %ld.\n", remaining - 1);
+    SINUCA3_LOG_PRINTF("engine: Remaining instructions: %ld.\n", remaining);
 
     const time_t now = time(NULL);
-    const time_t estimatedEnd = (traceSize * (now - start) / remaining) + start;
+    const time_t estimatedEnd =
+        remaining == 0 ? now : (traceSize * (now - start) / remaining) + start;
     SINUCA3_LOG_PRINTF("engine: Estimated simulation end: %s",
                        ctime(&estimatedEnd));
 }

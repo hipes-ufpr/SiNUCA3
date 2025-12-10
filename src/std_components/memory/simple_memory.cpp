@@ -24,14 +24,10 @@
 
 #include <sinuca3.hpp>
 
-int SimpleMemory::SetConfigParameter(const char* parameter, ConfigValue value) {
-    (void)parameter;
-    (void)value;
-
-    return 1;
+int SimpleMemory::Configure(Config config) {
+    (void)config;
+    return 0;
 }
-
-int SimpleMemory::FinishSetup() { return 0; }
 
 void SimpleMemory::Clock() {
     long numberOfConnections = this->GetNumberOfConnections();

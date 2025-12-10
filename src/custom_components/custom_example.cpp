@@ -24,16 +24,11 @@
 
 #include <sinuca3.hpp>
 
-int CustomExample::SetConfigParameter(const char* parameter,
-                                      ConfigValue value) {
-    (void)parameter;
-    (void)value;
-
-    return 1;
+int CustomExample::Configure(Config config) {
+    (void)config;
+    return 0;
 }
 
 void CustomExample::Clock() {}
-
-int CustomExample::FinishSetup() { return 0; }
 
 void CustomExample::PrintStatistics() {}

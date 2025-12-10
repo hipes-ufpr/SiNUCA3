@@ -37,6 +37,10 @@
  *
  * Avoiding big types in MessageType is a good idea, because they're passed by
  * value.
+ *
+ * @note Messages sent by a component are only available to be read by the
+ * receiving component in the next cycle. Messages that are not consumed by a
+ * component are automatically discarded at the end of the cycle.
  */
 template <typename MessageType>
 class Component : public Linkable {

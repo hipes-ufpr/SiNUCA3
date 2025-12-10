@@ -44,19 +44,6 @@ class EngineDebugComponent : public Component<InstructionPacket> {
     int otherConnectionID; /** @brief Connection ID for `other`. */
     int fetchConnectionID; /** @brief Connection ID for `fetch`. */
     bool send; /** @brief Tells wether we already sent a message to other. */
-    bool shallFailOnFinish; /** @brief If true, fails at the FinishSetup method
-                               to test the engine handling of failures. */
-
-    /**
-     * @brief Prints a config value along with the parameter name. This is
-     * recursive for arrays.
-     * @param parameter self-explanatory.
-     * @param value self-explanatory.
-     * @param indent The indentation level for printing, increased every
-     * recursion.
-     */
-    void PrintConfigValue(const char* parameter, ConfigValue value,
-                          unsigned char indent = 0);
 
   public:
     inline EngineDebugComponent()
@@ -64,11 +51,9 @@ class EngineDebugComponent : public Component<InstructionPacket> {
           fetch(NULL),
           otherConnectionID(-1),
           fetchConnectionID(-1),
-          send(false),
-          shallFailOnFinish(false) {}
+          send(false) {}
 
-    virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+    virtual int Configure(Config config);
     virtual void Clock();
     virtual void PrintStatistics();
 

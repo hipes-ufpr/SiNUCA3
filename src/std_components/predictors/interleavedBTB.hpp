@@ -98,10 +98,10 @@ struct BTBPacket {
 };
 
 struct BTBEntry {
-    unsigned int numBanks;             /**<The number of banks. */
-    unsigned long entryTag;            /**<The entry tag. */
-    unsigned long* targetArray;        /**<The target address array. */
-    BranchType* branchTypes;           /**<The branch types array. */
+    unsigned int numBanks;           /**<The number of banks. */
+    unsigned long entryTag;          /**<The entry tag. */
+    unsigned long* targetArray;      /**<The target address array. */
+    BranchType* branchTypes;         /**<The branch types array. */
     BimodalCounter* predictorsArray; /**<The array of predictors. */
 
   public:
@@ -270,12 +270,8 @@ class BranchTargetBuffer : public Component<struct BTBPacket> {
   public:
     BranchTargetBuffer();
 
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
-
-    virtual int FinishSetup();
-
+    virtual int Configure(Config config);
     virtual void Clock();
-
     virtual void PrintStatistics();
 
     ~BranchTargetBuffer();

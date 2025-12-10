@@ -1,2 +1,4 @@
-factorials_mthr
-factorials_seq
+factorials
+intrinsics
+pi
+*.o

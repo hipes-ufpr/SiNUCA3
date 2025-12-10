@@ -1,0 +1,5 @@
+traceDumper: &traceDumper
+  class: TraceDumperComponent
+  fetch: *ENGINE
+  default: false
+  Factorial: true

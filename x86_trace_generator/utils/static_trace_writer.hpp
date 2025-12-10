@@ -20,7 +20,17 @@
 
 /**
  * @file static_trace_writer.hpp
- * @details .
+ * @details A static trace contains all the basic blocks 'touched' within
+ * execution with its instructions. This way the dynamic trace has to store the
+ * indexes of the basic blocks executed so that the execution may be simulated.
+ * Remember that a basic block is a piece of code with a single entrance point
+ * and a single exit. As the name suggests, all information regarding the
+ * instruction that is not dynamic (e.g. the number of registers accessed) is
+ * stored in the static file. The reader expects the number of instructions of
+ * the basic block being read before the instructions per se, hence a method to
+ * add a StaticTraceRecord with the size is implemented. The implementation
+ * does not force the 'AddBasicBlockSize' and 'AddInstruction' to be called in a
+ * certain order for things to work.
  */
 
 #include <cstdlib>
@@ -31,8 +41,8 @@ class StaticTraceWriter {
   private:
     FILE* file;
     FileHeader header;
-    StaticTraceRecord* basicBlock;
-    int basicBlockArraySize;
+    StaticTraceRecord* basicBlock; /**<Current basic block. */
+    int basicBlockArraySize;       /**<Current size of the buffer. */
     int basicBlockOccupation;
     int currentBasicBlockSize;
 
@@ -40,17 +50,27 @@ class StaticTraceWriter {
         this->basicBlockOccupation = 1;
         this->currentBasicBlockSize = -1;
     }
+    inline int IsBasicBlockReadyToBeFlushed() {
+        return (this->currentBasicBlockSize == this->basicBlockOccupation - 1);
+    }
+    inline int WasBasicBlockReset() {
+        return (this->currentBasicBlockSize == -1);
+    }
+    inline int IsBasicBlockArrayFull() {
+        return (this->basicBlockOccupation >= this->basicBlockArraySize);
+    }
 
     int FlushBasicBlock();
     int ReallocBasicBlock();
+    int AddStaticRecord(StaticTraceRecord record, int pos);
 
   public:
     inline StaticTraceWriter()
-        : file(0),
-          basicBlock(0),
-          basicBlockArraySize(0) {
+        : file(0), basicBlock(0), basicBlockArraySize(128) {
         this->header.fileType = FileTypeStaticTrace;
         this->ResetBasicBlock();
+        this->basicBlock = (StaticTraceRecord*)malloc(
+            sizeof(StaticTraceRecord) * this->basicBlockArraySize);
     };
     inline ~StaticTraceWriter() {
         if (this->header.FlushHeader(this->file)) {
@@ -67,19 +87,14 @@ class StaticTraceWriter {
         }
     }
 
+    /** @brief Create the static file in the [sourceDir] directory. */
     int OpenFile(const char* sourceDir, const char* imageName);
+    /** @brief Add a formated instruction to the current basic block. */
     int AddInstruction(const Instruction* inst);
+    /** @brief Add the number of instructions of the current basic block. The
+     * last bbl is expected to be flushed when this method is called. */
     int AddBasicBlockSize(unsigned int basicBlockSize);
 
-    inline int IsBasicBlockReadyToBeFlushed() {
-        return (this->currentBasicBlockSize == this->basicBlockOccupation - 1);
-    }
-    inline int WasBasicBlockReset() {
-        return (this->currentBasicBlockSize == -1);
-    }
-    inline int IsBasicBlockArrayFull() {
-        return (this->basicBlockOccupation >= this->basicBlockArraySize);
-    }
     inline void IncStaticInstructionCount() {
         this->header.data.staticHeader.instCount++;
     }

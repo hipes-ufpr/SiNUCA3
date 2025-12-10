@@ -23,12 +23,17 @@
 
 #include <getopt.h>
 
-#include <config/engine_builder.hpp>
+#include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <sinuca3.hpp>
 #include <tracer/sinuca/trace_reader.hpp>
 #include <tracer/trace_reader.hpp>
+#include <utils/map.hpp>
+#include <vector>
+#include <yaml/yaml_parser.hpp>
+
+#include "utils/logging.hpp"
 
 // Include our testing facilities in debug mode.
 #ifndef NDEBUG
@@ -146,6 +151,8 @@ int main(int argc, char* const argv[]) {
             SINUCA3_LOG_PRINTF("No such test: %s\n", testToRun);
         } else if (ret > 0) {
             SINUCA3_LOG_PRINTF("Test failed with code %d.\n", ret);
+        } else {
+            SINUCA3_LOG_PRINTF("Test %s succeeded!\n", testToRun);
         }
         return ret;
     }
@@ -160,9 +167,20 @@ int main(int argc, char* const argv[]) {
         return 1;
     }
 
-    EngineBuilder builder;
-    Engine* engine = builder.Instantiate(rootConfigFile);
-    if (engine == NULL) return 1;
+    yaml::Parser parser;
+    yaml::YamlValue configYamlValue;
+    parser.ParseFileWithIncludes(rootConfigFile, &configYamlValue);
+
+    assert(configYamlValue.type == yaml::YamlValueTypeMapping);
+
+    std::vector<Linkable*> components;
+    Engine engine;
+    Map<Linkable*> aliases;
+    Map<Definition> definitions;
+    Config config =
+        Config(&components, &aliases, &definitions,
+               configYamlValue.value.mapping, configYamlValue.location);
+    if (engine.Configure(config)) return 1;
 
     TraceReader* traceReader = AllocTraceReader(traceReaderName);
     if (traceReader == NULL) {
@@ -172,8 +190,7 @@ int main(int argc, char* const argv[]) {
     }
     if (traceReader->OpenTrace(traceFileName, traceDir)) return 1;
 
-    engine->Simulate(traceReader);
-    delete engine;
+    engine.Simulate(traceReader);
     delete traceReader;
 
     return 0;

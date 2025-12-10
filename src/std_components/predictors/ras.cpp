@@ -24,60 +24,18 @@
 
 #include <sinuca3.hpp>
 
-int Ras::FinishSetup() {
-    if (this->size == 0) {
-        SINUCA3_ERROR_PRINTF(
-            "Ras didn't received obrigatory parameter size.\n");
-        return 1;
-    }
+int Ras::Configure(Config config) {
+    long size;
+    if (config.Integer("size", &size, true)) return 1;
+    if (size <= 0) return config.Error("size", "is not > 0.");
+    this->size = size;
+
+    if (config.ComponentReference("sendTo", &this->sendTo)) return 1;
+    if (this->sendTo != NULL) this->forwardToID = this->sendTo->Connect(0);
 
     this->buffer = new unsigned long[this->size];
 
-    if (this->sendTo != NULL) {
-        this->forwardToID = this->sendTo->Connect(0);
-    }
-
     return 0;
-}
-
-int Ras::SetConfigParameter(const char* parameter, ConfigValue value) {
-    if (strcmp(parameter, "size") == 0) {
-        if (value.type != ConfigValueTypeInteger) {
-            SINUCA3_ERROR_PRINTF("Ras parameter size is not an integer.\n");
-            return 1;
-        }
-
-        const long size = value.value.integer;
-        if (size <= 0) {
-            SINUCA3_ERROR_PRINTF(
-                "Invalid value for Ras parameter size: should be > 0.\n");
-            return 1;
-        }
-
-        this->size = size;
-        return 0;
-    }
-
-    if (strcmp(parameter, "sendTo") == 0) {
-        if (value.type != ConfigValueTypeComponentReference) {
-            SINUCA3_ERROR_PRINTF(
-                "Ras parameter sendTo is not a "
-                "Component<PredictorPacket>.\n");
-            return 1;
-        }
-
-        this->sendTo = dynamic_cast<Component<PredictorPacket>*>(
-            value.value.componentReference);
-        if (this->sendTo == NULL) {
-            SINUCA3_ERROR_PRINTF(
-                "Ras parameter sendTo is not a "
-                "Component<PredictorPacket>.\n");
-            return 1;
-        }
-    }
-
-    SINUCA3_ERROR_PRINTF("Ras received an unknown parameter: %s.\n", parameter);
-    return 1;
 }
 
 inline void Ras::RequestQuery(InstructionPacket instruction, int connectionID) {
@@ -140,10 +98,11 @@ Ras::~Ras() {
 
 int TestRas() {
     Ras ras;
+    Map<Linkable*> aliases;
+    yaml::Parser parser;
 
-    ras.SetConfigParameter("size", ConfigValue((long)5));
+    ras.Configure(CreateFakeConfig(&parser, "size: 5\n", &aliases));
     int id = ras.Connect(1);
-    ras.FinishSetup();
 
     ras.Clock();
     ras.PosClock();

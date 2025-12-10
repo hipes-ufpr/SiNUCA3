@@ -60,16 +60,6 @@ class HardwiredPredictor : public Component<PredictorPacket> {
         noBranch; /** @brief Wether to predict normal instructions correctly. */
 
     /**
-     * @brief Helper to set all those boolean parameters.
-     * @param parameter The name of the parameter to set (for printing the error
-     * message if necessary).
-     * @param ptr The pointer to the boolean parameter (&this->syscall,
-     * &this->call, etc).
-     * @param value The value.
-     */
-    int SetBoolParameter(const char* parameter, bool* ptr, ConfigValue value);
-
-    /**
      * @brief Helper to respond a request.
      * @param id The connection id of the client.
      * @param request The request itself.
@@ -92,8 +82,7 @@ class HardwiredPredictor : public Component<PredictorPacket> {
           cond(true),
           noBranch(true) {}
 
-    virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+    virtual int Configure(Config config);
     virtual void Clock();
     virtual void PrintStatistics();
 

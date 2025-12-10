@@ -27,69 +27,18 @@
 #include <cstring>
 #include <sinuca3.hpp>
 
-int SimpleCore::SetConfigParameter(const char* parameter, ConfigValue value) {
-    Component<MemoryPacket>** ptrToParameter;
-    int* connectionIDPtr;
-    if (strcmp(parameter, "instructionMemory") == 0) {
-        ptrToParameter = &this->instructionMemory;
-        connectionIDPtr = &this->instructionConnectionID;
-    } else if (strcmp(parameter, "dataMemory") == 0) {
-        ptrToParameter = &this->dataMemory;
-        connectionIDPtr = &this->dataConnectionID;
-    } else if (strcmp(parameter, "fetching") == 0) {
-        if (value.type != ConfigValueTypeComponentReference) {
-            SINUCA3_ERROR_PRINTF(
-                "Component SimpleCore received a parameter that's not a "
-                "component "
-                "reference.\n");
-            return 1;
-        }
-
-        this->fetching = dynamic_cast<Component<FetchPacket>*>(
-            value.value.componentReference);
-        if (this->fetching == NULL) {
-            SINUCA3_ERROR_PRINTF(
-                "Component SimpleCore received a parameter fetching that's not"
-                "a reference to a Component<MemoryPacket>.\n");
-            return 1;
-        }
-        this->fetchingConnectionID = this->fetching->Connect(0);
-        return 0;
-    } else {
-        SINUCA3_ERROR_PRINTF(
-            "Component SimpleCore received unknown parameter %s.\n", parameter);
+int SimpleCore::Configure(Config config) {
+    if (config.ComponentReference("instructionMemory",
+                                  &this->instructionMemory))
         return 1;
-    }
+    if (config.ComponentReference("dataMemory", &this->dataMemory)) return 1;
+    if (config.ComponentReference("fetching", &this->fetching, true)) return 1;
 
-    if (value.type != ConfigValueTypeComponentReference) {
-        SINUCA3_ERROR_PRINTF(
-            "Component SimpleCore received a parameter that's not a component "
-            "reference.\n");
-        return 1;
-    }
-
-    *ptrToParameter =
-        dynamic_cast<Component<MemoryPacket>*>(value.value.componentReference);
-    if (*ptrToParameter == NULL) {
-        SINUCA3_ERROR_PRINTF(
-            "Component SimpleCore received a parameter %s that's not a "
-            "reference "
-            "to a Component<MemoryPacket>.\n",
-            parameter);
-        return 1;
-    }
-
-    *connectionIDPtr = (*ptrToParameter)->Connect(0);
-
-    return 0;
-}
-
-int SimpleCore::FinishSetup() {
-    if (this->fetching == NULL) {
-        SINUCA3_ERROR_PRINTF(
-            "SimpleCore didn't received required parameter fetching.\n");
-        return 1;
-    }
+    if (this->instructionMemory != NULL)
+        this->instructionConnectionID = this->instructionMemory->Connect(0);
+    if (this->dataMemory != NULL)
+        this->dataConnectionID = this->dataMemory->Connect(0);
+    this->fetchingConnectionID = this->fetching->Connect(0);
 
     return 0;
 }

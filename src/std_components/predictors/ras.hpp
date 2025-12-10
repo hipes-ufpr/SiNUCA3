@@ -54,8 +54,7 @@ class Ras : public Component<PredictorPacket> {
 
   public:
     inline Ras() : sendTo(NULL), buffer(NULL), size(0), end(0) {}
-    virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+    virtual int Configure(Config config);
     virtual void Clock();
     virtual void PrintStatistics();
 

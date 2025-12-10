@@ -46,8 +46,7 @@ class SimpleInstructionMemory : public Component<InstructionPacket> {
 
   public:
     inline SimpleInstructionMemory() : numberOfRequests(0) {};
-    virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+    virtual int Configure(Config config);
     virtual void Clock();
     virtual void PrintStatistics();
     ~SimpleInstructionMemory();

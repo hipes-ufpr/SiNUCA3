@@ -44,8 +44,6 @@
 #include <sinuca3.hpp>
 #include <utils/circular_buffer.hpp>
 
-#include "utils/logging.hpp"
-
 template <typename Type>
 class DelayQueue : public Component<Type> {
   private:
@@ -86,9 +84,8 @@ class DelayQueue : public Component<Type> {
 
   public:
     DelayQueue();
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+    virtual int Configure(Config config);
     virtual void PrintStatistics() {}
-    virtual int FinishSetup();
     virtual void Clock();
     virtual ~DelayQueue();
 };
@@ -138,60 +135,26 @@ int DelayQueue<Type>::Dequeue(Input* elem) {
 }
 
 template <typename Type>
-int DelayQueue<Type>::SetConfigParameter(const char* param, ConfigValue val) {
-    if (!strcmp(param, "delay")) {
-        if (val.type != ConfigValueTypeInteger) {
-            return 1;
-        }
-        unsigned long delay = val.value.integer;
-        if (delay < 0) {
-            return 1;
-        }
-        this->delay = delay;
-        return 0;
-    }
-    if (!strcmp(param, "throughput")) {
-        if (val.type != ConfigValueTypeInteger) {
-            return 1;
-        }
-        unsigned long throughput = val.value.integer;
-        if (throughput <= 0) {
-            return 1;
-        }
-        this->throughput = throughput;
-        return 0;
-    }
-    if (!strcmp(param, "sendTo")) {
-        if (val.type != ConfigValueTypeComponentReference) {
-            return 1;
-        }
-        Component<Type>* comp =
-            dynamic_cast<Component<Type>*>(val.value.componentReference);
-        if (comp == NULL) {
-            return 1;
-        }
-        this->sendTo = comp;
-        return 0;
-    }
-    return 1;
-}
+int DelayQueue<Type>::Configure(Config config) {
+    long delay = 0;
+    if (config.Integer("delay", &delay)) return 1;
+    if (delay < 0) return config.Error("delay", "is not >= 0.");
+    this->delay = delay;
 
-template <typename Type>
-int DelayQueue<Type>::FinishSetup() {
-    if (this->sendTo == NULL) {
-        SINUCA3_ERROR_PRINTF("DelayQueue sendTo param not set.\n");
-        return 1;
-    }
-    if (this->throughput == 0) {
-        SINUCA3_ERROR_PRINTF("DelayQueue throughput param not set.\n");
-        return 1;
-    }
+    long throughput = 0;
+    if (config.Integer("throughput", &throughput, true)) return 1;
+    if (throughput < 0) return config.Error("throughput", "is not >= 0.");
+    this->throughput = throughput;
+
+    if (config.ComponentReference("sendTo", &this->sendTo, true)) return 1;
 
     this->sendToId = this->sendTo->Connect(this->throughput);
+
     if (this->UseDelayBuffer()) {
         this->SetDelayBufferSize();
         this->delayBuffer.Allocate(this->delayBufferSize, sizeof(Input));
     }
+
     return 0;
 }
 

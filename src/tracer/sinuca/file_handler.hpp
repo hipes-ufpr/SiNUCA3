@@ -42,7 +42,6 @@ extern "C" {
 
 #define _PACKED __attribute__((packed))
 
-const char TRACE_VERSION[] = "0.0.1"; /**<Used to detect incompatibility.> */
 const int MAX_IMAGE_NAME_SIZE = 255;
 const int RECORD_ARRAY_SIZE = 10000;
 
@@ -59,27 +58,19 @@ enum StaticTraceRecordType : uint8_t {
 
 enum DynamicTraceRecordType : uint8_t {
     DynamicRecordBasicBlockIdentifier,
-    DynamicRecordThreadEvent
-};
-
-enum ThreadEventType : uint8_t {
-    ThreadEventCreateThread,
-    ThreadEventDestroyThread,
-    ThreadEventHaltThread,
-    ThreadEventLockRequest,
-    ThreadEventUnlockRequest,
-    ThreadEventBarrier,
-    ThreadEventAbruptEnd
+    DynamicRecordCreateThread,
+    DynamicRecordDestroyThread,
+    DynamicRecordHaltThread,
+    DynamicRecordLockRequest,
+    DynamicRecordUnlockRequest,
+    DynamicRecordBarrier,
+    DynamicRecordAbruptEnd
 };
 
 enum MemoryRecordType : uint8_t {
-    MemoryRecordOperationHeader,
-    MemoryRecordOperation
-};
-
-enum MemoryOperationType : uint8_t {
-    MemoryOperationLoad,
-    MemoryOperationStore
+    MemoryRecordHeader,
+    MemoryRecordLoad,
+    MemoryRecordStore
 };
 
 /** @brief Instruction extracted informations */
@@ -123,23 +114,11 @@ struct StaticTraceRecord {
 /** @brief Written to dynamic trace file. */
 struct DynamicTraceRecord {
     union _PACKED {
-        struct {
-            uint32_t basicBlockIdentifier;
-        } bbl;
+        uint32_t basicBlockIdentifier;
         struct _PACKED {
-            uint8_t eventType;
-            union _PACKED {
-                struct _PACKED {
-                    uint64_t lockAddress;
-                    uint8_t isDefaultLock;
-                    uint8_t isTestLock;
-                    uint8_t isNestedLock;
-                } lockInfo;
-                struct {
-                    uint32_t tid;
-                } thrCreate;
-            } eventData;
-        } thrEvent;
+            uint8_t isGlobalMutex;
+            uint64_t mutexAddress;
+        } lockInfo;
     } data;
     uint8_t recordType;
 
@@ -154,11 +133,8 @@ struct MemoryTraceRecord {
         struct _PACKED {
             uint64_t address; /**<Virtual address accessed. */
             uint16_t size;    /**<Size in bytes of memory read or written. */
-            uint8_t type;     /**<Load or Store. */
         } operation;
-        struct {
-            int32_t numberOfMemoryOps;
-        } opHeader;
+        int32_t numberOfMemoryOps;
     } data;
     uint8_t recordType;
 
@@ -180,11 +156,9 @@ struct FileHeader {
         } dynamicHeader;
     } data;
     uint8_t fileType;
-    char traceVersion[sizeof(TRACE_VERSION)];
 
     inline FileHeader() {
         memset(this, 0, sizeof(*this));
-        memcpy(this->traceVersion, TRACE_VERSION, sizeof(this->traceVersion));
     }
     inline int FlushHeader(FILE* file) {
         if (!file) return 1;

@@ -24,8 +24,15 @@
  */
 
 #include <ctime>
+#include <engine/build_definitions.hpp>
 #include <engine/component.hpp>
 #include <tracer/trace_reader.hpp>
+
+int NewComponentDefinition(Map<Definition>* definitions,
+                           Map<Linkable*>* aliases,
+                           std::vector<InstanceWithDefinition>* instances,
+                           Map<yaml::YamlValue>* config, const char* name,
+                           const char* alias, yaml::YamlLocation location);
 
 /**
  * @brief The engine itself.
@@ -100,8 +107,7 @@ class Engine : public Component<FetchPacket> {
      */
     int Simulate(TraceReader* traceReader);
 
-    virtual int FinishSetup();
-    virtual int SetConfigParameter(const char* parameter, ConfigValue value);
+    virtual int Configure(Config config);
     virtual void Clock();
     virtual void PrintStatistics();
 

@@ -19,10 +19,7 @@
 
 #include <cassert>
 #include <cmath>
-
-#include "config/config.hpp"
-#include "engine/default_packets.hpp"
-#include "utils/logging.hpp"
+#include <sinuca3.hpp>
 
 GsharePredictor::GsharePredictor()
     : entries(NULL),
@@ -50,6 +47,10 @@ void GsharePredictor::Deallocate() {
     if (this->entries) {
         delete[] this->entries;
         this->entries = NULL;
+    }
+    if (!this->indexQueue.IsEmpty()) {
+        SINUCA3_WARNING_PRINTF(
+            "Gshare index queue not empty when it was expected to be\n");
     }
     this->indexQueue.Deallocate();
 }
@@ -131,55 +132,23 @@ void GsharePredictor::CalculateIndex(unsigned long addr) {
     SINUCA3_DEBUG_PRINTF("Gshare Idx [%ld]\n", this->currentIndex);
 }
 
-int GsharePredictor::SetConfigParameter(const char* parameter,
-                                        ConfigValue value) {
-    if (strcmp(parameter, "numberOfEntries") == 0) {
-        if (value.type != ConfigValueTypeInteger) {
-            SINUCA3_ERROR_PRINTF(
-                "Gshare parameter numberOfEntries is an Integer");
-            return 1;
-        }
-        unsigned long requestedNumberOfEntries = value.value.integer;
-        if (requestedNumberOfEntries == 0) {
-            SINUCA3_ERROR_PRINTF(
-                "Gshare parameter numberOfEntries should not be zero\n");
-            return 1;
-        }
-        if (this->RoundNumberOfEntries(requestedNumberOfEntries)) {
-            SINUCA3_ERROR_PRINTF(
-                "Gshare requested number of entries [%ld] is invalid\n",
-                requestedNumberOfEntries);
-        }
+int GsharePredictor::Configure(Config config) {
+    long numberOfEntries = 0;
+    if (config.Integer("numberOfEntries", &numberOfEntries, true)) return 1;
+    if (numberOfEntries <= 0)
+        return config.Error("numberOfEntries", "is not > 0.");
+    this->numberOfEntries = numberOfEntries;
 
-        return 0;
-    }
-    if (strcmp(parameter, "indexQueueSize") == 0) {
-        if (value.type != ConfigValueTypeInteger) {
-            SINUCA3_ERROR_PRINTF(
-                "Gshare parameter indexQueueSize is an Integer\n");
-            return 1;
-        }
-        this->indexQueueSize = value.value.integer;
-        return 0;
-    }
-    if (strcmp(parameter, "sendTo")) {
-        if (value.type != ConfigValueTypeComponentReference) {
-            SINUCA3_ERROR_PRINTF(
-                "Gshare parameter sendTo is a Component Reference\n");
-            return 1;
-        }
-        Component<PredictorPacket>* comp =
-            dynamic_cast<Component<PredictorPacket>*>(
-                value.value.componentReference);
-        if (comp == NULL) {
-            SINUCA3_ERROR_PRINTF("Gshare got invalid component reference\n");
-            return 1;
-        }
-        this->sendTo = comp;
-        return 0;
-    }
-    SINUCA3_ERROR_PRINTF("Gshare predictor got unkown parameter\n");
-    return 1;
+    long indexQueueSize = 1;
+    if (config.Integer("indexQueueSize", &indexQueueSize)) return 1;
+    if (indexQueueSize <= 0)
+        return config.Error("indexQueueSize", "is not > 0.");
+    this->indexQueueSize = indexQueueSize;
+
+    if (config.ComponentReference("sendTo", &this->sendTo)) return 1;
+    if (this->sendTo != NULL) this->sendToId = this->sendTo->Connect(0);
+
+    return this->Allocate();
 }
 
 void GsharePredictor::PrintStatistics() {
@@ -193,20 +162,6 @@ void GsharePredictor::PrintStatistics() {
                        this->numberOfWrongPredictions);
     SINUCA3_LOG_PRINTF("Gshare rate of wrong predictions [%.0lf]%%\n",
                        fraction * 100);
-}
-
-int GsharePredictor::FinishSetup() {
-    if (this->numberOfEntries == 0) {
-        SINUCA3_ERROR_PRINTF("Gshare has invalid number of entries\n");
-        return 1;
-    }
-    if (this->Allocate()) {
-        return 1;
-    }
-    if (sendTo != NULL) {
-        this->sendToId = this->sendTo->Connect(0);
-    }
-    return 0;
 }
 
 void GsharePredictor::Clock() {
@@ -234,7 +189,6 @@ void GsharePredictor::Clock() {
 
 #ifndef NDEBUG
 const int testSize = 2;
-const int tableSize = 2;
 
 int TestGshare() {
     GsharePredictor predictor;
@@ -254,9 +208,10 @@ int TestGshare() {
         sendPackets[i].data.directionUpdate.taken = taken[i - testSize];
     }
 
-    predictor.SetConfigParameter("numberOfEntries",
-                                 ConfigValue((long)tableSize));
-    predictor.FinishSetup();
+    Map<Linkable*> aliases;
+    yaml::Parser parser;
+    predictor.Configure(
+        CreateFakeConfig(&parser, "numberOfEntries: 2\n", &aliases));
     int id = predictor.Connect(testSize);
 
     // clock 1 (predictor is empty)

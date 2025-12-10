@@ -26,57 +26,18 @@
 #include <cstring>
 #include <sinuca3.hpp>
 
-int HardwiredPredictor::FinishSetup() {
-    if (this->sendTo != NULL) {
-        this->sendToID = this->sendTo->Connect(0);
-    }
+int HardwiredPredictor::Configure(Config config) {
+    if (config.Bool("syscall", &this->syscall)) return 1;
+    if (config.Bool("call", &this->call)) return 1;
+    if (config.Bool("return", &this->ret)) return 1;
+    if (config.Bool("uncond", &this->uncond)) return 1;
+    if (config.Bool("cond", &this->cond)) return 1;
+    if (config.Bool("noBranch", &this->noBranch)) return 1;
+
+    if (config.ComponentReference("sendTo", &this->sendTo)) return 1;
+    if (this->sendTo != NULL) this->sendToID = this->sendTo->Connect(0);
 
     return 0;
-}
-
-int HardwiredPredictor::SetBoolParameter(const char* parameter, bool* ptr,
-                                         ConfigValue value) {
-    if (value.type != ConfigValueTypeBoolean) {
-        SINUCA3_ERROR_PRINTF(
-            "HardwiredPredictor parameter %s is not a boolean.\n", parameter);
-        return 1;
-    }
-
-    *ptr = value.value.boolean;
-
-    return 0;
-}
-
-int HardwiredPredictor::SetConfigParameter(const char* parameter,
-                                           ConfigValue value) {
-    if (strcmp("sendTo", parameter) == 0) {
-        if (value.type == ConfigValueTypeComponentReference) {
-            this->sendTo = dynamic_cast<Component<PredictorPacket>*>(
-                value.value.componentReference);
-            if (this->sendTo != NULL) return 0;
-        }
-        SINUCA3_ERROR_PRINTF(
-            "HardwiredPredictor parameter sendTo is not a "
-            "Component<PredictorPacket>.\n");
-        return 1;
-    }
-
-    if (strcmp("syscall", parameter) == 0)
-        return this->SetBoolParameter(parameter, &this->syscall, value);
-    else if (strcmp("call", parameter) == 0)
-        return this->SetBoolParameter(parameter, &this->call, value);
-    else if (strcmp("return", parameter) == 0)
-        return this->SetBoolParameter(parameter, &this->ret, value);
-    else if (strcmp("uncond", parameter) == 0)
-        return this->SetBoolParameter(parameter, &this->uncond, value);
-    else if (strcmp("cond", parameter) == 0)
-        return this->SetBoolParameter(parameter, &this->cond, value);
-    else if (strcmp("noBranch", parameter) == 0)
-        return this->SetBoolParameter(parameter, &this->noBranch, value);
-
-    SINUCA3_ERROR_PRINTF("HardwiredPredictor received unknown parameter %s.\n",
-                         parameter);
-    return 1;
 }
 
 void HardwiredPredictor::Respond(int id, PredictorPacket request) {

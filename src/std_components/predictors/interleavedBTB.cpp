@@ -100,94 +100,36 @@ BranchTargetBuffer::BranchTargetBuffer()
       interleavingBits(0),
       entriesBits(0) {};
 
-int BranchTargetBuffer::SetConfigParameter(const char* parameter,
-                                           ConfigValue value) {
-    if (strcmp(parameter, "interleavingFactor") == 0) {
-        if (value.type != ConfigValueTypeInteger) {
-            SINUCA3_ERROR_PRINTF(
-                "BTB parameter interleavingFactor is not an integer.\n");
-            return 1;
-        }
-        unsigned int iFactor = value.value.integer;
-        if (iFactor <= 0) {
-            SINUCA3_ERROR_PRINTF(
-                "BTB parameter interleavingFactor must be > 0.\n");
-            return 1;
-        }
-
-        if (iFactor > MAX_INTERLEAVING_FACTOR) {
-            this->interleavingFactor = MAX_INTERLEAVING_FACTOR;
-        } else {
-            this->interleavingFactor = iFactor;
-        }
-
-        return 0;
-    } else if (strcmp(parameter, "numberOfEntries") == 0) {
-        if (value.type != ConfigValueTypeInteger) {
-            SINUCA3_ERROR_PRINTF(
-                "BTB parameter numberOfEntries is not an integer.\n");
-            return 1;
-        }
-        unsigned int entries = value.value.integer;
-        if (entries <= 0) {
-            SINUCA3_ERROR_PRINTF(
-                "BTB parameter numberOfEntries must be > 0.\n");
-            return 1;
-        }
-        this->numEntries = entries;
-
-        return 0;
-    } else if (strcmp(parameter, "sendTo") == 0) {
-        if (value.type != ConfigValueTypeComponentReference) {
-            SINUCA3_ERROR_PRINTF(
-                "BTB parameter sendTo is not a Component<BTBPacket>.\n");
-            return 1;
-        }
-        this->sendTo =
-            dynamic_cast<Component<BTBPacket>*>(value.value.componentReference);
-        if (this->sendTo == NULL) {
-            SINUCA3_ERROR_PRINTF(
-                "BTB parameter sendTo is not a Component<BTBPacket>.\n");
-            return 1;
-        }
-        return 0;
-    }
-
-    SINUCA3_WARNING_PRINTF("BTB received an unknown parameter: %s.\n",
-                           parameter);
-    return 1;
-}
-
-int BranchTargetBuffer::FinishSetup() {
-    if (this->interleavingFactor == 0) {
-        SINUCA3_ERROR_PRINTF(
-            "BTB did not receive the interleaving factor parameter.\n");
+int BranchTargetBuffer::Configure(Config config) {
+    long interleavingFactor;
+    if (config.Integer("interleavingFactor", &interleavingFactor, true))
         return 1;
-    }
+    if (interleavingFactor <= 0)
+        return config.Error("interleavingFactor", "is not > 0.");
+    if (interleavingFactor > MAX_INTERLEAVING_FACTOR)
+        return config.Error("interleavingFactor",
+                            "is > MAX_INTERLEAVING_FACTOR");
+    this->interleavingFactor = interleavingFactor;
 
-    if (this->numEntries == 0) {
-        SINUCA3_ERROR_PRINTF(
-            "BTB did not receive the number of entries parameter.\n");
-        return 1;
-    }
+    long numberOfEntries;
+    if (config.Integer("numberOfEntries", &numberOfEntries, true)) return 1;
+    if (numberOfEntries <= 0)
+        return config.Error("numberOfEntries", "is not > 0.");
+    this->numEntries = numberOfEntries;
+
+    this->sendTo = NULL;
+    if (config.ComponentReference("sendTo", &this->sendTo)) return 1;
+    if (this->sendTo != NULL) this->sendToID = this->sendTo->Connect(0);
 
     this->interleavingBits = floor(log(this->interleavingFactor));
     this->entriesBits = floor(log(this->numEntries));
     this->interleavingFactor = (1 << this->interleavingBits);
     this->numEntries = (1 << this->entriesBits);
     this->btb = new BTBEntry*[this->numEntries];
-    if (!(this->btb)) {
-        SINUCA3_ERROR_PRINTF("BTB could not be allocated.\n");
-        return 1;
-    }
 
     for (unsigned int i = 0; i < this->numEntries; ++i) {
         this->btb[i] = new BTBEntry;
         this->btb[i]->Allocate(this->interleavingFactor);
-    }
-
-    if (this->sendTo != NULL) {
-        this->sendToID = this->sendTo->Connect(0);
     }
 
     return 0;

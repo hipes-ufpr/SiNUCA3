@@ -1,4 +1,4 @@
-instantiate:
+simpleCore: &simpleCore
   class: SimpleCore
   fetching: *ENGINE
   dataMemory:
