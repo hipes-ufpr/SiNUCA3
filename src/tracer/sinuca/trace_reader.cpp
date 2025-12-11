@@ -21,11 +21,10 @@
 
 #include "trace_reader.hpp"
 
-#include <sinuca3.hpp>
-
 #include "engine/default_packets.hpp"
 #include "tracer/sinuca/file_handler.hpp"
 #include "tracer/trace_reader.hpp"
+#include "utils/logging.hpp"
 
 int SinucaTraceReader::OpenTrace(const char *imageName, const char *sourceDir) {
     this->staticTrace = new StaticTraceReader;
@@ -41,21 +40,38 @@ int SinucaTraceReader::OpenTrace(const char *imageName, const char *sourceDir) {
     this->totalThreads = this->staticTrace->GetNumThreads();
     this->totalBasicBlocks = this->staticTrace->GetTotalBasicBlocks();
     this->totalStaticInst = this->staticTrace->GetTotalInstInStaticTrace();
+    this->traceFilesVersion = this->staticTrace->GetVersionInt();
+    this->traceFilesTargetArch = this->staticTrace->GetTargetInt();
+
+    SINUCA3_WARNING_PRINTF("Trace files: ");
+    SINUCA3_WARNING_PRINTF("\t Version: %d\n", this->traceFilesVersion);
+    SINUCA3_WARNING_PRINTF("\t Target: %s\n", staticTrace->GetTargetString());
 
     this->threadDataArr = new ThreadData *[this->totalThreads];
     for (int i = 0; i < this->totalThreads; ++i) {
         ThreadData *tData = new ThreadData;
+        if (tData == NULL) {
+            SINUCA3_ERROR_PRINTF("[OpenTrace] failed to alloc tData!\n");
+            return 1;
+        }
         if (tData->Allocate(sourceDir, imageName, i)) {
-            SINUCA3_ERROR_PRINTF("OpenTrace failed to allocate tData!\n");
+            SINUCA3_ERROR_PRINTF("[OpenTrace] tData Allocate method failed!\n");
             return 1;
         }
         this->threadDataArr[i] = tData;
+
+        if (tData->CheckVersion(this->traceFilesVersion)) {
+            SINUCA3_ERROR_PRINTF("[OpenTrace] incompatible version!\n");
+            return 1;
+        }
+        if (tData->CheckTargetArch(this->traceFilesTargetArch)) {
+            SINUCA3_ERROR_PRINTF("[OpenTrace] incompatible target!\n");
+            return 1;
+        }
     }
 
     this->threadDataArr[0]->isThreadAwake = true;
     this->reachedAbruptEnd = false;
-    this->SetNewLock(&this->globalLock);
-    this->SetNewBarrier(&this->globalBarrier);
 
     if (this->GenerateInstructionDict()) {
         SINUCA3_ERROR_PRINTF("Failed to generate instruction dictionary\n");
@@ -121,7 +137,7 @@ int SinucaTraceReader::GenerateInstructionDict() {
             }
 
             instInfoPtr = &this->instructionDict[bblCounter][instCounter];
-            this->staticTrace->GetInstruction(instInfoPtr);
+            this->staticTrace->TranslateRawInstructionToSinucaInst(instInfoPtr);
         }
     }
 
@@ -129,16 +145,12 @@ int SinucaTraceReader::GenerateInstructionDict() {
 }
 
 bool SinucaTraceReader::HasExecutionEnded() {
-    if (this->reachedAbruptEnd) {
-        return true;
-    }
+    if (this->reachedAbruptEnd) return true;
+
     if (this->threadDataArr[0]->dynFile.ReachedDynamicTraceEnd()) {
         for (int i = 1; i < this->totalThreads; ++i) {
             if (this->threadDataArr[i]->isThreadAwake) {
-                SINUCA3_ERROR_PRINTF(
-                    "Thread [%d] is awake while thread [0] execution already "
-                    "ended!\n",
-                    i);
+                SINUCA3_ERROR_PRINTF("Thread [%d] should be sleeping!\n", i);
             }
         }
         return true;
@@ -154,12 +166,10 @@ FetchResult SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
         return FetchResultNop;
     }
 
+    /* Detect need to fetch new basic block */
     if (!this->threadDataArr[tid]->isInsideBasicBlock) {
         this->threadDataArr[tid]->currentInst = 0;
         if (this->FetchBasicBlock(tid)) {
-            return FetchResultError;
-        }
-        if (!this->threadDataArr[tid]->isThreadAwake) {
             return FetchResultNop;
         }
     }
@@ -185,28 +195,32 @@ FetchResult SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
 }
 
 int SinucaTraceReader::FetchMemoryData(InstructionPacket *ret, int tid) {
-    unsigned long arraySize;
     if (this->threadDataArr[tid]->memFile.ReadMemoryOperations()) {
         SINUCA3_ERROR_PRINTF("Failed to read memory operations\n");
         return 1;
     }
 
     ret->dynamicInfo.numReadings =
-        this->threadDataArr[tid]->memFile.GetNumberOfLoads();
+        this->threadDataArr[tid]->memFile.GetNumberOfLoadOps();
     ret->dynamicInfo.numWritings =
-        this->threadDataArr[tid]->memFile.GetNumberOfStores();
+        this->threadDataArr[tid]->memFile.GetNumberOfStoreOps();
 
-    arraySize = sizeof(ret->dynamicInfo.readsAddr) / sizeof(unsigned long);
+    int addrsArraySize;
+    addrsArraySize = sizeof(ret->dynamicInfo.readsAddr) /
+                     sizeof(*ret->dynamicInfo.readsAddr);
+    int sizesArraySize;
+    sizesArraySize = sizeof(ret->dynamicInfo.readsSize) /
+                     sizeof(*ret->dynamicInfo.readsSize);
 
     if (this->threadDataArr[tid]->memFile.CopyLoadOperations(
-            ret->dynamicInfo.readsAddr, arraySize, ret->dynamicInfo.readsSize,
-            arraySize)) {
+            ret->dynamicInfo.readsAddr, addrsArraySize,
+            ret->dynamicInfo.readsSize, sizesArraySize)) {
         SINUCA3_ERROR_PRINTF("Failed to copy load operations!\n");
         return 1;
     }
     if (this->threadDataArr[tid]->memFile.CopyStoreOperations(
-            ret->dynamicInfo.writesAddr, arraySize, ret->dynamicInfo.writesSize,
-            arraySize)) {
+            ret->dynamicInfo.writesAddr, addrsArraySize,
+            ret->dynamicInfo.writesSize, sizesArraySize)) {
         SINUCA3_ERROR_PRINTF("Failed to copy store operations!\n");
         return 1;
     }
@@ -215,65 +229,42 @@ int SinucaTraceReader::FetchMemoryData(InstructionPacket *ret, int tid) {
 }
 
 int SinucaTraceReader::FetchBasicBlock(int tid) {
-    this->threadDataArr[tid]->dynFile.ReadDynamicRecord();
+    if (this->threadDataArr[tid]->dynFile.ReadDynamicRecord()) {
+        SINUCA3_ERROR_PRINTF("Failed to get dyn record in tid [%d]!\n", tid);
+        return 1;
+    }
+
     int recordType = this->threadDataArr[tid]->dynFile.GetRecordType();
 
     while (recordType != DynamicRecordBasicBlockIdentifier) {
-        if (recordType != DynamicRecordThreadEvent) {
-            SINUCA3_ERROR_PRINTF("Type is not thread event!\n");
-            return 1;
-        }
-
-        int eventType = this->threadDataArr[tid]->dynFile.GetEventType();
-        if (eventType == ThreadEventAbruptEnd) {
+        if (recordType == DynamicRecordAbruptEnd) {
             this->reachedAbruptEnd = true;
             SINUCA3_WARNING_PRINTF(
                 "Trace reader fetched abrupt end event in thread [%d]!\n", tid);
             return 1;
-        } else if (eventType == ThreadEventCreateThread) {
+        } else if (recordType == DynamicRecordCreateThread) {
+            /* Currently there is no support for nested parallelism */
             if (tid != 0) {
                 SINUCA3_ERROR_PRINTF(
-                    "Thread [%d] is not expected to create new threads!\n",
-                    tid);
+                    "Thr [%d] is not expected to create new threads!\n", tid);
                 return 1;
             }
-            this->numberOfActiveThreads++;
-            this->threadDataArr[this->numberOfActiveThreads - 1]
-                ->parentThreadId = 0;
-            this->threadDataArr[this->numberOfActiveThreads - 1]
-                ->isThreadAwake = true;
-        } else if (eventType == ThreadEventDestroyThread) {
-            if (tid != 0) {
-                SINUCA3_ERROR_PRINTF(
-                    "Expected destroy event to be called in thread [0]!\n");
-                return 1;
-            }
-            if (this->numberOfActiveThreads > 1) {
-                this->threadDataArr[0]->isThreadAwake = false;
-                this->numberOfActiveThreads--;
-                return 0; /* no basic blocks to be fetched. */
-            }
-            this->numberOfActiveThreads = 1;
-        } else if (eventType == ThreadEventHaltThread) {
-            if (tid == 0) {
-                SINUCA3_ERROR_PRINTF(
-                    "Thread [0] should not have thread halt event!\n");
-                return 1;
-            }
-            this->threadDataArr[tid]->isThreadAwake = false;
-            this->numberOfActiveThreads--;
-            if (this->numberOfActiveThreads == 0) {
-                /* wake parent thread */
-                this->threadDataArr[this->threadDataArr[tid]->parentThreadId]
-                    ->isThreadAwake = true;
+
+            /* Loop activates all threads. */
+            for (int i = 1; i < this->totalThreads; i++) {
+                this->threadDataArr[i]->parentThreadId = 0;
+                this->threadDataArr[i]->isThreadAwake = true;
                 this->numberOfActiveThreads++;
             }
-        } else if (eventType == ThreadEventLockRequest) {
+        } else if (recordType == DynamicRecordDestroyThread) {
+            /* Current thread goes to sleep. */
+            this->threadDataArr[tid]->isThreadAwake = false;
+        } else if (recordType == DynamicRecordLockRequest) {
             if (this->threadDataArr[tid]->dynFile.IsGlobalLock()) {
                 if (this->globalLock.isBusy) {
                     this->threadDataArr[tid]->isThreadAwake = false;
                     this->globalLock.waitingThreadsQueue.Enqueue(&tid);
-                    return 0; /* no basic block to be fetched. */
+                    return 1; /* no basic block to be fetched. */
                 } else {
                     this->globalLock.isBusy = true;
                     this->globalLock.owner = tid;
@@ -282,6 +273,8 @@ int SinucaTraceReader::FetchBasicBlock(int tid) {
                 unsigned long lockAddr =
                     this->threadDataArr[tid]->dynFile.GetLockAddress();
 
+                /* Check if lock with corresponding lockAddr was created. If
+                 * not, create a new lock and append to vector. */
                 Lock *lock = NULL;
                 for (unsigned long i = 0; i < privateLockVec.size(); ++i) {
                     if (this->privateLockVec[i].addr == lockAddr) {
@@ -297,52 +290,42 @@ int SinucaTraceReader::FetchBasicBlock(int tid) {
                 }
 
                 if (lock->isBusy) {
-                    if (!this->threadDataArr[tid]->dynFile.IsTestLock()) {
-                        if (this->threadDataArr[tid]->dynFile.IsNestedLock() &&
-                            lock->owner == tid) {
-                            lock->recCont++;
-                        } else {
-                            this->threadDataArr[tid]->isThreadAwake = false;
-                            this->globalLock.waitingThreadsQueue.Enqueue(&tid);
-                            return 0; /* no basic block to be fetched */
-                        }
-                    }
+                    this->threadDataArr[tid]->isThreadAwake = false;
+                    this->globalLock.waitingThreadsQueue.Enqueue(&tid);
+                    return 0; /* no basic block to be fetched */
                 } else {
                     lock->isBusy = true;
                     lock->owner = tid;
-                    if (this->threadDataArr[tid]->dynFile.IsNestedLock()) {
-                        lock->recCont = 1;
-                    }
                 }
             }
-        } else if (eventType == ThreadEventUnlockRequest) {
+        } else if (recordType == DynamicRecordUnlockRequest) {
             if (this->threadDataArr[tid]->dynFile.IsGlobalLock()) {
                 if (!this->globalLock.isBusy) {
-                    SINUCA3_ERROR_PRINTF("Expected global lock to be busy!\n");
+                    SINUCA3_ERROR_PRINTF(
+                        "Lock cant be unlocked because its not busy!\n");
                     return 1;
                 }
                 if (this->globalLock.owner != tid) {
                     SINUCA3_ERROR_PRINTF(
-                        "Thread [%d] is not owner of global lock and is trying "
-                        "to unlock!\n",
-                        tid);
+                        "Thr [%d] isnt the current owner of glob lock!\n", tid);
                     return 1;
                 }
 
                 if (!this->globalLock.waitingThreadsQueue.IsEmpty()) {
-                    int sleepingThreadId;
-                    this->globalLock.waitingThreadsQueue.Dequeue(
-                        &sleepingThreadId);
-                    this->threadDataArr[sleepingThreadId]->isThreadAwake = true;
-                    /* changing to new global lock owner. */
-                    this->globalLock.owner = sleepingThreadId;
+                    int sleepingThr;
+                    this->globalLock.waitingThreadsQueue.Dequeue(&sleepingThr);
+                    this->threadDataArr[sleepingThr]->isThreadAwake = true;
+                    /* Change to new lock owner. */
+                    this->globalLock.owner = sleepingThr;
                 } else {
+                    /* Lock is free. */
                     this->ResetLock(&this->globalLock);
                 }
             } else {
                 unsigned long lockAddr =
                     this->threadDataArr[tid]->dynFile.GetLockAddress();
 
+                /* Look for lock with corresponding lockAddr. */
                 Lock *lock = NULL;
                 for (unsigned long i = 0; i < privateLockVec.size(); ++i) {
                     if (this->privateLockVec[i].addr == lockAddr) {
@@ -350,66 +333,55 @@ int SinucaTraceReader::FetchBasicBlock(int tid) {
                     }
                 }
                 if (lock == NULL) {
-                    SINUCA3_ERROR_PRINTF(
-                        "Private lock with address [%ld] was not created!\n",
-                        lockAddr);
+                    SINUCA3_ERROR_PRINTF("Lock with addr [%ld] wasnt created\n",
+                                         lockAddr);
                     return 1;
                 }
 
                 if (!lock->isBusy) {
-                    SINUCA3_ERROR_PRINTF("Private lock expected to be busy!\n");
+                    SINUCA3_ERROR_PRINTF("Lock with addr [%ld] isnt busy!\n",
+                                         lockAddr);
                     return 1;
                 }
                 if (lock->owner != tid) {
                     SINUCA3_ERROR_PRINTF(
-                        "Thread [%d] is not owner of priv lock and is trying "
-                        "to unlock!\n",
-                        tid);
+                        "Thr [%d] isnt the current owner of lock with addr "
+                        "[%ld]!\n",
+                        tid, lockAddr);
                     return 1;
                 }
 
-                bool isReadyToChangeLockOwnership = true;
-                if (this->threadDataArr[tid]->dynFile.IsNestedLock()) {
-                    if (lock->recCont > 1) {
-                        isReadyToChangeLockOwnership = false;
-                    }
-                    lock->recCont--;
-                }
-
-                if (isReadyToChangeLockOwnership) {
-                    if (!lock->waitingThreadsQueue.IsEmpty()) {
-                        int sleepingThreadId;
-                        lock->waitingThreadsQueue.Dequeue(&sleepingThreadId);
-                        this->threadDataArr[sleepingThreadId]->isThreadAwake =
-                            true;
-                        /* changing to new priv lock owner. */
-                        lock->owner = sleepingThreadId;
-                    } else {
-                        this->ResetLock(lock);
-                    }
+                if (!lock->waitingThreadsQueue.IsEmpty()) {
+                    int sleepingThr;
+                    lock->waitingThreadsQueue.Dequeue(&sleepingThr);
+                    this->threadDataArr[sleepingThr]->isThreadAwake = true;
+                    /* Change to new lock owner. */
+                    lock->owner = sleepingThr;
+                } else {
+                    /* Lock is free. */
+                    this->ResetLock(lock);
                 }
             }
-        } else if (eventType == ThreadEventBarrier) {
-            int waitingThreads = this->globalBarrier.thrCont;
+        } else if (recordType == DynamicRecordBarrier) {
             this->globalBarrier.thrCont++;
 
-            if (waitingThreads < this->numberOfActiveThreads) {
+            if (this->globalBarrier.thrCont < this->totalThreads) {
                 this->threadDataArr[tid]->isThreadAwake = false;
                 return 0; /* no basic block to be fetched. */
-            } else if (waitingThreads == this->numberOfActiveThreads) {
+            } else if (this->globalBarrier.thrCont == this->totalThreads) {
                 this->ResetBarrier(&this->globalBarrier);
-                /* wake all sleeping threads. */
-                for (int i = 0; i < this->numberOfActiveThreads; i++) {
+                /* Wake all sleeping threads. */
+                for (int i = 0; i < this->totalThreads; i++) {
                     this->threadDataArr[i]->isThreadAwake = true;
                 }
             } else {
                 SINUCA3_ERROR_PRINTF(
-                    "Global barrier thread counter is not expected to be "
-                    "greater than the current number of active threds!\n");
+                    "Barrier thread counter should not be greater than the "
+                    "total of threads!\n");
                 return 1;
             }
         } else {
-            SINUCA3_ERROR_PRINTF("Unkown thread event [%d]!\n", eventType);
+            SINUCA3_ERROR_PRINTF("Unkown dynamic record [%d]!\n", recordType);
             return 1;
         }
 

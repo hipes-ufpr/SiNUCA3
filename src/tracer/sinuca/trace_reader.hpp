@@ -35,8 +35,7 @@ struct Lock {
     unsigned long addr;
     bool isBusy;
     int owner;
-    int recCont;
-
+    int recCont; // future use for nested locks
     CircularBuffer waitingThreadsQueue;
 };
 
@@ -90,17 +89,17 @@ class SinucaTraceReader : public TraceReader {
     int FetchMemoryData(InstructionPacket* ret, int tid);
     bool HasExecutionEnded();
 
+    // move to constructor
     inline void SetNewLock(Lock* lock) {
         lock->waitingThreadsQueue.Allocate(0, sizeof(int));
         lock->isBusy = false;
-        lock->recCont = 1;
         lock->addr = 0;
     }
     inline void ResetLock(Lock* lock) {
         lock->isBusy = false;
-        lock->recCont = 1;
     }
     inline void ResetBarrier(Barrier* barrier) { barrier->thrCont = 0; }
+    // move to constructor
     inline void SetNewBarrier(Barrier* barrier) { this->ResetBarrier(barrier); }
     inline bool IsThreadSleeping(int tid) {
         return (this->threadDataArr[tid]->isThreadAwake == false);

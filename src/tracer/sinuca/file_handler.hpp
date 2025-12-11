@@ -32,18 +32,28 @@
  */
 
 #include <cstring>
-#include <sinuca3.hpp>
+
 #include "engine/default_packets.hpp"
 
 extern "C" {
 #include <errno.h>
 #include <stdint.h>
+#include <alloca.h>
 }
 
 #define _PACKED __attribute__((packed))
 
 const int MAX_IMAGE_NAME_SIZE = 255;
 const int RECORD_ARRAY_SIZE = 10000;
+const int CURRENT_TRACE_VERSION = 1;
+const int TRACE_TARGET_X86 = 2;
+const int TRACE_TARGET_ARM = 3;
+const int TRACE_TARGET_RISCV = 4;
+const short MAGIC_NUMBER = 187;
+
+const char PREFIX_STATIC_FILE[] = "S3S";
+const char PREFIX_DYNAMIC_FILE[] = "S3D";
+const char PREFIX_MEMORY_FILE[] = "S3M";
 
 enum FileType : uint8_t {
     FileTypeStaticTrace,
@@ -60,7 +70,6 @@ enum DynamicTraceRecordType : uint8_t {
     DynamicRecordBasicBlockIdentifier,
     DynamicRecordCreateThread,
     DynamicRecordDestroyThread,
-    DynamicRecordHaltThread,
     DynamicRecordLockRequest,
     DynamicRecordUnlockRequest,
     DynamicRecordBarrier,
@@ -106,9 +115,7 @@ struct StaticTraceRecord {
     } data;
     uint8_t recordType;
 
-    inline StaticTraceRecord() {
-        memset(this, 0, sizeof(*this));
-    }
+    inline StaticTraceRecord() { memset(this, 0, sizeof(*this)); }
 } _PACKED;
 
 /** @brief Written to dynamic trace file. */
@@ -122,9 +129,7 @@ struct DynamicTraceRecord {
     } data;
     uint8_t recordType;
 
-    inline DynamicTraceRecord() {
-        memset(this, 0, sizeof(*this));
-    }
+    inline DynamicTraceRecord() { memset(this, 0, sizeof(*this)); }
 } _PACKED;
 
 /** @brief Written to memory trace file. */
@@ -138,9 +143,7 @@ struct MemoryTraceRecord {
     } data;
     uint8_t recordType;
 
-    inline MemoryTraceRecord() {
-        memset(this, 0, sizeof(*this));
-    }
+    inline MemoryTraceRecord() { memset(this, 0, sizeof(*this)); }
 } _PACKED;
 
 /** @brief General usage. */
@@ -156,21 +159,52 @@ struct FileHeader {
         } dynamicHeader;
     } data;
     uint8_t fileType;
+    uint8_t targetArch; // adapt files
+    uint8_t traceVersion; // adapt files
 
-    inline FileHeader() {
-        memset(this, 0, sizeof(*this));
-    }
-    inline int FlushHeader(FILE* file) {
+    inline FileHeader() { memset(this, 0, sizeof(*this)); }
+    inline int FlushHeader(FILE *file) {
         if (!file) return 1;
         rewind(file);
+
+        unsigned long prefixSize = sizeof(MAGIC_NUMBER);
+        if (this->fileType == FileTypeStaticTrace) {
+            prefixSize += sizeof(PREFIX_STATIC_FILE);
+        } else if (this->fileType == FileTypeDynamicTrace) {
+            prefixSize += sizeof(PREFIX_DYNAMIC_FILE);
+        } else {
+            prefixSize += sizeof(PREFIX_MEMORY_FILE);
+        }
+
+        char* prefix = (char *)alloca(prefixSize);
+        memcpy(prefix, &MAGIC_NUMBER, sizeof(MAGIC_NUMBER));
+        prefix[sizeof(MAGIC_NUMBER)] = '\0';
+
+        if (this->fileType == FileTypeStaticTrace) {
+            strcat(prefix, PREFIX_STATIC_FILE);
+        } else if (this->fileType == FileTypeDynamicTrace) {
+            strcat(prefix, PREFIX_DYNAMIC_FILE);
+        } else {
+            strcat(prefix, PREFIX_MEMORY_FILE);
+        }
+
+        fwrite(prefix, 1, prefixSize, file);
         return (fwrite(this, 1, sizeof(*this), file) != sizeof(*this));
     }
-    inline int LoadHeader(FILE* file) {
+    inline int LoadHeader(FILE *file) {
         if (!file) return 1;
         return (fread(this, 1, sizeof(*this), file) != sizeof(*this));
     }
-    inline void ReserveHeaderSpace(FILE* file) {
-        fseek(file, sizeof(*this), SEEK_SET);
+    inline void ReserveHeaderSpace(FILE *file) {
+        unsigned long prefixSize = sizeof(MAGIC_NUMBER);
+        if (this->fileType == FileTypeStaticTrace) {
+            prefixSize += sizeof(PREFIX_STATIC_FILE);
+        } else if (this->fileType == FileTypeDynamicTrace) {
+            prefixSize += sizeof(PREFIX_DYNAMIC_FILE);
+        } else {
+            prefixSize += sizeof(PREFIX_MEMORY_FILE);
+        }
+        fseek(file, prefixSize + sizeof(*this), SEEK_SET);
     }
 } _PACKED;
 
