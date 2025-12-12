@@ -135,7 +135,7 @@ int Usage() {
 }
 
 bool WasThreadCreated(THREADID tid) {
-    if ((threadDataVec.size() - tid > 0) == false) {
+    if ((threadDataVec.size() - tid) <= 0) {
         SINUCA3_DEBUG_PRINTF("[WasThreadCreated] Thr [%d] not created!\n", tid);
         return false;
     }
@@ -152,7 +152,7 @@ VOID InitInstrumentation() {
     isInstrumentating = true;
 }
 
-/** @brief Enables instrumentation in a thread. */
+/** @brief Resume instrumentation in a thread. */
 VOID ResumeInstrumentationInThread(THREADID tid) {
     if (!WasThreadCreated(tid)) {
         SINUCA3_ERROR_PRINTF("[ResumeInstrumentationInThread] thr not created");
@@ -161,7 +161,7 @@ VOID ResumeInstrumentationInThread(THREADID tid) {
     threadDataVec[tid]->isInstrumentating = true;
 }
 
-/** @brief Disables instrumentation. */
+/** @brief Disable instrumentation. */
 VOID StopInstrumentation() {
     if (!isInstrumentating || knobForceInstrumentation.Value()) return;
     SINUCA3_DEBUG_PRINTF("---------------------------------\n");
@@ -170,7 +170,7 @@ VOID StopInstrumentation() {
     isInstrumentating = false;
 }
 
-/** @brief Disables instrumentation in a thread. */
+/** @brief Disable instrumentation in a thread. */
 VOID StopInstrumentationInThread(THREADID tid) {
     if (!WasThreadCreated(tid)) {
         SINUCA3_ERROR_PRINTF("[StopInstrumentationInThread] thr not created");
@@ -236,6 +236,9 @@ VOID AppendToDynamicTrace(THREADID tid, UINT32 bblId, UINT32 numInst) {
     PIN_ReleaseLock(&threadAnalysisLock);
 
     threadDataVec[tid]->dynamicTrace.IncExecutedInstructions(numInst);
+
+    SINUCA3_DEBUG_PRINTF("Thr [%d] adding bbl index [%d]\n", tid, bblId);
+    SINUCA3_DEBUG_PRINTF("Bbl [%d] has [%d] instructions\n", bblId, numInst);
 
     if (threadDataVec[tid]->dynamicTrace.AddBasicBlockId(bblId)) {
         SINUCA3_ERROR_PRINTF(

@@ -73,7 +73,7 @@ class DynamicTraceReader {
     inline int GetRecordType() {
         return this->recordArray[this->recordArrayIndex].recordType;
     }
-    inline unsigned long GetBasicBlockIdentifier() {
+    inline unsigned int GetBasicBlockIdentifier() {
         return this->recordArray[this->recordArrayIndex]
             .data.basicBlockIdentifier;
     }

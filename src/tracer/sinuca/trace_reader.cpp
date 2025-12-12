@@ -176,6 +176,7 @@ FetchResult SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
                 return FetchResultNop;
             }
         }
+        this->threadDataArr[tid]->isInsideBasicBlock = true;
     }
 
     ret->staticInfo =
@@ -411,8 +412,12 @@ int SinucaTraceReader::FetchBasicBlock(int tid) {
         recordType = this->threadDataArr[tid]->dynFile.GetRecordType();
     }
 
-    this->threadDataArr[tid]->currentBasicBlock =
+    unsigned int bblIndex =
         this->threadDataArr[tid]->dynFile.GetBasicBlockIdentifier();
+    this->threadDataArr[tid]->currentBasicBlock = bblIndex;
+
+    SINUCA3_DEBUG_PRINTF("Bbl fetched is [%d] and it has [%d] inst\n", bblIndex,
+                         this->basicBlockSizeArr[bblIndex]);
 
     return 0;
 }
@@ -509,8 +514,6 @@ int TestTraceReader() {
             SINUCA3_DEBUG_PRINTF("\n");
         }
     }
-
-
 
     delete reader;
 
