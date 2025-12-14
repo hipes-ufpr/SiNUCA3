@@ -56,8 +56,7 @@ class MemoryTraceWriter {
 
   public:
     inline MemoryTraceWriter() : file(0), recordArrayOccupation(0) {
-        this->header.fileType = FileTypeMemoryTrace;
-        this->header.traceVersion = CURRENT_TRACE_VERSION;
+        this->header.SetHeaderType(FileTypeMemoryTrace);
     };
     inline ~MemoryTraceWriter() {
         if (this->header.FlushHeader(this->file)) {

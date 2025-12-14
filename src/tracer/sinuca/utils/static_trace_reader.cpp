@@ -53,7 +53,7 @@ int StaticTraceReader::OpenFile(const char *sourceDir, const char *imgName) {
         return 1;
     }
 
-    this->header.LoadHeader(&this->mmapPtr);
+    this->header.LoadHeader(this->mmapPtr, &this->mmapOffset);
 
     return 0;
 }

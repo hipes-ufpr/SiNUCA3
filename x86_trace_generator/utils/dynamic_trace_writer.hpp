@@ -54,8 +54,7 @@ class DynamicTraceWriter {
 
   public:
     inline DynamicTraceWriter() : file(0), recordArrayOccupation(0) {
-        this->header.fileType = FileTypeDynamicTrace;
-        this->header.traceVersion = CURRENT_TRACE_VERSION;
+        this->header.SetHeaderType(FileTypeDynamicTrace);
     };
     inline ~DynamicTraceWriter() {
         if (this->header.FlushHeader(this->file)) {

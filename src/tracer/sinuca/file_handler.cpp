@@ -26,6 +26,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstring>
+#include "utils/logging.hpp"
 
 const int MAX_INT_DIGITS = 7;
 
@@ -60,4 +61,41 @@ void FormatPathTidOut(char *dest, const char *sourceDir,
                                     const char *prefix, const char *imageName,
                                     long destSize) {
     snprintf(dest, destSize, "%s/%s_%s.trace", sourceDir, prefix, imageName);
+}
+
+
+int FileHeader::FlushHeader(FILE *file) {
+    if (!file) return 1;
+    rewind(file);
+    return (fwrite(this, 1, sizeof(*this), file) != sizeof(*this));
+}
+
+int FileHeader::LoadHeader(FILE* file) {
+    if (!file) return 1;
+    return (fread(this, 1, sizeof(*this), file) != sizeof(*this));
+}
+
+int FileHeader::LoadHeader(char* file, unsigned long* fileOffset) {
+    if (!file) return 1;
+    memcpy(this, file, sizeof(*this));
+    *fileOffset += sizeof(*this);
+    return 0;
+}
+
+void FileHeader::ReserveHeaderSpace(FILE *file) {
+    int magicNumAndPrefSize = sizeof(MAGIC_NUMBER) + PREFIX_SIZE;
+    fseek(file, magicNumAndPrefSize + sizeof(*this), SEEK_SET);
+}
+
+void FileHeader::SetHeaderType(uint8_t fileType) {
+    this->fileType = fileType;
+    if (this->fileType == FileTypeStaticTrace) {
+        strcpy((char*)this->prefix, PREFIX_STATIC_FILE);
+    } else if (this->fileType == FileTypeDynamicTrace) {
+        strcpy((char*)this->prefix, PREFIX_DYNAMIC_FILE);
+    } else if (this->fileType == FileTypeMemoryTrace) {
+        strcpy((char*)this->prefix, PREFIX_MEMORY_FILE);
+    } else {
+        SINUCA3_ERROR_PRINTF("[FileHeader] Unkown file type!\n");
+    }
 }

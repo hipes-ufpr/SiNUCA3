@@ -67,8 +67,7 @@ class StaticTraceWriter {
   public:
     inline StaticTraceWriter()
         : file(0), basicBlock(0), basicBlockArraySize(128) {
-        this->header.fileType = FileTypeStaticTrace;
-        this->header.traceVersion = CURRENT_TRACE_VERSION;
+        this->header.SetHeaderType(FileTypeStaticTrace);
         this->ResetBasicBlock();
         this->basicBlock = (StaticTraceRecord*)malloc(
             sizeof(StaticTraceRecord) * this->basicBlockArraySize);

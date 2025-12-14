@@ -153,6 +153,12 @@ struct MemoryTraceRecord {
 
 /** @brief File header for general usage. */
 struct FileHeader {
+    uint8_t magicNumber;
+    int8_t prefix[PREFIX_SIZE];
+    uint8_t fileType;
+    uint8_t traceVersion;
+    uint8_t targetArch;
+
     union _PACKED {
         struct _PACKED {
             uint32_t instCount;
@@ -163,58 +169,24 @@ struct FileHeader {
             uint64_t totalExecutedInstructions;
         } dynamicHeader;
     } data;
-    uint8_t fileType;
-    uint8_t traceVersion;
-    uint8_t targetArch;
 
     inline FileHeader() {
         memset(this, 0, sizeof(*this));
+        magicNumber = MAGIC_NUMBER;
+        traceVersion = CURRENT_TRACE_VERSION;
     }
-    int FlushHeader(FILE *file) {
-        if (!file) return 1;
-        rewind(file);
 
-        unsigned long magicNumAndPrefSize = sizeof(MAGIC_NUMBER) + PREFIX_SIZE;
-        char *magicNumAndPref = (char *)alloca(magicNumAndPrefSize);
-        memcpy(magicNumAndPref, &MAGIC_NUMBER, sizeof(MAGIC_NUMBER));
-        magicNumAndPref[sizeof(MAGIC_NUMBER)] = '\0';
-
-        if (this->fileType == FileTypeStaticTrace) {
-            strcat(magicNumAndPref, PREFIX_STATIC_FILE);
-        } else if (this->fileType == FileTypeDynamicTrace) {
-            strcat(magicNumAndPref, PREFIX_DYNAMIC_FILE);
-        } else {
-            strcat(magicNumAndPref, PREFIX_MEMORY_FILE);
-        }
-
-        if (fwrite(magicNumAndPref, 1, magicNumAndPrefSize, file) !=
-            magicNumAndPrefSize) {
-            return 1;
-        }
-        if (fwrite(this, 1, sizeof(*this), file) != sizeof(*this)) {
-            return 1;
-        }
-
-        return 0;
-    }
-    inline int LoadHeader(FILE *file) {
-        if (!file) return 1;
-        unsigned long magicNumAndPrefSize = sizeof(MAGIC_NUMBER) + PREFIX_SIZE;
-        fseek(file, magicNumAndPrefSize, SEEK_SET);
-        return (fread(this, 1, sizeof(*this), file) != sizeof(*this));
-    }
-    inline int LoadHeader(char **file) {
-        if (!(*file)) return 1;
-        unsigned long magicNumAndPrefSize = sizeof(MAGIC_NUMBER) + PREFIX_SIZE;
-        *file = &(*file)[magicNumAndPrefSize];
-        memcpy(this, *file, sizeof(*this));
-        *file = &(*file)[sizeof(*this)];
-        return 0;
-    }
-    inline void ReserveHeaderSpace(FILE *file) {
-        int magicNumAndPrefSize = sizeof(MAGIC_NUMBER) + PREFIX_SIZE;
-        fseek(file, magicNumAndPrefSize + sizeof(*this), SEEK_SET);
-    }
+    /** @brief Write header to file. */
+    int FlushHeader(FILE *file);
+    /** @brief Read header from file. */
+    int LoadHeader(FILE *file);
+    /** @brief Read header from file if it is mapped to virtual memory. */
+    int LoadHeader(char *file, unsigned long *fileOffset);
+    /** @brief Adjust file pointer. The header is generally written at file
+     * clousure, so the file ptr must be moved to leave enough space for it. */
+    void ReserveHeaderSpace(FILE *file);
+    /** @brief Set header type and prefix. */
+    void SetHeaderType(uint8_t fileType);
 } _PACKED;
 
 inline void printFileErrorLog(const char *path, const char *mode) {
