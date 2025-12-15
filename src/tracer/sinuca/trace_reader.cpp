@@ -147,7 +147,7 @@ int SinucaTraceReader::GenerateInstructionDict() {
 bool SinucaTraceReader::HasExecutionEnded() {
     if (this->reachedAbruptEnd) return true;
 
-    if (this->threadDataArr[0]->dynFile.ReachedDynamicTraceEnd()) {
+    if (this->threadDataArr[0]->dynFile.HasReachedEnd()) {
         for (int i = 1; i < this->totalThreads; ++i) {
             if (this->threadDataArr[i]->isThreadAwake) {
                 SINUCA3_ERROR_PRINTF("Thread [%d] should be sleeping!\n", i);
@@ -200,33 +200,14 @@ FetchResult SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
 }
 
 int SinucaTraceReader::FetchMemoryData(InstructionPacket *ret, int tid) {
-    if (this->threadDataArr[tid]->memFile.ReadMemoryOperations()) {
-        SINUCA3_ERROR_PRINTF("Failed to read memory operations\n");
+    if (this->threadDataArr[tid]->memFile.HasReachedEnd()) {
+        SINUCA3_ERROR_PRINTF(
+            "[FetchMemoryData] should have reached end in dynamic trace file "
+            "first!\n");
         return 1;
     }
-
-    ret->dynamicInfo.numReadings =
-        this->threadDataArr[tid]->memFile.GetNumberOfLoadOps();
-    ret->dynamicInfo.numWritings =
-        this->threadDataArr[tid]->memFile.GetNumberOfStoreOps();
-
-    int addrsArraySize;
-    addrsArraySize = sizeof(ret->dynamicInfo.readsAddr) /
-                     sizeof(*ret->dynamicInfo.readsAddr);
-    int sizesArraySize;
-    sizesArraySize = sizeof(ret->dynamicInfo.readsSize) /
-                     sizeof(*ret->dynamicInfo.readsSize);
-
-    if (this->threadDataArr[tid]->memFile.CopyLoadOperations(
-            ret->dynamicInfo.readsAddr, addrsArraySize,
-            ret->dynamicInfo.readsSize, sizesArraySize)) {
-        SINUCA3_ERROR_PRINTF("Failed to copy load operations!\n");
-        return 1;
-    }
-    if (this->threadDataArr[tid]->memFile.CopyStoreOperations(
-            ret->dynamicInfo.writesAddr, addrsArraySize,
-            ret->dynamicInfo.writesSize, sizesArraySize)) {
-        SINUCA3_ERROR_PRINTF("Failed to copy store operations!\n");
+    if (this->threadDataArr[tid]->memFile.ReadMemoryOperations(ret)) {
+        SINUCA3_ERROR_PRINTF("[FetchMemoryData] failed to read mem ops!\n");
         return 1;
     }
 
@@ -234,11 +215,7 @@ int SinucaTraceReader::FetchMemoryData(InstructionPacket *ret, int tid) {
 }
 
 int SinucaTraceReader::FetchBasicBlock(int tid) {
-    if (this->threadDataArr[tid]->dynFile.ReadDynamicRecord()) {
-        SINUCA3_ERROR_PRINTF("Failed to get dyn record in tid [%d]!\n", tid);
-        this->fetchFailed = true;
-        return 1;
-    }
+    if (this->threadDataArr[tid]->dynFile.ReadDynamicRecord()) return 1;
 
     int recordType = this->threadDataArr[tid]->dynFile.GetRecordType();
 
@@ -403,12 +380,7 @@ int SinucaTraceReader::FetchBasicBlock(int tid) {
             return 1;
         }
 
-        if (this->threadDataArr[tid]->dynFile.ReadDynamicRecord()) {
-            SINUCA3_ERROR_PRINTF("Failed to get dyn record in tid [%d]!\n",
-                                 tid);
-            this->fetchFailed = true;
-            return 1;
-        }
+        if (this->threadDataArr[tid]->dynFile.ReadDynamicRecord()) return 1;
         recordType = this->threadDataArr[tid]->dynFile.GetRecordType();
     }
 

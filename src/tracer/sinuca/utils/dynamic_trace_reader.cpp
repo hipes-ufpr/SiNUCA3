@@ -22,9 +22,9 @@
 
 #include "dynamic_trace_reader.hpp"
 
-#include <cstdio>
 #include <cstdlib>
 
+#include "tracer/sinuca/file_handler.hpp"
 #include "utils/logging.hpp"
 
 extern "C" {
@@ -53,41 +53,34 @@ int DynamicTraceReader::OpenFile(const char *sourceDir, const char *imageName,
 }
 
 int DynamicTraceReader::ReadDynamicRecord() {
-    if (this->ReachedDynamicTraceEnd()) {
+    if (this->reachedEnd) {
+        SINUCA3_ERROR_PRINTF(
+            "[ReadDynamicRecord] already reached end in dynamic trace file!\n");
         return 1;
     }
-    if (this->recordArrayIndex == this->recordArraySize) {
+
+    this->recordArrayIndex =
+        (this->numberOfRecordsRead == 0) ? 0 : this->recordArrayIndex + 1;
+
+    if (this->recordArrayIndex == this->numberOfRecordsRead) {
         if (this->LoadRecordArray()) {
-            SINUCA3_ERROR_PRINTF("Failed to read new dynamic record array!\n");
+            this->reachedEnd = true;
             return 1;
         }
     }
-
-    ++this->recordArrayIndex;
 
     return 0;
 }
 
 int DynamicTraceReader::LoadRecordArray() {
-    if (this->file == NULL) {
-        return 1;
-    }
+    if (this->file == NULL) return 1;
 
-    this->recordArrayIndex = -1;
-    this->recordArraySize =
-        fread(this->recordArray, 1, sizeof(this->recordArray), this->file) /
-        sizeof(*this->recordArray);
+    this->recordArrayIndex = 0;
+    unsigned long readBytes = 0;
+    readBytes =
+        fread(this->recordArray, 1, sizeof(this->recordArray), this->file);
 
-    int totalRecords =
-        sizeof(this->recordArray) / sizeof(*this->recordArray);
+    this->numberOfRecordsRead = readBytes / sizeof(*this->recordArray);
 
-    if (this->recordArraySize != totalRecords) {
-        if (this->reachedEnd) {
-            SINUCA3_ERROR_PRINTF("Reached dynamic file end twice!\n");
-            return 1;
-        }
-        this->reachedEnd = true;
-    }
-
-    return 0;
+    return (this->numberOfRecordsRead == 0);
 }

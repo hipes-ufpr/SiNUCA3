@@ -35,7 +35,7 @@ class DynamicTraceReader {
     FILE* file;
     FileHeader header;
     DynamicTraceRecord recordArray[RECORD_ARRAY_SIZE];
-    int recordArraySize;
+    int numberOfRecordsRead;
     int recordArrayIndex;
     bool reachedEnd;
 
@@ -43,12 +43,12 @@ class DynamicTraceReader {
 
   public:
     inline DynamicTraceReader()
-        : file(0), recordArraySize(0), recordArrayIndex(0), reachedEnd(0) {}
+        : file(0), numberOfRecordsRead(0), reachedEnd(0) {}
     inline ~DynamicTraceReader() {
         if (file) {
             fclose(this->file);
         }
-        if (this->recordArrayIndex != this->recordArraySize) {
+        if (!this->reachedEnd && this->recordArrayIndex != numberOfRecordsRead) {
             SINUCA3_WARNING_PRINTF(
                 "Basic block ids may have been left unread\n");
         }
@@ -60,16 +60,8 @@ class DynamicTraceReader {
     inline unsigned long GetTotalExecutedInstructions() {
         return this->header.data.dynamicHeader.totalExecutedInstructions;
     }
-    inline unsigned int GetVersionInt() {
-        return this->header.traceVersion;
-    }
-    inline unsigned int GetTargetInt() {
-        return this->header.targetArch;
-    }
-    inline bool ReachedDynamicTraceEnd() {
-        return (this->reachedEnd &&
-                this->recordArrayIndex == this->recordArraySize);
-    }
+    inline unsigned int GetVersionInt() { return this->header.traceVersion; }
+    inline unsigned int GetTargetInt() { return this->header.targetArch; }
     inline int GetRecordType() {
         return this->recordArray[this->recordArrayIndex].recordType;
     }
@@ -85,6 +77,7 @@ class DynamicTraceReader {
         return this->recordArray[this->recordArrayIndex]
             .data.lockInfo.mutexAddress;
     }
+    inline bool HasReachedEnd() { return this->reachedEnd; }
 };
 
 #endif

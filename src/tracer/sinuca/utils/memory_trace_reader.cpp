@@ -22,8 +22,6 @@
 
 #include "memory_trace_reader.hpp"
 
-#include <cstdio>
-
 #include "tracer/sinuca/file_handler.hpp"
 #include "utils/logging.hpp"
 
@@ -52,21 +50,24 @@ int MemoryTraceReader::OpenFile(const char* sourceDir, const char* imageName,
     return 0;
 }
 
-int MemoryTraceReader::ReadMemoryOperations() {
-    if (this->ReachedMemoryTraceEnd()) {
-        SINUCA3_ERROR_PRINTF("Already reached trace end!\n");
+int MemoryTraceReader::ReadMemoryOperations(InstructionPacket* inst) {
+    if (this->reachedEnd) {
+        SINUCA3_ERROR_PRINTF(
+            "[ReadMemoryOperations] already reached end in mem trace file!\n");
         return 1;
     }
-    if (this->recordArrayIndex == this->recordArraySize) {
+
+    if (this->recordArrayIndex == this->numberOfRecordsRead) {
         if (this->LoadRecordArray()) {
-            SINUCA3_ERROR_PRINTF("Failed to read mem record array!\n");
+            this->reachedEnd = true;
             return 1;
         }
     }
 
     if (this->recordArray[this->recordArrayIndex].recordType !=
         MemoryRecordHeader) {
-        SINUCA3_ERROR_PRINTF("Expected memory operation header!\n");
+        SINUCA3_ERROR_PRINTF(
+            "[ReadMemoryOperations] Expected memory operation header!\n");
         return 1;
     }
 
@@ -75,107 +76,50 @@ int MemoryTraceReader::ReadMemoryOperations() {
 
     ++this->recordArrayIndex;
 
-    for (int i = 0; i < totalMemOps; ++i) {
-        if (this->recordArrayIndex == this->recordArraySize) {
+    unsigned char recordType;
+    for (int i = 0; i < totalMemOps; ++i, ++this->recordArrayIndex) {
+        if (this->recordArrayIndex == this->numberOfRecordsRead) {
             if (this->LoadRecordArray()) {
-                SINUCA3_ERROR_PRINTF("Failed to read mem record array!\n");
+                SINUCA3_ERROR_PRINTF(
+                    "[ReadMemoryOperations] invalid number of mem ops!\n");
+                this->reachedEnd = true;
                 return 1;
             }
         }
 
-        unsigned char type =
-            this->recordArray[this->recordArrayIndex].recordType;
-
-        if (type == MemoryRecordLoad) {
-            this->loadOperations.Enqueue(
-                &this->recordArray[this->recordArrayIndex]);
-        } else if (type == MemoryRecordStore) {
-            this->storeOperations.Enqueue(
-                &this->recordArray[this->recordArrayIndex]);
+        recordType = this->recordArray[this->recordArrayIndex].recordType;
+        if (recordType == MemoryRecordLoad) {
+            inst->dynamicInfo.readsAddr[inst->dynamicInfo.numReadings] =
+                this->recordArray[this->recordArrayIndex]
+                    .data.operation.address;
+            inst->dynamicInfo.readsSize[inst->dynamicInfo.numReadings] =
+                this->recordArray[this->recordArrayIndex].data.operation.size;
+            inst->dynamicInfo.numReadings++;
+        } else if (recordType == MemoryRecordStore) {
+            inst->dynamicInfo.writesAddr[inst->dynamicInfo.numWritings] =
+                this->recordArray[this->recordArrayIndex]
+                    .data.operation.address;
+            inst->dynamicInfo.writesSize[inst->dynamicInfo.numWritings] =
+                this->recordArray[this->recordArrayIndex].data.operation.size;
+            inst->dynamicInfo.numWritings++;
         } else {
-            SINUCA3_ERROR_PRINTF("Unkown memory operation! [%d]\n", type);
+            SINUCA3_ERROR_PRINTF(
+                "[ReadMemoryOperations] unexpected record type!\n");
             return 1;
         }
-
-        ++this->recordArrayIndex;
     }
 
-    this->totalLoadOps = this->loadOperations.GetOccupation();
-    this->totalStoreOps = this->storeOperations.GetOccupation();
-
-    return 0;
-}
-
-int MemoryTraceReader::CopyOperations(unsigned long* addrsArray,
-                                      int addrsArraySize,
-                                      unsigned int* sizesArray,
-                                      int sizesArraySize, bool isOpLoad) {
-    if (sizesArraySize != addrsArraySize) {
-        SINUCA3_ERROR_PRINTF("Expected array sizes to be equal!\n");
-        return 1;
-    }
-    if (this->totalLoadOps > addrsArraySize) {
-        SINUCA3_ERROR_PRINTF("Array size does not fit mem ops!\n");
-        return 1;
-    }
-
-    MemoryTraceRecord record;
-    CircularBuffer* fifo;
-    int iterator = 0;
-
-    if (isOpLoad) {
-        fifo = &this->loadOperations;
-    } else {
-        fifo = &this->storeOperations;
-    }
-
-    while (fifo->Dequeue(&record) == 0) {
-        addrsArray[iterator] = record.data.operation.address;
-        sizesArray[iterator] = record.data.operation.size;
-    }
-
-    return 0;
-}
-
-int MemoryTraceReader::CopyLoadOperations(unsigned long* addrsArray,
-                                          int addrsArraySize,
-                                          unsigned int* sizesArray,
-                                          int sizesArraySize) {
-    if (this->CopyOperations(addrsArray, addrsArraySize, sizesArray,
-                             sizesArraySize, true)) {
-        SINUCA3_ERROR_PRINTF("Failed to copy load operations!\n");
-        return 1;
-    }
-    return 0;
-}
-
-int MemoryTraceReader::CopyStoreOperations(unsigned long* addrsArray,
-                                           int addrsArraySize,
-                                           unsigned int* sizesArray,
-                                           int sizesArraySize) {
-    if (this->CopyOperations(addrsArray, addrsArraySize, sizesArray,
-                             sizesArraySize, false)) {
-        SINUCA3_ERROR_PRINTF("Failed to copy store operations!\n");
-        return 1;
-    }
     return 0;
 }
 
 int MemoryTraceReader::LoadRecordArray() {
     this->recordArrayIndex = 0;
-    this->recordArraySize =
-        fread(this->recordArray, 1, sizeof(this->recordArray), this->file) /
-        sizeof(*this->recordArray);
 
-    int totalRecords = sizeof(this->recordArray) / sizeof(*this->recordArray);
+    unsigned long readBytes = 0;
+    readBytes =
+        fread(this->recordArray, 1, sizeof(this->recordArray), this->file);
 
-    if (this->recordArraySize != totalRecords) {
-        if (this->reachedEnd) {
-            SINUCA3_ERROR_PRINTF("Reached memory file end twice!\n");
-            return 1;
-        }
-        this->reachedEnd = true;
-    }
+    this->numberOfRecordsRead = readBytes / sizeof(*this->recordArray);
 
-    return 0;
+    return (this->numberOfRecordsRead == 0);
 }

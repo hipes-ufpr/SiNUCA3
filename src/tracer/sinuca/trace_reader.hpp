@@ -25,6 +25,8 @@
  * in tracer/trace_reader.hpp file.
  */
 
+#include <vector>
+
 #include <tracer/sinuca/utils/dynamic_trace_reader.hpp>
 #include <tracer/sinuca/utils/memory_trace_reader.hpp>
 #include <tracer/sinuca/utils/static_trace_reader.hpp>

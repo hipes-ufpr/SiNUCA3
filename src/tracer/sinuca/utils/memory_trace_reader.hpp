@@ -24,9 +24,9 @@
  * @details The x86 based memory trace is a binary file .
  */
 
-#include <sinuca3.hpp>
+#include <engine/default_packets.hpp>
 #include <tracer/sinuca/file_handler.hpp>
-#include <utils/circular_buffer.hpp>
+#include <utils/logging.hpp>
 
 /** @brief Check memory_trace_reader.hpp documentation for details */
 class MemoryTraceReader {
@@ -34,54 +34,31 @@ class MemoryTraceReader {
     FILE* file;
     FileHeader header;
     MemoryTraceRecord recordArray[RECORD_ARRAY_SIZE];
-    int recordArraySize;
+    int numberOfRecordsRead;
     int recordArrayIndex;
     bool reachedEnd;
 
-    CircularBuffer loadOperations;
-    CircularBuffer storeOperations;
-
-    int totalLoadOps;
-    int totalStoreOps;
-
     int LoadRecordArray();
-    int CopyOperations(unsigned long* addrsArr, int addrsArrS,
-                       unsigned int* sizesArr, int sizesArrS, bool isOpLoad);
 
   public:
     inline MemoryTraceReader()
-        : file(0), recordArraySize(0), recordArrayIndex(0), reachedEnd(0) {
-        this->loadOperations.Allocate(0, sizeof(*this->recordArray));
-        this->storeOperations.Allocate(0, sizeof(*this->recordArray));
-    };
+        : file(0), numberOfRecordsRead(0), recordArrayIndex(0), reachedEnd(0) {
+          };
     inline ~MemoryTraceReader() {
         if (file) {
             fclose(this->file);
         }
-        if (this->loadOperations.GetOccupation() > 0) {
-            SINUCA3_WARNING_PRINTF("Load operations left unread!\n");
+        if (!this->reachedEnd &&
+            this->recordArrayIndex != numberOfRecordsRead) {
+            SINUCA3_WARNING_PRINTF(
+                "Memory operations may have been left unread!\n");
         }
-        this->loadOperations.Deallocate();
-        if (this->storeOperations.GetOccupation() > 0) {
-            SINUCA3_WARNING_PRINTF("Store operations left unread!\n");
-        }
-        this->storeOperations.Deallocate();
     }
 
     int OpenFile(const char* sourceDir, const char* imgName, int tid);
-    int ReadMemoryOperations();
+    int ReadMemoryOperations(InstructionPacket* inst);
 
-    int CopyLoadOperations(unsigned long* addrsArray, int addrsArraySize,
-                           unsigned int* sizesArray, int sizesArraySize);
-    int CopyStoreOperations(unsigned long* addrsArray, int addrsArraySize,
-                            unsigned int* sizesArray, int sizesArraySize);
-
-    inline bool ReachedMemoryTraceEnd() {
-        return (this->reachedEnd &&
-                this->recordArrayIndex == this->recordArraySize);
-    }
-    inline int GetNumberOfLoadOps() { return this->totalLoadOps; }
-    inline int GetNumberOfStoreOps() { return this->totalStoreOps; }
+    inline bool HasReachedEnd() { return this->reachedEnd; }
     inline unsigned int GetVersionInt() { return this->header.traceVersion; }
     inline unsigned int GetTargetInt() { return this->header.targetArch; }
 };

@@ -83,8 +83,7 @@ int FileHeader::LoadHeader(char* file, unsigned long* fileOffset) {
 }
 
 void FileHeader::ReserveHeaderSpace(FILE *file) {
-    int magicNumAndPrefSize = sizeof(MAGIC_NUMBER) + PREFIX_SIZE;
-    fseek(file, magicNumAndPrefSize + sizeof(*this), SEEK_SET);
+    fseek(file, sizeof(*this), SEEK_SET);
 }
 
 void FileHeader::SetHeaderType(uint8_t fileType) {

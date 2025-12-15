@@ -48,7 +48,7 @@ extern "C" {
 const int MAX_IMAGE_NAME_SIZE = 255;
 const int RECORD_ARRAY_SIZE = 10000;
 const int CURRENT_TRACE_VERSION = 1;
-const short MAGIC_NUMBER = 187;
+const unsigned char MAGIC_NUMBER = 187;
 
 const char TRACE_TARGET_X86[] = "X86";
 const char TRACE_TARGET_ARM[] = "ARM";
