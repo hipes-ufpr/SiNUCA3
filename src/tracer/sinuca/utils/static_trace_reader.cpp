@@ -86,6 +86,7 @@ void StaticTraceReader::TranslateRawInstructionToSinucaInst(
 
     instInfo->instSize = rawInst->instructionSize;
     instInfo->instAddress = rawInst->instructionAddress;
+    instInfo->effectiveAddressWidth = rawInst->effectiveAddressWidth;
     instInfo->instPerformsAtomicUpdate = rawInst->instPerformsAtomicUpdate;
     instInfo->isPredicatedInst = rawInst->isPredicatedInst;
     instInfo->instReadsMemory = rawInst->instReadsMemory;

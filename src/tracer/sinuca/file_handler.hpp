@@ -20,15 +20,7 @@
 
 /**
  * @file x86_file_handler.hpp
- * @brief Common file handling API for x86 traces.
- * @details It gathers constants, classes and functions used by the trace
- * generator based on intel pin for x86 architecture and the corresponding
- * trace reader. It is appropriate to have such file, as the traces for x86
- * architecture are binary files which implies a deep dependency on how the
- * the reading is done in relation to how the information is stored in the
- * traces. Therefore, maintaining the TraceFileWriter and TraceFileReader
- * implementations together allows for a better undestanding of how they
- * coexist.
+ * @brief Common trace file handling API.
  */
 
 #include <cstdio>

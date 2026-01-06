@@ -255,20 +255,28 @@ VOID AppendToMemTrace(THREADID tid, PIN_MULTI_MEM_ACCESS_INFO* accessInfo) {
      * trace. Beware that the number of accesses is not fixed.
      */
     int totalOps = accessInfo->numberOfMemops;
+    int totalOpsCopy = totalOps;
+
+    for (int i = 0; i < totalOpsCopy; ++i) {
+        if (!accessInfo->memop[i].maskOn) {
+            --totalOps;
+        }
+    }
+
     if (threadDataVec[tid]->memoryTrace.AddNumberOfMemOperations(totalOps)) {
         SINUCA3_ERROR_PRINTF(
             "[AppendToMemTrace] Failed to add number of mem ops to file\n");
     }
 
-    for (int i = 0; i < totalOps; ++i) {
-        if (!accessInfo->memop[i].maskOn) continue;
+    for (int i = 0; i < totalOpsCopy; i++) {
+        if (!accessInfo->memop[i].maskOn) {
+            continue;
+        }
 
         bool isLoadOp = (accessInfo->memop[i].memopType == PIN_MEMOP_LOAD);
-
         int failed = threadDataVec[tid]->memoryTrace.AddMemOp(
             accessInfo->memop[i].memoryAddress,
             accessInfo->memop[i].bytesAccessed, isLoadOp);
-
         if (failed) {
             SINUCA3_ERROR_PRINTF(
                 "[AppendToMemTrace] Failed to add memory operation!\n");
@@ -507,6 +515,7 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
             if (!INS_IsMemoryRead(ins) && !INS_IsMemoryWrite(ins)) {
                 continue;
             }
+
             /*
              * Add call to AppendToMemTrace on every instruction that performs
              * one or more memory accesses.

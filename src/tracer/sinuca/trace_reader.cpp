@@ -179,6 +179,8 @@ FetchResult SinucaTraceReader::Fetch(InstructionPacket *ret, int tid) {
         this->threadDataArr[tid]->isInsideBasicBlock = true;
     }
 
+    this->ResetInstructionPacket(ret);
+
     ret->staticInfo =
         &this->instructionDict[this->threadDataArr[tid]->currentBasicBlock]
                               [this->threadDataArr[tid]->currentInst];
@@ -206,6 +208,7 @@ int SinucaTraceReader::FetchMemoryData(InstructionPacket *ret, int tid) {
             "first!\n");
         return 1;
     }
+
     if (this->threadDataArr[tid]->memFile.ReadMemoryOperations(ret)) {
         SINUCA3_ERROR_PRINTF("[FetchMemoryData] failed to read mem ops!\n");
         return 1;
@@ -451,6 +454,8 @@ int TestTraceReader() {
                                  instPkt.staticInfo->instMnemonic);
             SINUCA3_DEBUG_PRINTF("\t Instruction size is [%ld]\n",
                                  instPkt.staticInfo->instSize);
+            SINUCA3_DEBUG_PRINTF("\t Instruction address is [%p]\n",
+                                 (void *)instPkt.staticInfo->instAddress);
             SINUCA3_DEBUG_PRINTF("\t Effective addr width [%d]\n",
                                  instPkt.staticInfo->effectiveAddressWidth);
             SINUCA3_DEBUG_PRINTF("\t Store regs total [%d]\n",

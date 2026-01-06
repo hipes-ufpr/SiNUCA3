@@ -129,6 +129,11 @@ class SinucaTraceReader : public TraceReader {
     int FetchMemoryData(InstructionPacket* ret, int tid);
     bool HasExecutionEnded();
 
+    inline void ResetInstructionPacket(InstructionPacket* pkt) {
+        pkt->dynamicInfo.numReadings = 0;
+        pkt->dynamicInfo.numWritings = 0;
+        pkt->staticInfo = NULL;
+    }
     inline bool IsThreadSleeping(int tid) {
         return (!this->threadDataArr[tid]->isThreadAwake);
     }
