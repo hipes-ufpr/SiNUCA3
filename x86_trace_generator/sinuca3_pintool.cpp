@@ -35,6 +35,7 @@
 
 // #define NDEBUG
 
+#include <climits>
 #include <sinuca3.hpp>
 
 #include "pin.H"
@@ -217,31 +218,36 @@ VOID AppendToDynamicTrace(THREADID tid, UINT32 bblId, UINT32 numInst) {
     if (!WasThreadCreated(tid)) return;
 
     PIN_GetLock(&threadAnalysisLock, tid);
-    if (numberOfExecInst > knobNumberOfInstructions.Value()) {
-        SINUCA3_WARNING_PRINTF("Reached maximum of instructions!\n");
-        /*
-         * This loop adds an abrupt end event to the dynamic trace, which
-         * signals to the trace reader that all analysis code was abruptly
-         * halted and that obtained locks may not be released by an unlock
-         * thread event for example.
-         */
-        for (unsigned int tid = 0; tid < threadDataVec.size(); ++tid) {
-            threadDataVec[tid]->dynamicTrace.AddThreadAbruptEndEvent();
+
+    if (knobNumberOfInstructions.Value() != UINT_MAX) {
+        if (numberOfExecInst > knobNumberOfInstructions.Value()) {
+            SINUCA3_WARNING_PRINTF("Reached maximum of instructions!\n");
+            /*
+             * This loop adds an abrupt end event to the dynamic trace, which
+             * signals to the trace reader that all analysis code was abruptly
+             * halted and that obtained locks may not be released by an unlock
+             * thread event for example.
+             */
+            for (unsigned int tid = 0; tid < threadDataVec.size(); ++tid) {
+                threadDataVec[tid]->dynamicTrace.AddThreadEvent(
+                    DynamicRecordAbruptEnd, 0);
+            }
+            PIN_Detach();
         }
-        PIN_Detach();
+        numberOfExecInst += numInst;
     }
-    numberOfExecInst += numInst;
-    PIN_ReleaseLock(&threadAnalysisLock);
 
     threadDataVec[tid]->dynamicTrace.IncExecutedInstructions(numInst);
 
-    SINUCA3_DEBUG_PRINTF("Thr [%d] adding bbl index [%d]\n", tid, bblId);
-    SINUCA3_DEBUG_PRINTF("Bbl [%d] has [%d] instructions\n", bblId, numInst);
+    SINUCA3_DEBUG_PRINTF("Thr [%d] adding bbl index [%u]\n", tid, bblId);
+    SINUCA3_DEBUG_PRINTF("Bbl [%u] has [%d] instructions\n", bblId, numInst);
 
     if (threadDataVec[tid]->dynamicTrace.AddBasicBlockId(bblId)) {
         SINUCA3_ERROR_PRINTF(
             "[AppendToDynamicTrace] Failed to add basic block id to file\n");
     }
+
+    PIN_ReleaseLock(&threadAnalysisLock);
 }
 
 /** @brief Add memory operations to trace. */
@@ -657,6 +663,8 @@ VOID LoadIntrinsics() {
 VOID OnThreadCreateEvent(THREADID tid) {
     if (!WasThreadCreated(tid)) return;
 
+    PIN_GetLock(&threadAnalysisLock, tid);
+
     SINUCA3_DEBUG_PRINTF("[OnThreadCreateEvent] thread [%d]\n", tid);
 
     if (tid != 0) {
@@ -666,11 +674,15 @@ VOID OnThreadCreateEvent(THREADID tid) {
         return;
     }
 
-    threadDataVec[0]->dynamicTrace.AddThreadCreateEvent();
+    threadDataVec[0]->dynamicTrace.AddThreadEvent(DynamicRecordCreateThread, 0);
+
+    PIN_ReleaseLock(&threadAnalysisLock);
 }
 
 VOID OnThreadDestroyEvent(THREADID tid) {
     if (!WasThreadCreated(tid)) return;
+
+    PIN_GetLock(&threadAnalysisLock, tid);
 
     SINUCA3_DEBUG_PRINTF("[OnThreadDestroyEvent] thread [%d]\n", tid);
 
@@ -682,35 +694,59 @@ VOID OnThreadDestroyEvent(THREADID tid) {
     }
 
     for (unsigned int i = 0; i < threadDataVec.size(); i++) {
-        threadDataVec[i]->dynamicTrace.AddBarrierEvent();
+        threadDataVec[i]->dynamicTrace.AddThreadEvent(DynamicRecordBarrier, 0);
     }
 
-    threadDataVec[0]->dynamicTrace.AddThreadDestructionEvent();
+    threadDataVec[0]->dynamicTrace.AddThreadEvent(DynamicRecordDestroyThread,
+                                                  0);
+
+    PIN_ReleaseLock(&threadAnalysisLock);
 }
 
-VOID OnThreadMutexEvent(THREADID tid, CONTEXT* ctxt, BOOL isLockReq,
-                        BOOL isGlobalMutex) {
+VOID OnThreadGlobalMutexLock(THREADID tid) {
     if (!WasThreadCreated(tid)) return;
+    PIN_GetLock(&threadAnalysisLock, tid);
+    SINUCA3_DEBUG_PRINTF("[OnThreadGlobalMutexLock] Thread [%d]\n", tid);
+    threadDataVec[tid]->dynamicTrace.AddThreadEvent(DynamicRecordLockRequest,
+                                                    0);
+    PIN_ReleaseLock(&threadAnalysisLock);
+}
 
-    SINUCA3_DEBUG_PRINTF("[OnPrivateLockThreadEvent] Thread id [%d]\n", tid);
+VOID OnThreadGlobalMutexUnlock(THREADID tid) {
+    if (!WasThreadCreated(tid)) return;
+    PIN_GetLock(&threadAnalysisLock, tid);
+    SINUCA3_DEBUG_PRINTF("[OnThreadGlobalMutexUnlock] Thread [%d]\n", tid);
+    threadDataVec[tid]->dynamicTrace.AddThreadEvent(DynamicRecordUnlockRequest,
+                                                    0);
+    PIN_ReleaseLock(&threadAnalysisLock);
+}
 
-    ADDRINT lockAddr = 0;
-    if (!isGlobalMutex) {
-        PIN_GetLock(&threadAnalysisLock, tid);
-        lockAddr = PIN_GetContextReg(ctxt, REG_RDI);
-        SINUCA3_DEBUG_PRINTF("\tLock Address is %p!\n", (void*)lockAddr);
-        PIN_ReleaseLock(&threadAnalysisLock);
-    }
+VOID OnThreadNamedMutexLock(THREADID tid, CONTEXT* ctxt) {
+    if (!WasThreadCreated(tid)) return;
+    PIN_GetLock(&threadAnalysisLock, tid);
+    SINUCA3_DEBUG_PRINTF("[OnThreadNamedMutexLock] Thread [%d]\n", tid);
+    ADDRINT mutexAddress = PIN_GetContextReg(ctxt, REG_RDI);
+    threadDataVec[tid]->dynamicTrace.AddThreadEvent(DynamicRecordLockRequest,
+                                                    mutexAddress);
+    PIN_ReleaseLock(&threadAnalysisLock);
+}
 
-    threadDataVec[tid]->dynamicTrace.AddMutexEvent(isLockReq, isGlobalMutex,
-                                                   lockAddr);
+VOID OnThreadNamedMutexUnlock(THREADID tid, CONTEXT* ctxt) {
+    if (!WasThreadCreated(tid)) return;
+    PIN_GetLock(&threadAnalysisLock, tid);
+    SINUCA3_DEBUG_PRINTF("[OnThreadNamedMutexUnlock] Thread [%d]\n", tid);
+    ADDRINT mutexAddress = PIN_GetContextReg(ctxt, REG_RDI);
+    threadDataVec[tid]->dynamicTrace.AddThreadEvent(DynamicRecordUnlockRequest,
+                                                    mutexAddress);
+    PIN_ReleaseLock(&threadAnalysisLock);
 }
 
 VOID OnThreadBarrierEvent(THREADID tid) {
     if (!WasThreadCreated(tid)) return;
-
+    PIN_GetLock(&threadAnalysisLock, tid);
     SINUCA3_DEBUG_PRINTF("[OnBarrierThreadEvent] Thread is [%d]\n", tid);
-    threadDataVec[tid]->dynamicTrace.AddBarrierEvent();
+    threadDataVec[tid]->dynamicTrace.AddThreadEvent(DynamicRecordBarrier, 0);
+    PIN_ReleaseLock(&threadAnalysisLock);
 }
 
 INS FindInstInRtn(RTN rtn, std::string instName) {
@@ -719,27 +755,58 @@ INS FindInstInRtn(RTN rtn, std::string instName) {
             return ins;
         }
     }
-
     return INS_Invalid();
+}
+
+VOID OnImageLoadInstrumentRtn(RTN rtn) {
+    std::string rtnName = RTN_Name(rtn);
+
+    if (rtnName == "BeginInstrumentationBlock") {
+        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)InitInstrumentation,
+                       IARG_END);
+    } else if (rtnName == "EndInstrumentationBlock") {
+        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)StopInstrumentation,
+                       IARG_END);
+    } else if (rtnName == "gomp_team_start") {
+        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadCreateEvent,
+                       IARG_THREAD_ID, IARG_END);
+    } else if (rtnName == "gomp_team_end") {
+        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadDestroyEvent,
+                       IARG_THREAD_ID, IARG_END);
+    } else if (rtnName == "GOMP_barrier") {
+        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadBarrierEvent,
+                       IARG_THREAD_ID, IARG_END);
+    } else if (rtnName == "GOMP_critical_name_start" ||
+               rtnName == "omp_set_lock") {
+        INS inst = FindInstInRtn(rtn, "CMPXCHG_LOCK");
+        if (inst == INS_Invalid()) {
+            SINUCA3_ERROR_PRINTF(
+                "[OnImageLoadInstrumentRtn] CMPXCHG_LOCK not found!\n");
+            return;
+        }
+        INS_InsertCall(inst, IPOINT_BEFORE, (AFUNPTR)OnThreadNamedMutexLock,
+                       IARG_THREAD_ID, IARG_CONTEXT, IARG_END);
+    } else if (rtnName == "GOMP_critical_name_end" ||
+               rtnName == "omp_unset_lock") {
+        INS inst = FindInstInRtn(rtn, "XCHG");
+        if (inst == INS_Invalid()) {
+            SINUCA3_ERROR_PRINTF(
+                "[OnImageLoadInstrumentRtn] XCHG not found!\n");
+            return;
+        }
+        INS_InsertCall(inst, IPOINT_BEFORE, (AFUNPTR)OnThreadNamedMutexUnlock,
+                       IARG_THREAD_ID, IARG_CONTEXT, IARG_END);
+    } else if (rtnName == "GOMP_critical_start") {
+        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadGlobalMutexLock,
+                       IARG_THREAD_ID, IARG_END);
+    } else if (rtnName == "GOMP_critical_end") {
+        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadGlobalMutexUnlock,
+                       IARG_THREAD_ID, IARG_END);
+    }
 }
 
 VOID OnImageLoad(IMG img, VOID* ptr) {
     if (!IMG_IsMainExecutable(img)) return;
-
-    struct RtnEvent {
-        std::string name;
-        bool isCreatingThreads;
-        bool isGlobalMutex;
-        bool isLockRequest;
-    };
-
-    static RtnEvent threadMutexRtns[] = {
-        {"GOMP_critical_start", 0, true, true},
-        {"GOMP_critical_end", 0, true, false},
-        {"GOMP_critical_name_start", 0, false, true},
-        {"GOMP_critical_name_end", 0, false, false},
-        {"omp_set_lock", 0, false, true},
-        {"omp_unset_lock", 0, false, false}};
 
     std::string absoluteImgPath = IMG_Name(img);
     long size = absoluteImgPath.length() + sizeof('\0');
@@ -766,66 +833,16 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
     for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec)) {
         for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn)) {
             RTN_Open(rtn);
+
             std::string rtnName = RTN_Name(rtn);
 
-            /* pause instruction is spin lock hint */
+            /* pause instruction is spin lock hint. */
             if (FindInstInRtn(rtn, "PAUSE") != INS_Invalid()) {
                 rtnsWithPauseInst.push_back(rtnName);
             }
 
-            if (rtnName == "BeginInstrumentationBlock") {
-                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)InitInstrumentation,
-                               IARG_END);
-            }
-            if (rtnName == "EndInstrumentationBlock") {
-                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)StopInstrumentation,
-                               IARG_END);
-            }
-
-            for (RtnEvent& ev : threadMutexRtns) {
-                if (rtnName != ev.name) continue;
-
-                if (ev.isGlobalMutex) {
-                    RTN_InsertCall(rtn, IPOINT_BEFORE,
-                                   (AFUNPTR)OnThreadMutexEvent, IARG_THREAD_ID,
-                                   IARG_CONTEXT, IARG_BOOL, ev.isLockRequest,
-                                   IARG_BOOL, true, IARG_END);
-                } else if (ev.isLockRequest) {
-                    INS inst = FindInstInRtn(rtn, "CMPXCHG_LOCK");
-                    if (inst == INS_Invalid()) {
-                        SINUCA3_ERROR_PRINTF(
-                            "[OnImageLoad] CMPXCHG_LOCK not found!\n");
-                        continue;
-                    }
-                    INS_InsertCall(inst, IPOINT_BEFORE,
-                                   (AFUNPTR)OnThreadMutexEvent, IARG_THREAD_ID,
-                                   IARG_CONTEXT, IARG_BOOL, true, IARG_BOOL,
-                                   false, IARG_END);
-                } else {
-                    INS inst = FindInstInRtn(rtn, "XCHG");
-                    if (inst == INS_Invalid()) {
-                        SINUCA3_ERROR_PRINTF("[OnImageLoad] XCHG not found!\n");
-                        continue;
-                    }
-                    INS_InsertCall(inst, IPOINT_BEFORE,
-                                   (AFUNPTR)OnThreadMutexEvent, IARG_THREAD_ID,
-                                   IARG_CONTEXT, IARG_BOOL, false, IARG_BOOL,
-                                   false, IARG_END);
-                }
-            }
-
-            if (rtnName == "gomp_team_start") {
-                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadCreateEvent,
-                               IARG_THREAD_ID, IARG_END);
-            } else if (rtnName == "gomp_team_end") {
-                RTN_InsertCall(rtn, IPOINT_BEFORE,
-                               (AFUNPTR)OnThreadDestroyEvent, IARG_THREAD_ID,
-                               IARG_END);
-            } else if (rtnName == "GOMP_barrier") {
-                RTN_InsertCall(rtn, IPOINT_BEFORE,
-                               (AFUNPTR)OnThreadBarrierEvent, IARG_THREAD_ID,
-                               IARG_END);
-            }
+            /* add callback for routine if necessary.  */
+            OnImageLoadInstrumentRtn(rtn);
 
             // for (IntrinsicInfo& intrinsic : intrinsics) {
             //     if (rtnName == intrinsic.loaderName) {

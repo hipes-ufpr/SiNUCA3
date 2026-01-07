@@ -69,13 +69,9 @@ class DynamicTraceReader {
         return this->recordArray[this->recordArrayIndex]
             .data.basicBlockIdentifier;
     }
-    inline bool IsGlobalLock() {
-        return this->recordArray[this->recordArrayIndex]
-            .data.lockInfo.isGlobalMutex;
-    }
     inline unsigned long GetLockAddress() {
         return this->recordArray[this->recordArrayIndex]
-            .data.lockInfo.mutexAddress;
+            .data.mutexAddress;
     }
     inline bool HasReachedEnd() { return this->reachedEnd; }
 };

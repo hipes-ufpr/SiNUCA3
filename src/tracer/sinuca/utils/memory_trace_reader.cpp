@@ -68,6 +68,11 @@ int MemoryTraceReader::ReadMemoryOperations(InstructionPacket* inst) {
         MemoryRecordHeader) {
         SINUCA3_ERROR_PRINTF(
             "[ReadMemoryOperations] Expected memory operation header!\n");
+        SINUCA3_ERROR_PRINTF(
+            "[ReadMemoryOperations] recordType is [%d] and record array index "
+            "is [%d]\n",
+            this->recordArray[this->recordArrayIndex].recordType,
+            this->recordArrayIndex);
         return 1;
     }
 

@@ -85,43 +85,14 @@ int DynamicTraceWriter::AddDynamicRecord(DynamicTraceRecord record) {
     return 0;
 }
 
-int DynamicTraceWriter::AddThreadCreateEvent() {
+int DynamicTraceWriter::AddThreadEvent(unsigned char type, unsigned long mAddr) {
     DynamicTraceRecord record;
-    record.recordType = DynamicRecordCreateThread;
+    record.recordType = type;
+    record.data.mutexAddress = mAddr;
     return (this->AddDynamicRecord(record));
 }
 
-int DynamicTraceWriter::AddThreadDestructionEvent() {
-    DynamicTraceRecord record;
-    record.recordType = DynamicRecordDestroyThread;
-    return (this->AddDynamicRecord(record));
-}
-
-int DynamicTraceWriter::AddMutexEvent(bool isLockReq, bool isGlobalMutex, unsigned long mutexAddr) {
-    DynamicTraceRecord record;
-    if (isLockReq) {
-        record.recordType = DynamicRecordLockRequest;
-    } else {
-        record.recordType = DynamicRecordUnlockRequest;
-    }
-    record.data.lockInfo.mutexAddress = mutexAddr;
-    record.data.lockInfo.isGlobalMutex = (isGlobalMutex) ? 1 : 0;
-    return (this->AddDynamicRecord(record));
-}
-
-int DynamicTraceWriter::AddBarrierEvent() {
-    DynamicTraceRecord record;
-    record.recordType = DynamicRecordBarrier;
-    return (this->AddDynamicRecord(record));
-}
-
-int DynamicTraceWriter::AddThreadAbruptEndEvent() {
-    DynamicTraceRecord record;
-    record.recordType = DynamicRecordAbruptEnd;
-    return (this->AddDynamicRecord(record));
-}
-
-int DynamicTraceWriter::AddBasicBlockId(int identifier) {
+int DynamicTraceWriter::AddBasicBlockId(unsigned int identifier) {
     DynamicTraceRecord record;
     record.recordType = DynamicRecordBasicBlockIdentifier;
     record.data.basicBlockIdentifier = identifier;

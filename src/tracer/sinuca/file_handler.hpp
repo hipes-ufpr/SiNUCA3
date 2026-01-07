@@ -119,10 +119,7 @@ struct StaticTraceRecord {
 struct DynamicTraceRecord {
     union _PACKED {
         uint32_t basicBlockIdentifier;
-        struct _PACKED {
-            uint8_t isGlobalMutex;
-            uint64_t mutexAddress;
-        } lockInfo;
+        uint64_t mutexAddress;
     } data;
     uint8_t recordType;
 

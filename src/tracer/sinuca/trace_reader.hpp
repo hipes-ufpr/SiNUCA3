@@ -111,9 +111,8 @@ class SinucaTraceReader : public TraceReader {
     bool fetchFailed;
 
     ThreadData** threadDataArr;
-    Lock globalLock;
     Barrier globalBarrier;
-    std::vector<Lock> privateLockVec;
+    std::vector<Lock> mutexVec;
     int numberOfActiveThreads;
     bool reachedAbruptEnd;
 

@@ -72,19 +72,15 @@ class DynamicTraceWriter {
 
     /** @brief Create the [tid] dynamic file in the [sourceDir] directory. */
     int OpenFile(const char* sourceDir, const char* img, int tid);
-    /** @brief Add event to indicate the creation of threads. */
-    int AddThreadCreateEvent();
-    /** @brief Add event to indicate the destruction of threads. */
-    int AddThreadDestructionEvent();
-    /** @brief Add event to indicate that a mutex was requested to be locked or
-     * it was unlocked. */
-    int AddMutexEvent(bool isLockReq, bool isGlobalMutex, unsigned long addr);
-    /** @brief Add event to indicate that a barrier was reached. */
-    int AddBarrierEvent();
-    /** @brief Add event to indicate that the execution was halted abruptly. */
-    int AddThreadAbruptEndEvent();
+    /**
+     * @brief Add thread event record to the trace file.
+     * @param type Event type
+     * @param mutexAddr Unique identifier to mutex. Field ignored if the event
+     * does not request it.
+    */
+    int AddThreadEvent(unsigned char type, unsigned long mutexAddr);
     /** @brief Add the identifier of basic block executed. */
-    int AddBasicBlockId(int basicBlockId);
+    int AddBasicBlockId(unsigned int basicBlockId);
 
     inline void IncExecutedInstructions(int ins) {
         this->header.data.dynamicHeader.totalExecutedInstructions += ins;
