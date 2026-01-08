@@ -35,26 +35,26 @@
 #include "engine/default_packets.hpp"
 #include "utils/circular_buffer.hpp"
 
-struct Lock {
+struct Mutex {
     unsigned long addr;
     bool isBusy;
     int owner;
-    int recCont;  // future use for nested locks
+    int recCont;  // future use for nested Mutexs
     CircularBuffer* waitingThreadsQueue;
 
-    Lock() {
+    Mutex() {
         waitingThreadsQueue = new CircularBuffer;
         this->waitingThreadsQueue->Allocate(0, sizeof(int));
         this->isBusy = false;
         this->addr = 0;
     }
-    ~Lock() {
+    ~Mutex() {
         if (this->waitingThreadsQueue) {
             this->waitingThreadsQueue->Deallocate();
             delete this->waitingThreadsQueue;
         }
     }
-    void ResetLock() { this->isBusy = false; }
+    void Reset() { this->isBusy = false; }
 };
 
 struct Barrier {
@@ -112,7 +112,7 @@ class SinucaTraceReader : public TraceReader {
 
     ThreadData** threadDataArr;
     Barrier globalBarrier;
-    std::vector<Lock> mutexVec;
+    std::vector<Mutex *> mutexVec;
     int numberOfActiveThreads;
     bool reachedAbruptEnd;
 
@@ -151,6 +151,11 @@ class SinucaTraceReader : public TraceReader {
         for (int i = 0; i < this->totalThreads; ++i) {
             if (this->threadDataArr[i]) {
                 delete this->threadDataArr[i];
+            }
+        }
+        for (unsigned int i = 0; i < this->mutexVec.size(); i++) {
+            if (this->mutexVec[i]) {
+                delete this->mutexVec[i];
             }
         }
         delete[] this->instructionDict;

@@ -263,32 +263,33 @@ int SinucaTraceReader::FetchBasicBlock(int tid) {
         } else if (recordType == DynamicRecordLockRequest) {
             SINUCA3_DEBUG_PRINTF("Fetched DynamicRecordLockRequest!\n");
 
-            unsigned long lockAddr =
+            unsigned long mutexAddr =
                 this->threadDataArr[tid]->dynFile.GetLockAddress();
 
             /* Check if lock with corresponding lockAddr was created. If
              * not, create a new lock and append to vector. */
-            Lock *lock = NULL;
+            Mutex *mutex = NULL;
             for (unsigned long i = 0; i < mutexVec.size(); ++i) {
-                if (this->mutexVec[i].addr == lockAddr) {
-                    lock = &this->mutexVec[i];
+                if (this->mutexVec[i]->addr == mutexAddr) {
+                    mutex = this->mutexVec[i];
                 }
             }
 
-            if (lock == NULL) {
-                Lock newLock;
-                newLock.addr = lockAddr;
-                this->mutexVec.push_back(newLock);
-                lock = &mutexVec.back();
+            if (mutex == NULL) {
+                Mutex* newMutex = new Mutex;
+                newMutex->addr = mutexAddr;
+                this->mutexVec.push_back(newMutex);
+                mutex = newMutex;
             }
 
-            if (lock->isBusy) {
+            if (mutex->isBusy) {
+                SINUCA3_DEBUG_PRINTF("Mutex is busy! Thread [%d] will wait!\n", tid);
                 this->threadDataArr[tid]->isThreadAwake = false;
-                lock->waitingThreadsQueue->Enqueue(&tid);
+                mutex->waitingThreadsQueue->Enqueue(&tid);
                 return 1; /* no basic block to be fetched */
             } else {
-                lock->isBusy = true;
-                lock->owner = tid;
+                mutex->isBusy = true;
+                mutex->owner = tid;
             }
         } else if (recordType == DynamicRecordUnlockRequest) {
             SINUCA3_DEBUG_PRINTF("Fetched DynamicRecordUnlockRequest!\n");
@@ -297,28 +298,28 @@ int SinucaTraceReader::FetchBasicBlock(int tid) {
                 this->threadDataArr[tid]->dynFile.GetLockAddress();
 
             /* Look for lock with corresponding lockAddr. */
-            Lock *lock = NULL;
+            Mutex *mutex = NULL;
             for (unsigned long i = 0; i < mutexVec.size(); ++i) {
-                if (this->mutexVec[i].addr == lockAddr) {
-                    lock = &this->mutexVec[i];
+                if (this->mutexVec[i]->addr == lockAddr) {
+                    mutex = this->mutexVec[i];
                 }
             }
 
-            if (lock == NULL) {
+            if (mutex == NULL) {
                 SINUCA3_ERROR_PRINTF("Lock with addr [%ld] wasnt created\n",
                                         lockAddr);
                 this->fetchFailed = true;
                 return 1;
             }
 
-            if (!lock->isBusy) {
+            if (!mutex->isBusy) {
                 SINUCA3_ERROR_PRINTF("Lock with addr [%ld] isnt busy!\n",
                                         lockAddr);
                 this->fetchFailed = true;
                 return 1;
             }
 
-            if (lock->owner != tid) {
+            if (mutex->owner != tid) {
                 SINUCA3_ERROR_PRINTF(
                     "Thr [%d] isnt the current owner of lock with addr "
                     "[%ld]!\n",
@@ -327,15 +328,15 @@ int SinucaTraceReader::FetchBasicBlock(int tid) {
                 return 1;
             }
 
-            if (!lock->waitingThreadsQueue->IsEmpty()) {
+            if (!mutex->waitingThreadsQueue->IsEmpty()) {
                 int sleepingThr;
-                lock->waitingThreadsQueue->Dequeue(&sleepingThr);
+                mutex->waitingThreadsQueue->Dequeue(&sleepingThr);
                 this->threadDataArr[sleepingThr]->isThreadAwake = true;
-                /* Change to new lock owner. */
-                lock->owner = sleepingThr;
+                /* Change to new mutex owner. */
+                mutex->owner = sleepingThr;
             } else {
-                /* Lock is free. */
-                lock->ResetLock();
+                /* mutex is free. */
+                mutex->Reset();
             }
         } else if (recordType == DynamicRecordBarrier) {
             SINUCA3_DEBUG_PRINTF("Fetched DynamicRecordBarrier!\n");
@@ -471,8 +472,6 @@ int TestTraceReader() {
                 SINUCA3_DEBUG_PRINTF("\t Unkown branch type!\n");
                 return 1;
             }
-
-            SINUCA3_DEBUG_PRINTF("\n");
         }
     }
 
