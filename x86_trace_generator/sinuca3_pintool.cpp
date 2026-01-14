@@ -71,8 +71,6 @@ const char* imageName = NULL;
 bool wasInitInstrumentationCalled = false;
 /** @brief Number of executed instructions. */
 unsigned long numberOfExecInst = 0;
-/** @brief Used to block spinlock routines from being instrumented. */
-std::vector<std::string> rtnsWithPauseInst;
 /** @brief Lock used to prevent race conditions when executing analysis code */
 PIN_LOCK threadAnalysisLock;
 
@@ -80,22 +78,17 @@ PIN_LOCK threadAnalysisLock;
  * A KNOB is a class that encapsulates a command line argument. When the
  * argument is not provided, the default value declared is used.
  */
-
-/** @brief Set directory to save trace with '-o'. Default is current dir. */
 KNOB<std::string> knobFolder(KNOB_MODE_WRITEONCE, "pintool", "o", "./",
                              "Directory to store the trace files.");
-/** @brief Allows one to force full instrumentation with '-f'. Default is 0. */
-KNOB<BOOL> knobForceInstrumentation(
-    KNOB_MODE_WRITEONCE, "pintool", "f", "0",
-    "Force instrumentation for the entire execution for all created threads.");
-/** @brief Set the number of instruction to be executed. Default id -1. */
-KNOB<UINT32> knobNumberOfInstructions(
-    KNOB_MODE_WRITEONCE, "pintool", "n", "-1",
-    "Set maximum number of instructions to be included in trace.");
-/** @brief Allows one to set the intrinsics. Default is an empty list. */
+KNOB<BOOL> knobForceInstrumentation(KNOB_MODE_WRITEONCE, "pintool", "f", "0",
+                                    "Force instrumentation.");
+KNOB<UINT32> knobNumberOfInstructions(KNOB_MODE_WRITEONCE, "pintool", "n", "-1",
+                                      "Set maximum of instructions.");
 KNOB<std::string> KnobIntrinsics(KNOB_MODE_APPEND, "pintool", "i", "",
                                  "Intrinsic instructions in the format "
                                  "name:readregs:writeregs:numreads:numwrites");
+
+std::vector<const char*> ignoreRtnsVec;
 
 struct ThreadData {
     DynamicTraceWriter dynamicTrace;
@@ -134,11 +127,7 @@ int Usage() {
 }
 
 bool WasThreadCreated(THREADID tid) {
-    if ((threadDataVec.size() - tid) <= 0) {
-        SINUCA3_DEBUG_PRINTF("[WasThreadCreated] Thr [%d] not created!\n", tid);
-        return false;
-    }
-    return true;
+    return ((threadDataVec.size() - tid) > 0);
 }
 
 /** @brief Enables instrumentation. */
@@ -230,7 +219,7 @@ VOID AppendToDynamicTrace(THREADID tid, UINT32 bblId, UINT32 numInst) {
              */
             for (unsigned int tid = 0; tid < threadDataVec.size(); ++tid) {
                 threadDataVec[tid]->dynamicTrace.AddThreadEvent(
-                    DynamicRecordAbruptEnd, 0);
+                    ThreadEventAbruptEnd);
             }
             PIN_ReleaseLock(&threadAnalysisLock);
             PIN_ExitApplication(0);
@@ -459,15 +448,12 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
     RTN_Close(rtn);
 
     /*
-     * Every routine that performs spinlock has a 'pause' asm instruction;
-     * since the thread syncronization is simulated by the trace reader,
-     * there is no sense in adding code executed during busy wait;
-     * hence the routines that have this instruction are not instrumented.
+     * Remove unwanted spinlock.
      */
-    for (std::string& str : rtnsWithPauseInst) {
-        if (rtnName == str) {
+    for (unsigned int it = 0; it < ignoreRtnsVec.size(); it++) {
+        if (rtnName == ignoreRtnsVec[it]) {
             SINUCA3_DEBUG_PRINTF("[OnTrace] Thread id [%d]: Ignoring [%s]!\n",
-                                 PIN_ThreadId(), str.c_str());
+                                 threadId, rtnName.c_str());
             return;
         }
     }
@@ -662,92 +648,32 @@ VOID LoadIntrinsics() {
     }
 }
 
-VOID OnThreadCreateEvent(THREADID tid) {
-    if (!WasThreadCreated(tid)) return;
-
-    PIN_GetLock(&threadAnalysisLock, tid);
-
-    SINUCA3_DEBUG_PRINTF("[OnThreadCreateEvent] thread [%d]\n", tid);
-
-    if (tid != 0) {
-        SINUCA3_ERROR_PRINTF(
-            "[OnThreadCreateEvent] There is no support for nested parallel "
-            "block!\n");
+VOID OnThreadEvent(THREADID tid, UINT32 evType, BOOL isMasterThreadEv) {
+    if (!WasThreadCreated(tid)) {
+        SINUCA3_ERROR_PRINTF("[OnThreadEvent] thread [%d] not created!\n", tid);
         return;
     }
 
-    threadDataVec[0]->dynamicTrace.AddThreadEvent(DynamicRecordCreateThread, 0);
+    PIN_GetLock(&threadAnalysisLock, tid);       
 
-    PIN_ReleaseLock(&threadAnalysisLock);
-}
-
-VOID OnThreadDestroyEvent(THREADID tid) {
-    if (!WasThreadCreated(tid)) return;
-
-    PIN_GetLock(&threadAnalysisLock, tid);
-
-    SINUCA3_DEBUG_PRINTF("[OnThreadDestroyEvent] thread [%d]\n", tid);
-
-    if (tid != 0) {
-        SINUCA3_ERROR_PRINTF(
-            "[OnThreadDestroyEvent] There is no support for nested parallel "
-            "block!\n");
+    ThreadEventType thrEv = (ThreadEventType)evType;
+    if (threadDataVec[tid]->dynamicTrace.AddThreadEvent(thrEv)) {
+        SINUCA3_ERROR_PRINTF("[OnThreadEvent] AddThreadEvent failed!\n");
         return;
     }
-
-    for (unsigned int i = 0; i < threadDataVec.size(); i++) {
-        threadDataVec[i]->dynamicTrace.AddThreadEvent(DynamicRecordBarrier, 0);
+    SINUCA3_DEBUG_PRINTF("[OnThreadEvent] added [%u] event to thread "
+        "[%d]\n", evType, tid);
+    if (isMasterThreadEv) {
+        for (unsigned int it = 1; it < threadDataVec.size(); it++) {
+            if (threadDataVec[it]->dynamicTrace.AddThreadEvent(thrEv)) {
+                SINUCA3_ERROR_PRINTF("[OnThreadEvent] AddThreadEvent fail!\n");
+                return;
+            }
+            SINUCA3_DEBUG_PRINTF("[OnThreadEvent] added [%u] event to thread "
+                "[%d]\n", evType, it);
+        }
     }
 
-    threadDataVec[0]->dynamicTrace.AddThreadEvent(DynamicRecordDestroyThread,
-                                                  0);
-
-    PIN_ReleaseLock(&threadAnalysisLock);
-}
-
-VOID OnThreadGlobalMutexLock(THREADID tid) {
-    if (!WasThreadCreated(tid)) return;
-    PIN_GetLock(&threadAnalysisLock, tid);
-    SINUCA3_DEBUG_PRINTF("[OnThreadGlobalMutexLock] Thread [%d]\n", tid);
-    threadDataVec[tid]->dynamicTrace.AddThreadEvent(DynamicRecordLockRequest,
-                                                    0);
-    PIN_ReleaseLock(&threadAnalysisLock);
-}
-
-VOID OnThreadGlobalMutexUnlock(THREADID tid) {
-    if (!WasThreadCreated(tid)) return;
-    PIN_GetLock(&threadAnalysisLock, tid);
-    SINUCA3_DEBUG_PRINTF("[OnThreadGlobalMutexUnlock] Thread [%d]\n", tid);
-    threadDataVec[tid]->dynamicTrace.AddThreadEvent(DynamicRecordUnlockRequest,
-                                                    0);
-    PIN_ReleaseLock(&threadAnalysisLock);
-}
-
-VOID OnThreadNamedMutexLock(THREADID tid, CONTEXT* ctxt) {
-    if (!WasThreadCreated(tid)) return;
-    PIN_GetLock(&threadAnalysisLock, tid);
-    SINUCA3_DEBUG_PRINTF("[OnThreadNamedMutexLock] Thread [%d]\n", tid);
-    ADDRINT mutexAddress = PIN_GetContextReg(ctxt, REG_RDI);
-    threadDataVec[tid]->dynamicTrace.AddThreadEvent(DynamicRecordLockRequest,
-                                                    mutexAddress);
-    PIN_ReleaseLock(&threadAnalysisLock);
-}
-
-VOID OnThreadNamedMutexUnlock(THREADID tid, CONTEXT* ctxt) {
-    if (!WasThreadCreated(tid)) return;
-    PIN_GetLock(&threadAnalysisLock, tid);
-    SINUCA3_DEBUG_PRINTF("[OnThreadNamedMutexUnlock] Thread [%d]\n", tid);
-    ADDRINT mutexAddress = PIN_GetContextReg(ctxt, REG_RDI);
-    threadDataVec[tid]->dynamicTrace.AddThreadEvent(DynamicRecordUnlockRequest,
-                                                    mutexAddress);
-    PIN_ReleaseLock(&threadAnalysisLock);
-}
-
-VOID OnThreadBarrierEvent(THREADID tid) {
-    if (!WasThreadCreated(tid)) return;
-    PIN_GetLock(&threadAnalysisLock, tid);
-    SINUCA3_DEBUG_PRINTF("[OnBarrierThreadEvent] Thread is [%d]\n", tid);
-    threadDataVec[tid]->dynamicTrace.AddThreadEvent(DynamicRecordBarrier, 0);
     PIN_ReleaseLock(&threadAnalysisLock);
 }
 
@@ -758,53 +684,6 @@ INS FindInstInRtn(RTN rtn, std::string instName) {
         }
     }
     return INS_Invalid();
-}
-
-VOID OnImageLoadInstrumentRtn(RTN rtn) {
-    std::string rtnName = RTN_Name(rtn);
-
-    if (rtnName == "BeginInstrumentationBlock") {
-        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)InitInstrumentation,
-                       IARG_END);
-    } else if (rtnName == "EndInstrumentationBlock") {
-        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)StopInstrumentation,
-                       IARG_END);
-    } else if (rtnName == "gomp_team_start") {
-        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadCreateEvent,
-                       IARG_THREAD_ID, IARG_END);
-    } else if (rtnName == "gomp_team_end") {
-        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadDestroyEvent,
-                       IARG_THREAD_ID, IARG_END);
-    } else if (rtnName == "GOMP_barrier") {
-        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadBarrierEvent,
-                       IARG_THREAD_ID, IARG_END);
-    } else if (rtnName == "GOMP_critical_name_start" ||
-               rtnName == "omp_set_lock") {
-        INS inst = FindInstInRtn(rtn, "CMPXCHG_LOCK");
-        if (inst == INS_Invalid()) {
-            SINUCA3_ERROR_PRINTF(
-                "[OnImageLoadInstrumentRtn] CMPXCHG_LOCK not found!\n");
-            return;
-        }
-        INS_InsertCall(inst, IPOINT_BEFORE, (AFUNPTR)OnThreadNamedMutexLock,
-                       IARG_THREAD_ID, IARG_CONTEXT, IARG_END);
-    } else if (rtnName == "GOMP_critical_name_end" ||
-               rtnName == "omp_unset_lock") {
-        INS inst = FindInstInRtn(rtn, "XCHG");
-        if (inst == INS_Invalid()) {
-            SINUCA3_ERROR_PRINTF(
-                "[OnImageLoadInstrumentRtn] XCHG not found!\n");
-            return;
-        }
-        INS_InsertCall(inst, IPOINT_BEFORE, (AFUNPTR)OnThreadNamedMutexUnlock,
-                       IARG_THREAD_ID, IARG_CONTEXT, IARG_END);
-    } else if (rtnName == "GOMP_critical_start") {
-        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadGlobalMutexLock,
-                       IARG_THREAD_ID, IARG_END);
-    } else if (rtnName == "GOMP_critical_end") {
-        RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OnThreadGlobalMutexUnlock,
-                       IARG_THREAD_ID, IARG_END);
-    }
 }
 
 VOID OnImageLoad(IMG img, VOID* ptr) {
@@ -820,15 +699,56 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
 
     SINUCA3_DEBUG_PRINTF("[OnImageLoad] Image name is [%s]\n", imageName);
 
+    /* Only thread master run these calls. */
+    std::vector<const char*> ompBarrierMasterStartVec;
+    ompBarrierMasterStartVec.push_back("gomp_team_start");
+    /* Only thread master run these calls. */
+    std::vector<const char*> ompBarrierMasterEndVec;
+    ompBarrierMasterEndVec.push_back("gomp_team_end");
+    /* All threads run these calls. */
+    std::vector<const char*> ompBarrierSimpleVec;
+    ompBarrierSimpleVec.push_back(("GOMP_barrier"));
+    ompBarrierSimpleVec.push_back(("GOMP_loop_dynamic_start"));
+    ompBarrierSimpleVec.push_back(("GOMP_loop_ordered_static_start"));
+    ompBarrierSimpleVec.push_back(("GOMP_loop_guided_start"));
+    ompBarrierSimpleVec.push_back(("GOMP_loop_end"));
+    ompBarrierSimpleVec.push_back(("GOMP_parallel_sections_start"));
+    ompBarrierSimpleVec.push_back(("GOMP_sections_end"));
+    /* Critical region begin. */
+    std::vector<const char*> ompCriticalStartVec;
+    ompCriticalStartVec.push_back(("GOMP_atomic_start"));
+    ompCriticalStartVec.push_back(("GOMP_critical_start"));
+    ompCriticalStartVec.push_back(("GOMP_critical_name_start"));
+    /* Critical region end. */
+    std::vector<const char*> ompCriticalEndVec;
+    ompCriticalEndVec.push_back(("GOMP_atomic_end"));
+    ompCriticalEndVec.push_back(("GOMP_critical_end"));
+    ompCriticalEndVec.push_back(("GOMP_critical_name_end"));
+    /* Routines to not instrument. */
+    ignoreRtnsVec.push_back("gomp_mutex_lock_slow");
+    ignoreRtnsVec.push_back("gomp_sem_wait_slow");
+    ignoreRtnsVec.push_back("gomp_ptrlock_get_slow");
+    ignoreRtnsVec.push_back("gomp_barrier_wait_end");
+    ignoreRtnsVec.push_back("pthread_mutex_lock");
+    ignoreRtnsVec.push_back("pthread_mutex_cond_lock");
+    ignoreRtnsVec.push_back("pthread_spinlock");
+    ignoreRtnsVec.push_back("pthread_mutex_timedlock");
+
+    /* Instrumentation control. */
+    const char* INST_START = "BeginInstrumentationBlock";
+    const char* INST_END = "EndInstrumentationBlock";
+
+    bool routineTreated;
+
     staticTrace = new StaticTraceWriter();
     if (staticTrace == NULL) {
         SINUCA3_DEBUG_PRINTF(
-            "[OnImageLoad] Failed to create static trace file.\n");
+            "[OnImageLoad] Failed to create StaticTraceWriter.\n");
         return;
     }
     if (staticTrace->OpenFile(traceDir, imageName)) {
         SINUCA3_DEBUG_PRINTF(
-            "[OnImageLoad] Failed to open static trace file\n");
+            "[OnImageLoad] Failed to create static trace file.\n");
         return;
     }
 
@@ -837,14 +757,96 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
             RTN_Open(rtn);
 
             std::string rtnName = RTN_Name(rtn);
+            routineTreated = false;
+            unsigned int it;
 
-            /* pause instruction is spin lock hint. */
-            if (FindInstInRtn(rtn, "PAUSE") != INS_Invalid()) {
-                rtnsWithPauseInst.push_back(rtnName);
+            if (rtnName == INST_START) {
+                RTN_InsertCall(rtn, IPOINT_BEFORE,
+                                (AFUNPTR)InitInstrumentation,
+                                IARG_END);
+                routineTreated = true;
+            } else if (rtnName == INST_END) {
+                RTN_InsertCall(rtn, IPOINT_BEFORE,
+                                (AFUNPTR)StopInstrumentation,
+                                IARG_END);
+                routineTreated = true;
             }
 
-            /* add callback for routine if necessary.  */
-            OnImageLoadInstrumentRtn(rtn);
+            if (rtnName.compare(0, 4, "gomp") && rtnName.compare(0, 4, "GOMP")) {
+                RTN_Close(rtn);
+                continue;
+            }
+
+            for (it = 0;
+                 it < ompBarrierMasterStartVec.size() && !routineTreated;
+                 it++) {
+                if (rtnName == ompBarrierMasterStartVec[it]) {
+                    RTN_InsertCall(rtn, IPOINT_AFTER,
+                                    (AFUNPTR)OnThreadEvent,
+                                    IARG_THREAD_ID,
+                                    IARG_UINT32, ThreadEventBarrierSync,
+                                    IARG_BOOL, true,
+                                    IARG_END);
+                    routineTreated = true;
+                }
+            }
+            for (it = 0;
+                 it < ompBarrierMasterEndVec.size() && !routineTreated;
+                 it++) {
+                if (rtnName == ompBarrierMasterEndVec[it]) {
+                    RTN_InsertCall(rtn, IPOINT_BEFORE,
+                                    (AFUNPTR)OnThreadEvent,
+                                    IARG_THREAD_ID,
+                                    IARG_UINT32, ThreadEventBarrierSync,
+                                    IARG_BOOL, true,
+                                    IARG_END);
+                    routineTreated = true;
+                }
+            }
+            for (it = 0;
+                 it < ompBarrierSimpleVec.size() && !routineTreated;
+                 it++) {
+                if (rtnName == ompBarrierSimpleVec[it]) {
+                    RTN_InsertCall(rtn, IPOINT_BEFORE,
+                                    (AFUNPTR)OnThreadEvent,
+                                    IARG_THREAD_ID,
+                                    IARG_UINT32, ThreadEventBarrierSync,
+                                    IARG_BOOL, false,
+                                    IARG_END);
+                    routineTreated = true;
+                }
+            }
+            for (it = 0;
+                 it < ompCriticalStartVec.size() && !routineTreated;
+                 it++) {
+                if (rtnName == ompCriticalStartVec[it]) {
+                    RTN_InsertCall(rtn, IPOINT_BEFORE,
+                                    (AFUNPTR)OnThreadEvent,
+                                    IARG_THREAD_ID,
+                                    IARG_UINT32, ThreadEventCriticalStart,
+                                    IARG_BOOL, false,
+                                    IARG_END);
+                    routineTreated = true;
+                }
+            }
+            for (it = 0;
+                 it < ompCriticalEndVec.size() && !routineTreated;
+                 it++) {
+                if (rtnName == ompCriticalEndVec[it]) {
+                    RTN_InsertCall(rtn, IPOINT_BEFORE,
+                                    (AFUNPTR)OnThreadEvent,
+                                    IARG_THREAD_ID,
+                                    IARG_UINT32, ThreadEventCriticalEnd,
+                                    IARG_BOOL, false,
+                                    IARG_END);
+                    routineTreated = true;
+                }
+            }
+
+            if (!routineTreated) {
+                SINUCA3_WARNING_PRINTF("[OnImageLoad] Routine [%s] wasnt " 
+                                        "treated!\n", rtnName.c_str());
+            }
 
             // for (IntrinsicInfo& intrinsic : intrinsics) {
             //     if (rtnName == intrinsic.loaderName) {
@@ -864,8 +866,8 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
 }
 
 VOID OnFini(INT32 code, VOID* ptr) {
-    SINUCA3_DEBUG_PRINTF(
-        "[OnFini] Total of [%lu] inst exec and stored!\n", numberOfExecInst);
+    SINUCA3_DEBUG_PRINTF("[OnFini] Total of [%lu] inst exec and stored!\n",
+                         numberOfExecInst);
     SINUCA3_DEBUG_PRINTF("[OnFini] End of tool execution!\n");
 
     if (imageName) {

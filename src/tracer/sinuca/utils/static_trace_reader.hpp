@@ -28,6 +28,7 @@
  *
  */
 
+#include <cstdlib>
 #include <tracer/sinuca/file_handler.hpp>
 
 extern "C" {
@@ -39,7 +40,7 @@ extern "C" {
 class StaticTraceReader {
   private:
     FileHeader header;
-    StaticTraceRecord* record;
+    StaticTraceRecord* record; /**<Aux pointer to current record. */
     unsigned long mmapOffset;
     unsigned long mmapSize;
     int fileDescriptor;
@@ -55,10 +56,12 @@ class StaticTraceReader {
     inline StaticTraceReader()
         : mmapOffset(0), mmapSize(0), fileDescriptor(0), mmapPtr(0) {};
     inline ~StaticTraceReader() {
-        if (this->mmapPtr == NULL) return;
-        munmap(this->mmapPtr, this->mmapSize);
-        if (this->fileDescriptor == -1) return;
-        close(this->fileDescriptor);
+        if (this->mmapPtr) {
+            munmap(this->mmapPtr, this->mmapSize);
+        }
+        if (this->fileDescriptor != -1) {
+            close(this->fileDescriptor);
+        }
     }
 
     /**
@@ -68,8 +71,8 @@ class StaticTraceReader {
     int ReadStaticRecordFromFile();
     void TranslateRawInstructionToSinucaInst(StaticInstructionInfo* instInfo);
 
-    inline unsigned char GetStaticRecordType() {
-        return this->record->recordType;
+    inline StaticTraceRecordType GetStaticRecordType() {
+        return (StaticTraceRecordType)this->record->recordType;
     }
     inline int GetBasicBlockSize() {
         return this->record->data.basicBlockSize;

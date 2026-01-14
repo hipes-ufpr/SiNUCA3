@@ -24,7 +24,7 @@ intrinsics: intrinsics.c $(ADD_FILES)
 	$(CC) $(CFLAGS) -o $@ $^
 
 pi: pi.c $(ADD_FILES)
-	$(CC) -static $(CFLAGS) -o $@ $^ -fopenmp
+	$(CC) -static $(CFLAGS) -o $@ $^ -L. -fopenmp
 
 clean:
 	-rm factorials intrinsics pi

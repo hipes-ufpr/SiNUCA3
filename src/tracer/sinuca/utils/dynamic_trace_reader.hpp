@@ -60,20 +60,22 @@ class DynamicTraceReader {
     inline unsigned long GetTotalExecutedInstructions() {
         return this->header.data.dynamicHeader.totalExecutedInstructions;
     }
-    inline unsigned int GetVersionInt() { return this->header.traceVersion; }
-    inline unsigned int GetTargetInt() { return this->header.targetArch; }
-    inline int GetRecordType() {
-        return this->recordArray[this->recordArrayIndex].recordType;
+    inline DynamicTraceRecordType GetRecordType() {
+        return (DynamicTraceRecordType)this->recordArray[this->recordArrayIndex]
+        .recordType;
     }
     inline unsigned int GetBasicBlockIdentifier() {
         return this->recordArray[this->recordArrayIndex]
-            .data.basicBlockIdentifier;
+        .data.basicBlockId;
     }
-    inline unsigned long GetLockAddress() {
-        return this->recordArray[this->recordArrayIndex]
-            .data.mutexAddress;
+    inline ThreadEventType GetThreadEvent() {
+        return (ThreadEventType)this->recordArray[this->recordArrayIndex].data
+        .threadEvent;
     }
+    
     inline bool HasReachedEnd() { return this->reachedEnd; }
+    inline unsigned int GetVersionInt() { return this->header.traceVersion; }
+    inline unsigned int GetTargetInt() { return this->header.targetArch; }
 };
 
 #endif

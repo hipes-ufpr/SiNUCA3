@@ -33,36 +33,7 @@
 #include <tracer/trace_reader.hpp>
 
 #include "engine/default_packets.hpp"
-#include "utils/circular_buffer.hpp"
-
-struct Mutex {
-    unsigned long addr;
-    bool isBusy;
-    int owner;
-    int recCont;  // future use for nested Mutexs
-    CircularBuffer* waitingThreadsQueue;
-
-    Mutex() {
-        waitingThreadsQueue = new CircularBuffer;
-        this->waitingThreadsQueue->Allocate(0, sizeof(int));
-        this->isBusy = false;
-        this->addr = 0;
-    }
-    ~Mutex() {
-        if (this->waitingThreadsQueue) {
-            this->waitingThreadsQueue->Deallocate();
-            delete this->waitingThreadsQueue;
-        }
-    }
-    void Reset() { this->isBusy = false; }
-};
-
-struct Barrier {
-    int thrCont;
-
-    Barrier() { this->ResetBarrier(); }
-    void ResetBarrier() { this->thrCont = 0; }
-};
+#include "utils/logging.hpp"
 
 struct ThreadData {
     DynamicTraceReader dynFile;
@@ -80,7 +51,7 @@ struct ThreadData {
         : currentBasicBlock(0),
           currentInst(0),
           isInsideBasicBlock(0),
-          isThreadAwake(false) {}
+          isThreadAwake(true) {}
 
     /** @brief Check if the version of trace files is as expected. */
     inline bool CheckVersion(unsigned int version) {
@@ -102,7 +73,7 @@ class SinucaTraceReader : public TraceReader {
     StaticTraceReader* staticTrace;
     StaticInstructionInfo** instructionDict;
     StaticInstructionInfo* instructionPool;
-    int* basicBlockSizeArr;
+    int* basicBlockSizeArr; /*<Each entry store size of corresponding bbl. */
     unsigned long totalBasicBlocks;
     int totalStaticInst;
     int totalThreads;
@@ -110,10 +81,7 @@ class SinucaTraceReader : public TraceReader {
     int traceFilesTargetArch;
     bool fetchFailed;
 
-    ThreadData** threadDataArr;
-    Barrier globalBarrier;
-    std::vector<Mutex *> mutexVec;
-    int numberOfActiveThreads;
+    std::vector<ThreadData *> threadDataVec;
     bool reachedAbruptEnd;
 
     /**
@@ -134,7 +102,7 @@ class SinucaTraceReader : public TraceReader {
         pkt->staticInfo = NULL;
     }
     inline bool IsThreadSleeping(int tid) {
-        return (!this->threadDataArr[tid]->isThreadAwake);
+        return (!this->threadDataVec[tid]->isThreadAwake);
     }
 
   public:
@@ -145,17 +113,11 @@ class SinucaTraceReader : public TraceReader {
           basicBlockSizeArr(0),
           totalBasicBlocks(0),
           totalThreads(0),
-          fetchFailed(0),
-          numberOfActiveThreads(1) {}
+          fetchFailed(0) {}
     virtual inline ~SinucaTraceReader() {
         for (int i = 0; i < this->totalThreads; ++i) {
-            if (this->threadDataArr[i]) {
-                delete this->threadDataArr[i];
-            }
-        }
-        for (unsigned int i = 0; i < this->mutexVec.size(); i++) {
-            if (this->mutexVec[i]) {
-                delete this->mutexVec[i];
+            if (this->threadDataVec[i]) {
+                delete this->threadDataVec[i];
             }
         }
         delete[] this->instructionDict;
@@ -169,10 +131,10 @@ class SinucaTraceReader : public TraceReader {
     virtual void PrintStatistics();
 
     virtual unsigned long GetNumberOfFetchedInst(int tid) {
-        return this->threadDataArr[tid]->fetchedInst;
+        return this->threadDataVec[tid]->fetchedInst;
     }
     virtual unsigned long GetTotalInstToBeFetched(int tid) {
-        return this->threadDataArr[tid]->dynFile.GetTotalExecutedInstructions();
+        return this->threadDataVec[tid]->dynFile.GetTotalExecutedInstructions();
     }
 
     virtual inline int GetTotalThreads() { return this->totalThreads; }

@@ -78,7 +78,7 @@ class DynamicTraceWriter {
      * @param mutexAddr Unique identifier to mutex. Field ignored if the event
      * does not request it.
     */
-    int AddThreadEvent(unsigned char type, unsigned long mutexAddr);
+    int AddThreadEvent(ThreadEventType evType);
     /** @brief Add the identifier of basic block executed. */
     int AddBasicBlockId(unsigned int basicBlockId);
 

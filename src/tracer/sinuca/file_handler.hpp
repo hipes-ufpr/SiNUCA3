@@ -65,12 +65,14 @@ enum StaticTraceRecordType : uint8_t {
 
 enum DynamicTraceRecordType : uint8_t {
     DynamicRecordBasicBlockIdentifier,
-    DynamicRecordCreateThread,
-    DynamicRecordDestroyThread,
-    DynamicRecordLockRequest,
-    DynamicRecordUnlockRequest,
-    DynamicRecordBarrier,
-    DynamicRecordAbruptEnd
+    DynamicRecordThreadEvent
+};
+
+enum ThreadEventType : uint32_t {
+    ThreadEventBarrierSync,
+    ThreadEventCriticalStart,
+    ThreadEventCriticalEnd,
+    ThreadEventAbruptEnd
 };
 
 enum MemoryRecordType : uint8_t {
@@ -118,8 +120,8 @@ struct StaticTraceRecord {
 /** @brief Written to dynamic trace file. */
 struct DynamicTraceRecord {
     union _PACKED {
-        uint32_t basicBlockIdentifier;
-        uint64_t mutexAddress;
+        uint32_t basicBlockId;
+        uint32_t threadEvent;
     } data;
     uint8_t recordType;
 

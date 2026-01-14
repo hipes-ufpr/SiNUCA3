@@ -85,16 +85,16 @@ int DynamicTraceWriter::AddDynamicRecord(DynamicTraceRecord record) {
     return 0;
 }
 
-int DynamicTraceWriter::AddThreadEvent(unsigned char type, unsigned long mAddr) {
+int DynamicTraceWriter::AddThreadEvent(ThreadEventType evType) {
     DynamicTraceRecord record;
-    record.recordType = type;
-    record.data.mutexAddress = mAddr;
+    record.recordType = DynamicRecordThreadEvent;
+    record.data.threadEvent = evType;
     return (this->AddDynamicRecord(record));
 }
 
 int DynamicTraceWriter::AddBasicBlockId(unsigned int identifier) {
     DynamicTraceRecord record;
     record.recordType = DynamicRecordBasicBlockIdentifier;
-    record.data.basicBlockIdentifier = identifier;
+    record.data.basicBlockId = identifier;
     return (this->AddDynamicRecord(record));
 }
