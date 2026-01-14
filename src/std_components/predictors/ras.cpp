@@ -33,7 +33,7 @@ int Ras::Configure(Config config) {
     if (config.ComponentReference("sendTo", &this->sendTo)) return 1;
     if (this->sendTo != NULL) this->forwardToID = this->sendTo->Connect(0);
 
-    this->buffer = new unsigned long[this->size];
+    this->buffer = new unsigned long[this->size]();
 
     return 0;
 }
@@ -48,9 +48,8 @@ inline void Ras::RequestQuery(InstructionPacket instruction, int connectionID) {
     response.data.targetResponse.instruction = instruction;
     response.data.targetResponse.target = prediction;
 
-    if (this->sendTo == NULL) {
-        this->SendResponseToConnection(connectionID, &response);
-    } else {
+    this->SendResponseToConnection(connectionID, &response);
+    if (this->sendTo != NULL) {
         this->sendTo->SendRequest(this->forwardToID, &response);
     }
 }
@@ -72,7 +71,7 @@ void Ras::Clock() {
                     ++this->numQueries;
                     this->RequestQuery(packet.data.requestQuery, i);
                     break;
-                case PredictorPacketTypeRequestUpdate:
+                case PredictorPacketTypeRequestTargetUpdate:
                     ++this->numUpdates;
                     this->RequestUpdate(packet.data.targetUpdate.target);
                     break;
@@ -86,8 +85,9 @@ void Ras::Clock() {
 }
 
 void Ras::PrintStatistics() {
-    SINUCA3_LOG_PRINTF("Ras %p: %lu queries\n", this, this->numQueries);
-    SINUCA3_LOG_PRINTF("Ras %p: %lu updates\n", this, this->numUpdates);
+    SINUCA3_LOG_PRINTF("Ras [%p]\n", this);
+    SINUCA3_LOG_PRINTF("    Ras Queries: %lu\n", this->numQueries);
+    SINUCA3_LOG_PRINTF("    Ras Updates: %lu\n", this->numUpdates);
 }
 
 Ras::~Ras() {
@@ -108,7 +108,7 @@ int TestRas() {
     ras.PosClock();
 
     PredictorPacket msg;
-    msg.type = PredictorPacketTypeRequestUpdate;
+    msg.type = PredictorPacketTypeRequestTargetUpdate;
 
     ras.Clock();
     msg.data.targetUpdate.target = 0xcafebabe;
@@ -151,7 +151,7 @@ int TestRas() {
     ras.PosClock();
 
     ras.Clock();
-    msg.type = PredictorPacketTypeRequestUpdate;
+    msg.type = PredictorPacketTypeRequestTargetUpdate;
     msg.data.targetUpdate.target = 0xb16b00b5;
     ras.SendRequest(id, &msg);
     ras.PosClock();

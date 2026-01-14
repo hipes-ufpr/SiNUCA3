@@ -179,7 +179,7 @@ void GsharePredictor::Clock() {
                     this->sendTo->SendRequest(sendToId, &packet);
                 }
             }
-            if (packet.type == PredictorPacketTypeRequestUpdate) {
+            if (packet.type == PredictorPacketTypeRequestDirectionUpdate) {
                 this->wasBranchTaken = packet.data.directionUpdate.taken;
                 this->Update();
             }
@@ -204,7 +204,7 @@ int TestGshare() {
         ins[i].instAddress = addrs[i];
     }
     for (int i = testSize; i < testSize * 2; ++i) {
-        sendPackets[i].type = PredictorPacketTypeRequestUpdate;
+        sendPackets[i].type = PredictorPacketTypeRequestDirectionUpdate;
         sendPackets[i].data.directionUpdate.taken = taken[i - testSize];
     }
 

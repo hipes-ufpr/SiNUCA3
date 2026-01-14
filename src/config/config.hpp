@@ -61,6 +61,8 @@ class Config {
                              this->location.column, parameter);
     }
 
+    int GetValue(const char* parameter, bool required, yaml::YamlValue** ret);
+
     Linkable* GetComponentByMapping(Map<yaml::YamlValue>* mapping,
                                     yaml::YamlLocation location);
     Linkable* GetComponentByAlias(const char* alias,
@@ -70,6 +72,8 @@ class Config {
     Linkable* GetComponentFromYaml(yaml::YamlValue* yaml);
 
   public:
+    inline Config()
+        : config(NULL), components(NULL), aliases(NULL), definitions(NULL) {}
     inline Config(std::vector<Linkable*>* components, Map<Linkable*>* aliases,
                   Map<Definition>* definitions, Map<yaml::YamlValue>* config,
                   yaml::YamlLocation location)
@@ -82,12 +86,10 @@ class Config {
     template <typename ComponentType>
     int ComponentReference(const char* parameter, ComponentType** ret,
                            bool required = false) {
-        yaml::YamlValue* value = this->config->Get(parameter);
-        if (value == NULL) {
-            if (!required) return 0;
-            this->RequiredParameterNotPassed(parameter);
-            return 1;
-        }
+        yaml::YamlValue* value;
+        if (this->GetValue(parameter, required, &value)) return 1;
+        if (value == NULL) return 0;
+
         *ret = dynamic_cast<ComponentType*>(this->GetComponentFromYaml(value));
         return *ret == NULL;
     }
@@ -101,6 +103,9 @@ class Config {
 
     /** @brief Only use if you know what you're doing. */
     Map<yaml::YamlValue>* RawYaml() { return this->config; }
+
+    /** @brief Only use if you know what you're doing. */
+    int Fork(yaml::YamlValue* value, Config* ret);
 
     /** @brief Only use if you know what you're doing. Probably never except
      * when coding the Engine. */

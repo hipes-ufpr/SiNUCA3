@@ -74,6 +74,17 @@ class Component : public Linkable {
     inline Component() : Linkable(sizeof(MessageType)) {}
 
     /**
+     * @brief Checks whether a given component is capable of receiving a request
+     * message at that moment.
+     * @param connectionID The connection ID.
+     * @return True if it is possible to send a request to this component, false
+     * otherwise.
+     */
+    bool IsComponentAvailable(int connectionID) {
+        return this->IsConnectionAvailable(connectionID);
+    }
+
+    /**
      * @brief Connects to another component.
      * @param component The component to connect to.
      * @param bufferSize The size of the buffer to be used.

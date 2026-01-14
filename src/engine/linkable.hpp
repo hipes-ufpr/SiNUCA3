@@ -68,9 +68,15 @@ struct Connection {
     inline int GetMessageSize() const;
 
     /**
-    * @brief Swaps the connection buffers and flushes unread buffers.
-    */
-    void CommitBuffers();
+     * @brief Returns true if the request buffer with id is available and false
+     * if the buffer is full.
+     */
+    inline bool IsRequestBufferAvailable(int id) const;
+
+    /**
+     * @brief Swap the buffers of the connection.
+     */
+    void SwapBuffers();
 
     /**
      * @brief Insert a message into a requestBuffer.
@@ -215,6 +221,8 @@ class Linkable {
      * buffers and do other pos-clock setup jobs.
      */
     void PosClock();
+
+    bool IsConnectionAvailable(int connectionID);
 
     /**
      * @brief This method should be declared here so the simulator can send

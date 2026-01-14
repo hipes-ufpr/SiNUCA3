@@ -179,7 +179,7 @@ void Fetcher::ClockRequestFetch() {
     }
 
     FetchPacket request;
-    request.request = fetchSize - fetchBufferByteUsage;
+    request.request = this->fetchSize - fetchBufferByteUsage;
     this->fetch->SendRequest(this->fetchID, &request);
 }
 

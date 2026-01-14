@@ -108,8 +108,8 @@ struct DynamicInstructionInfo {
 struct InstructionPacket {
     const StaticInstructionInfo* staticInfo;
     DynamicInstructionInfo dynamicInfo;
-    long nextInstruction; /** @brief The engine fills this as it buffers the
-                             next instruction. */
+    unsigned long nextInstruction; /** @brief The engine fills this as it
+                             buffers the next instruction. */
 };
 
 /**
@@ -142,7 +142,8 @@ typedef unsigned long MemoryPacket;
  */
 enum PredictorPacketType {
     PredictorPacketTypeRequestQuery,
-    PredictorPacketTypeRequestUpdate,
+    PredictorPacketTypeRequestTargetUpdate,
+    PredictorPacketTypeRequestDirectionUpdate,
     PredictorPacketTypeResponseUnknown,
     PredictorPacketTypeResponseTake,
     PredictorPacketTypeResponseTakeToAddress,

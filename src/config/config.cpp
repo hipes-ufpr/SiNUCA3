@@ -22,13 +22,23 @@ int Config::Error(const char* parameter, const char* reason) {
     return 1;
 }
 
-int Config::Bool(const char* parameter, bool* ret, bool required) {
-    yaml::YamlValue* value = this->config->Get(parameter);
-    if (value == NULL) {
-        if (!required) return 0;
-        this->RequiredParameterNotPassed(parameter);
-        return 1;
+int Config::GetValue(const char* parameter, bool required,
+                     yaml::YamlValue** ret) {
+    if (this->config != NULL) {
+        yaml::YamlValue* value = this->config->Get(parameter);
+        *ret = value;
+        if (value != NULL) return 0;
     }
+
+    if (!required) return 0;
+    this->RequiredParameterNotPassed(parameter);
+    return 1;
+}
+
+int Config::Bool(const char* parameter, bool* ret, bool required) {
+    yaml::YamlValue* value;
+    if (this->GetValue(parameter, required, &value)) return 1;
+    if (value == NULL) return 0;
 
     if (value->type == yaml::YamlValueTypeString) {
         if (!strcmp(value->value.string, "true") ||
@@ -50,11 +60,9 @@ int Config::Bool(const char* parameter, bool* ret, bool required) {
 }
 
 int Config::Integer(const char* parameter, long* ret, bool required) {
-    yaml::YamlValue* value = this->config->Get(parameter);
-    if (value == NULL) {
-        if (!required) return 0;
-        this->RequiredParameterNotPassed(parameter);
-    }
+    yaml::YamlValue* value;
+    if (this->GetValue(parameter, required, &value)) return 1;
+    if (value == NULL) return 0;
 
     if (value->type == yaml::YamlValueTypeString &&
         sscanf(value->value.string, "%ld", ret) == 1)
@@ -68,11 +76,9 @@ int Config::Integer(const char* parameter, long* ret, bool required) {
 }
 
 int Config::Floating(const char* parameter, double* ret, bool required) {
-    yaml::YamlValue* value = this->config->Get(parameter);
-    if (value == NULL) {
-        if (!required) return 0;
-        this->RequiredParameterNotPassed(parameter);
-    }
+    yaml::YamlValue* value;
+    if (this->GetValue(parameter, required, &value)) return 1;
+    if (value == NULL) return 0;
 
     if (value->type == yaml::YamlValueTypeString &&
         sscanf(value->value.string, "%lf", ret) == 1)
@@ -85,11 +91,9 @@ int Config::Floating(const char* parameter, double* ret, bool required) {
 }
 
 int Config::String(const char* parameter, const char** ret, bool required) {
-    yaml::YamlValue* value = this->config->Get(parameter);
-    if (value == NULL) {
-        if (!required) return 0;
-        this->RequiredParameterNotPassed(parameter);
-    }
+    yaml::YamlValue* value;
+    if (this->GetValue(parameter, required, &value)) return 1;
+    if (value == NULL) return 0;
 
     if (value->type == yaml::YamlValueTypeString) {
         *ret = value->value.string;
@@ -191,4 +195,11 @@ Config CreateFakeConfig(yaml::Parser* parser, const char* content,
 
     return Config(&components, aliases, &definitions, yaml.value.mapping,
                   yaml.location);
+}
+
+int Config::Fork(yaml::YamlValue* value, Config* ret) {
+    if (value->type != yaml::YamlValueTypeMapping) return 1;
+    *ret = Config(this->Components(), this->Aliases(), this->Definitions(),
+                  value->value.mapping, value->location);
+    return 0;
 }
