@@ -300,8 +300,6 @@ int TranslatePinInst(Instruction* inst, const INS* pinInst) {
     }
 
     inst->instructionAddress = INS_Address(*pinInst);
-    /* 16, 32 or 64 bits */
-    inst->effectiveAddressWidth = INS_EffectiveAddressWidth(*pinInst);
     /* at most 15 bytes len (for now) */
     inst->instructionSize = INS_Size(*pinInst);
     /* manual flush with CLFLUSH/CLFLUSHOPT/CLWB/WBINVD/INVD */

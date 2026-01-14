@@ -33,7 +33,6 @@
 #include <tracer/trace_reader.hpp>
 
 #include "engine/default_packets.hpp"
-#include "utils/logging.hpp"
 
 struct ThreadData {
     DynamicTraceReader dynFile;

@@ -85,7 +85,6 @@ enum MemoryRecordType : uint8_t {
 struct Instruction {
     uint64_t instructionAddress;
     uint64_t instructionSize;
-    uint32_t effectiveAddressWidth;
     uint16_t readRegsArray[MAX_REGISTERS];
     uint16_t writtenRegsArray[MAX_REGISTERS];
     uint8_t wRegsArrayOccupation;

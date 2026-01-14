@@ -52,9 +52,7 @@ enum Branch {
 struct StaticInstructionInfo {
     unsigned long instAddress;
     unsigned long instSize;
-
     unsigned int instPredicate;
-    unsigned int effectiveAddressWidth;
 
     Branch branchType;
 

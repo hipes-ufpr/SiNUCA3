@@ -381,8 +381,6 @@ int TestTraceReader() {
                                  instPkt.staticInfo->instSize);
             SINUCA3_DEBUG_PRINTF("\t Instruction address is [%p]\n",
                                  (void *)instPkt.staticInfo->instAddress);
-            SINUCA3_DEBUG_PRINTF("\t Effective addr width [%d]\n",
-                                 instPkt.staticInfo->effectiveAddressWidth);
             SINUCA3_DEBUG_PRINTF("\t Store regs total [%d]\n",
                                  instPkt.staticInfo->numberOfWriteRegs);
             SINUCA3_DEBUG_PRINTF("\t Load regs total [%d]\n",
