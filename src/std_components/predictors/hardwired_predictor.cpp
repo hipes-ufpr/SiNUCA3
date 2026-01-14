@@ -25,6 +25,7 @@
 
 #include <cstring>
 #include <sinuca3.hpp>
+#include "engine/default_packets.hpp"
 
 #include "engine/default_packets.hpp"
 
@@ -49,7 +50,8 @@ void HardwiredPredictor::Respond(int id, PredictorPacket request) {
     const InstructionPacket instruction = request.data.requestQuery;
     bool predict = true;
 
-    if (!instruction.staticInfo->isControlFlow) {
+    // TODO: check if this is the right fix
+    if (instruction.staticInfo->branchType != BranchNone) {
         ++this->numberOfNoBranchs;
         predict = this->noBranch;
     } else {
@@ -62,7 +64,7 @@ void HardwiredPredictor::Respond(int id, PredictorPacket request) {
                 predict = this->call;
                 ++this->numberOfCalls;
                 break;
-            case BranchReturn:
+            case BranchRet:
                 predict = this->ret;
                 ++this->numberOfRets;
                 break;
@@ -73,6 +75,12 @@ void HardwiredPredictor::Respond(int id, PredictorPacket request) {
             case BranchCond:
                 predict = this->cond;
                 ++this->numberOfConds;
+                break;
+            case BranchSysret:
+                predict = this->sysret;
+                ++this->numberOfSysrets;
+                break;
+            case BranchNone:
                 break;
         }
     }

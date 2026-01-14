@@ -169,9 +169,9 @@ unsigned long BranchTargetBuffer::CalculateIndex(unsigned long address) {
 
 int BranchTargetBuffer::RegisterNewBranch(
     const StaticInstructionInfo* instruction, unsigned long target) {
-    unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
-    unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
-    unsigned int bank = this->CalculateBank(instruction->opcodeAddress);
+    unsigned long index = this->CalculateIndex(instruction->instAddress);
+    unsigned long tag = this->CalculateTag(instruction->instAddress);
+    unsigned int bank = this->CalculateBank(instruction->instAddress);
 
     if (this->btb[index]->GetValid()) {
         this->replacements++;
@@ -182,8 +182,8 @@ int BranchTargetBuffer::RegisterNewBranch(
 
 int BranchTargetBuffer::UpdateBranch(const StaticInstructionInfo* instruction,
                                      bool branchState) {
-    unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
-    unsigned int bank = this->CalculateBank(instruction->opcodeAddress);
+    unsigned long index = this->CalculateIndex(instruction->instAddress);
+    unsigned int bank = this->CalculateBank(instruction->instAddress);
 
     return this->btb[index]->UpdateEntry(bank, branchState);
 }
@@ -191,8 +191,8 @@ int BranchTargetBuffer::UpdateBranch(const StaticInstructionInfo* instruction,
 inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
                                       int connectionID) {
     this->queries++;
-    unsigned long index = this->CalculateIndex(instruction->opcodeAddress);
-    unsigned long tag = this->CalculateTag(instruction->opcodeAddress);
+    unsigned long index = this->CalculateIndex(instruction->instAddress);
+    unsigned long tag = this->CalculateTag(instruction->instAddress);
     BTBPacket response;
 
     response.data.response.instruction = instruction;
@@ -213,6 +213,10 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
          * taken branch as valid.
          */
         bool branchTaken = false;
+        response.data.response.instruction = instruction;
+        response.data.response.target =
+            instruction->instAddress + this->interleavingFactor;
+        response.data.response.numberOfBits = this->interleavingFactor;
 
         for (unsigned int i = 0; i < this->interleavingFactor; ++i) {
             if (!(branchTaken)) {
@@ -235,6 +239,10 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
          * In a BTB Miss, it assumes that all instructions are valid and that
          * the next fetch block is sequential.
          */
+        response.data.response.instruction = instruction;
+        response.data.response.target =
+            instruction->instAddress + this->interleavingFactor;
+        response.data.response.numberOfBits = this->interleavingFactor;
         for (unsigned int i = 0; i < this->interleavingFactor; ++i) {
             response.data.response.validBits[i] = true;
         }

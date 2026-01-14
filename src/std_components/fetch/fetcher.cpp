@@ -139,9 +139,9 @@ int Fetcher::ClockCheckPredictor() {
         assert(this->fetchBuffer[i].instruction.staticInfo ==
                response.data.targetResponse.instruction.staticInfo);
         this->fetchBuffer[i].flags |= FetchBufferEntryFlagsPredicted;
-        unsigned long target =
-            this->fetchBuffer[i].instruction.staticInfo->opcodeAddress +
-            this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
+        long target =
+            this->fetchBuffer[i].instruction.staticInfo->instAddress +
+            this->fetchBuffer[i].instruction.staticInfo->instSize;
         // "Redirect" the fetch only if the predictor has an address, otherwise
         // expect the instruction to be at the next logical PC.
         if (response.type == PredictorPacketTypeResponseTakeToAddress) {
@@ -175,7 +175,7 @@ void Fetcher::ClockRequestFetch() {
     unsigned long fetchBufferByteUsage = 0;
     for (unsigned long i = 0; i < this->fetchBufferUsage; ++i) {
         fetchBufferByteUsage +=
-            this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
+            this->fetchBuffer[i].instruction.staticInfo->instSize;
     }
 
     FetchPacket request;

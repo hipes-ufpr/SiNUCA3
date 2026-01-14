@@ -25,47 +25,57 @@
 
 #include <cstring>
 
-const unsigned int MAX_REGISTERS = 32;
-const unsigned int MAX_MEM_OPERATIONS = 16;
-const unsigned int TRACE_LINE_SIZE = 256;
+const int MAX_REGISTERS = 16;
+const int MAX_MEM_OPERATIONS = 16;
+const int TRACE_LINE_SIZE = 256;
+/**
+ * @brief Intel Pin warns that any size < 23 may cause output to be truncated.
+ * This value might increase in the future, so it is set to 25 for safety.
+ */
+const int INST_MNEMONIC_LEN = 25 + sizeof('\0');
 
 /** @brief Enumerates the types of branches. */
 enum Branch {
-    BranchReturn,
+    BranchNone,
     BranchSyscall,
     BranchCall,
+    BranchSysret,
+    BranchRet,
     BranchUncond,
     BranchCond
 };
 
 /**
  * @brief Stores details of an instruction.
- * These details are static and cannot be changed during program execution.
+ * These details are static and wont change during program execution.
  */
 struct StaticInstructionInfo {
-    char opcodeAssembly[TRACE_LINE_SIZE];
-
-    long opcodeAddress;
-    unsigned char opcodeSize;
-    unsigned short int baseReg;
-    unsigned short int indexReg;
-
-    unsigned short readRegs[MAX_REGISTERS];
-    unsigned char numReadRegs;
-    unsigned short writeRegs[MAX_REGISTERS];
-    unsigned char numWriteRegs;
+    unsigned long instAddress;
+    unsigned long instSize;
+    unsigned int instPredicate;
 
     Branch branchType;
-    bool isNonStdMemOp;
-    bool isControlFlow;
-    bool isIndirect;
-    bool isPredicated;
-    bool isPrefetch;
+
+    unsigned short readRegsArray[MAX_REGISTERS];
+    unsigned short writtenRegsArray[MAX_REGISTERS];
+
+    unsigned char numberOfReadRegs;
+    unsigned char numberOfWriteRegs;
+
+    bool isPrefetchHintInst : 1;
+    bool isPredicatedInst : 1;
+    bool isIndirectControlFlowInst : 1;
+    bool instCausesCacheLineFlush : 1;
+    bool instPerformsAtomicUpdate : 1;
+    bool instReadsMemory : 1;
+    bool instWritesMemory : 1;
+
+    char instMnemonic[INST_MNEMONIC_LEN];
 
     inline StaticInstructionInfo() {
         memset(this, 0, sizeof(*this));
-        memcpy(this->opcodeAssembly, "N/A", 4);
-        this->branchType = BranchUncond;
+        memcpy(this->instMnemonic, "N/A", 4);
+        this->branchType = BranchNone;
     }
 };
 
@@ -77,10 +87,10 @@ struct StaticInstructionInfo {
  * instructions, such as vgather and vscatter.
  */
 struct DynamicInstructionInfo {
-    long readsAddr[MAX_MEM_OPERATIONS];
-    long writesAddr[MAX_MEM_OPERATIONS];
-    int readsSize[MAX_MEM_OPERATIONS];
-    int writesSize[MAX_MEM_OPERATIONS];
+    unsigned long readsAddr[MAX_MEM_OPERATIONS];
+    unsigned long writesAddr[MAX_MEM_OPERATIONS];
+    unsigned int readsSize[MAX_MEM_OPERATIONS];
+    unsigned int writesSize[MAX_MEM_OPERATIONS];
     unsigned short numReadings;
     unsigned short numWritings;
 };

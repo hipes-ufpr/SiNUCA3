@@ -26,99 +26,28 @@
 #include <cassert>
 #include <cstdio>
 #include <cstring>
+#include "utils/logging.hpp"
 
 const int MAX_INT_DIGITS = 7;
 
-FILE *sinucaTracer::TraceFileReader::UseFile(const char *path) {
-    char mode[] = "rb";
-    this->tf.file = fopen(path, mode);
-    if (this->tf.file == NULL) {
-        printFileErrorLog(path, mode);
-        return NULL;
-    }
-    this->eofLocation = 0;
-    this->eofFound = false;
-    return this->tf.file;
-}
-
-FILE *sinucaTracer::TraceFileWriter::UseFile(const char *path) {
-    char mode[] = "wb";
-    this->tf.file = fopen(path, mode);
-    if (this->tf.file == NULL) {
-        printFileErrorLog(path, mode);
-        return NULL;
-    }
-    return this->tf.file;
-}
-
-unsigned long sinucaTracer::TraceFileReader::RetrieveLenBytes(
-    void *ptr, unsigned long len) {
-    unsigned long read = fread(ptr, 1, len, this->tf.file);
-    return read;
-}
-
-int sinucaTracer::TraceFileReader::SetBufActiveSize(unsigned long size) {
-    if (size > BUFFER_SIZE) return 1;
-    this->bufActiveSize = size;
-    return 0;
-}
-
-void sinucaTracer::TraceFileReader::RetrieveBuffer() {
-    unsigned long read =
-        this->RetrieveLenBytes(this->tf.buf, this->bufActiveSize);
-    if (read < this->bufActiveSize) {
-        this->eofLocation = read;
-        this->eofFound = true;
-    }
-    this->tf.offsetInBytes = 0;
-}
-
-void *sinucaTracer::TraceFileReader::GetData(unsigned long len) {
-    void *ptr = (void *)(this->tf.buf + this->tf.offsetInBytes);
-    this->tf.offsetInBytes += len;
-    return ptr;
-}
-
-int sinucaTracer::TraceFileWriter::AppendToBuffer(void *ptr,
-                                                  unsigned long len) {
-    if (BUFFER_SIZE - this->tf.offsetInBytes < len) {
-        return 1;
-    }
-    memcpy(this->tf.buf + this->tf.offsetInBytes, ptr, len);
-    this->tf.offsetInBytes += len;
-    return 0;
-}
-
-void sinucaTracer::TraceFileWriter::FlushLenBytes(void *ptr,
-                                                  unsigned long len) {
-    __attribute__((unused)) unsigned long written;
-    written = fwrite(ptr, 1, len, this->tf.file);
-    assert(written == len && "fwrite error");
-}
-
-void sinucaTracer::TraceFileWriter::FlushBuffer() {
-    this->FlushLenBytes(this->tf.buf, this->tf.offsetInBytes);
-    this->tf.offsetInBytes = 0;
-}
-
-unsigned long sinucaTracer::GetPathTidInSize(const char *sourceDir,
+unsigned long GetPathTidInSize(const char *sourceDir,
                                              const char *prefix,
                                              const char *imageName) {
     unsigned long sourceDirLen = strlen(sourceDir);
     unsigned long prefixLen = strlen(prefix);
     unsigned long imageNameLen = strlen(imageName);
-    // 10 is the number of characters on the format string
+    /* 10 is the number of characters on the format string */
     return MAX_INT_DIGITS + 10 + sourceDirLen + prefixLen + imageNameLen;
 }
 
-void sinucaTracer::FormatPathTidIn(char *dest, const char *sourceDir,
+void FormatPathTidIn(char *dest, const char *sourceDir,
                                    const char *prefix, const char *imageName,
-                                   THREADID tid, long destSize) {
+                                   int tid, long destSize) {
     snprintf(dest, destSize, "%s/%s_%s_tid%u.trace", sourceDir, prefix,
              imageName, tid);
 }
 
-unsigned long sinucaTracer::GetPathTidOutSize(const char *sourceDir,
+unsigned long GetPathTidOutSize(const char *sourceDir,
                                               const char *prefix,
                                               const char *imageName) {
     unsigned long sourceDirLen = strlen(sourceDir);
@@ -128,8 +57,48 @@ unsigned long sinucaTracer::GetPathTidOutSize(const char *sourceDir,
     return 9 + sourceDirLen + prefixLen + imageNameLen;
 }
 
-void sinucaTracer::FormatPathTidOut(char *dest, const char *sourceDir,
+void FormatPathTidOut(char *dest, const char *sourceDir,
                                     const char *prefix, const char *imageName,
                                     long destSize) {
     snprintf(dest, destSize, "%s/%s_%s.trace", sourceDir, prefix, imageName);
+}
+
+int FileHeader::FlushHeader(FILE *file) {
+    if (!file) return 1;
+    long orgPos = ftell(file);
+    rewind(file);
+    if (fwrite(this, 1, sizeof(*this), file) != sizeof(*this)) {
+        return 1;
+    }
+    fseek(file, orgPos, SEEK_SET);
+    return 0;
+}
+
+int FileHeader::LoadHeader(FILE* file) {
+    if (!file) return 1;
+    return (fread(this, 1, sizeof(*this), file) != sizeof(*this));
+}
+
+int FileHeader::LoadHeader(char* file, unsigned long* fileOffset) {
+    if (!file) return 1;
+    memcpy(this, file, sizeof(*this));
+    *fileOffset += sizeof(*this);
+    return 0;
+}
+
+void FileHeader::ReserveHeaderSpace(FILE *file) {
+    fseek(file, sizeof(*this), SEEK_SET);
+}
+
+void FileHeader::SetHeaderType(uint8_t fileType) {
+    this->fileType = fileType;
+    if (this->fileType == FileTypeStaticTrace) {
+        strcpy((char*)this->prefix, PREFIX_STATIC_FILE);
+    } else if (this->fileType == FileTypeDynamicTrace) {
+        strcpy((char*)this->prefix, PREFIX_DYNAMIC_FILE);
+    } else if (this->fileType == FileTypeMemoryTrace) {
+        strcpy((char*)this->prefix, PREFIX_MEMORY_FILE);
+    } else {
+        SINUCA3_ERROR_PRINTF("[FileHeader] Unkown file type!\n");
+    }
 }

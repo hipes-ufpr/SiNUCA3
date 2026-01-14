@@ -63,57 +63,43 @@ void TraceDumperComponent::Clock() {
     this->fetch->SendRequest(this->fetchID, &fetch);
     if (this->fetch->ReceiveResponse(this->fetchID, &fetch) == 0) {
         InstructionPacket instruction = fetch.response;
-        if (def ^ this->IsOverride(instruction.staticInfo->opcodeAssembly)) {
+        if (this->def ^ this->IsOverride(instruction.staticInfo->instMnemonic)) {
             ++this->fetched;
-
-            SINUCA3_LOG_PRINTF("TraceDumperComponent %p: Fetched {\n", this);
-            SINUCA3_LOG_PRINTF("  opcodeAssembly: %s\n",
-                               instruction.staticInfo->opcodeAssembly);
-            SINUCA3_LOG_PRINTF("  opcodeAddress: %ld\n",
-                               instruction.staticInfo->opcodeAddress);
-            SINUCA3_LOG_PRINTF("  opcodeSize: %u\n",
-                               instruction.staticInfo->opcodeSize);
-            SINUCA3_LOG_PRINTF("  baseReg: %u\n",
-                               instruction.staticInfo->baseReg);
-            SINUCA3_LOG_PRINTF("  indexReg: %u\n",
-                               instruction.staticInfo->indexReg);
-
-            SINUCA3_LOG_PRINTF("  readRegs: [");
-            for (unsigned char i = 0; i < instruction.staticInfo->numReadRegs;
+          SINUCA3_LOG_PRINTF("TraceDumperComponent %p: Fetched {\n", this);
+            SINUCA3_LOG_PRINTF("  instMnemonic: %s\n",
+                               instruction.staticInfo->instMnemonic);
+            SINUCA3_LOG_PRINTF("  instAddress: %ld\n",
+                               instruction.staticInfo->instAddress);
+            SINUCA3_LOG_PRINTF("  instSize: %lu\n",
+                               instruction.staticInfo->instSize);
+          SINUCA3_LOG_PRINTF("  readRegs: [");
+            for (unsigned char i = 0; i < instruction.staticInfo->numberOfReadRegs;
                  ++i) {
-                SINUCA3_LOG_PRINTF("%u", instruction.staticInfo->readRegs[i]);
-                if (i + 1 < instruction.staticInfo->numReadRegs)
+                SINUCA3_LOG_PRINTF("%u", instruction.staticInfo->readRegsArray[i]);
+                if (i + 1 < instruction.staticInfo->numberOfReadRegs)
                     SINUCA3_LOG_PRINTF(", ");
             }
             SINUCA3_LOG_PRINTF("]\n");
-
-            SINUCA3_LOG_PRINTF("  writeRegs: [");
-            for (unsigned char i = 0; i < instruction.staticInfo->numWriteRegs;
+          SINUCA3_LOG_PRINTF("  writeRegs: [");
+            for (unsigned char i = 0; i < instruction.staticInfo->numberOfWriteRegs;
                  ++i) {
-                SINUCA3_LOG_PRINTF("%u", instruction.staticInfo->writeRegs[i]);
-                if (i + 1 < instruction.staticInfo->numWriteRegs)
+                SINUCA3_LOG_PRINTF("%u", instruction.staticInfo->writtenRegsArray[i]);
+                if (i + 1 < instruction.staticInfo->numberOfWriteRegs)
                     SINUCA3_LOG_PRINTF(", ");
             }
             SINUCA3_LOG_PRINTF("]\n");
-
-            SINUCA3_LOG_PRINTF(
+          SINUCA3_LOG_PRINTF(
                 "  branchType: %d\n",
                 static_cast<int>(instruction.staticInfo->branchType));
             SINUCA3_LOG_PRINTF(
-                "  isNonStdMemOp: %s\n",
-                instruction.staticInfo->isNonStdMemOp ? "true" : "false");
-            SINUCA3_LOG_PRINTF(
-                "  isControlFlow: %s\n",
-                instruction.staticInfo->isControlFlow ? "true" : "false");
-            SINUCA3_LOG_PRINTF(
                 "  isIndirect: %s\n",
-                instruction.staticInfo->isIndirect ? "true" : "false");
+                instruction.staticInfo->isIndirectControlFlowInst ? "true" : "false");
             SINUCA3_LOG_PRINTF(
                 "  isPredicated: %s\n",
-                instruction.staticInfo->isPredicated ? "true" : "false");
+                instruction.staticInfo->isPredicatedInst ? "true" : "false");
             SINUCA3_LOG_PRINTF(
                 "  isPrefetch: %s\n",
-                instruction.staticInfo->isPrefetch ? "true" : "false");
+                instruction.staticInfo->isPrefetchHintInst ? "true" : "false");
             SINUCA3_LOG_PRINTF("}\n");
         }
     }

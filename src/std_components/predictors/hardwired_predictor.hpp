@@ -43,6 +43,7 @@ class HardwiredPredictor : public Component<PredictorPacket> {
     unsigned long numberOfSyscalls; /** @brief Number of syscalls executed. */
     unsigned long numberOfCalls;    /** @brief Number of calls executed. */
     unsigned long numberOfRets;     /** @brief Number of returns executed. */
+    unsigned long numberOfSysrets; 
     unsigned long
         numberOfUnconds; /** @brief Number of unconditional branchs executed. */
     unsigned long
@@ -53,6 +54,7 @@ class HardwiredPredictor : public Component<PredictorPacket> {
     bool syscall;          /** @brief Wether to predict syscalls correctly.  */
     bool call;             /** @brief Wether to predict calls correctly.  */
     bool ret;              /** @brief Wether to predict returns correctly.  */
+    bool sysret;
     bool uncond; /** @brief Wether to predict unconditional branches correctly.
                   */
     bool cond; /** @brief Wether to predict conditional branches correctly.  */
@@ -72,12 +74,14 @@ class HardwiredPredictor : public Component<PredictorPacket> {
           numberOfSyscalls(0),
           numberOfCalls(0),
           numberOfRets(0),
+          numberOfSysrets(0),
           numberOfUnconds(0),
           numberOfConds(0),
           numberOfNoBranchs(0),
           syscall(true),
           call(true),
           ret(true),
+          sysret(true),
           uncond(true),
           cond(true),
           noBranch(true) {}

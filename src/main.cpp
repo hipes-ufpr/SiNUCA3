@@ -90,7 +90,7 @@ void usage() {
  */
 TraceReader* AllocTraceReader(const char* traceReader) {
     if (strcmp(traceReader, "sinuca3") == 0)
-        return new sinucaTracer::SinucaTraceReader;
+        return new SinucaTraceReader;
     else
         return NULL;
 }

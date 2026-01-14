@@ -51,7 +51,7 @@ void SimpleCore::Clock() {
         0) {
         ++this->numFetchedInstructions;
         if (this->instructionMemory != NULL) {
-            MemoryPacket fetchPacket = fetch.response.staticInfo->opcodeAddress;
+            MemoryPacket fetchPacket = fetch.response.staticInfo->instAddress;
             this->instructionMemory->SendRequest(this->instructionConnectionID,
                                                  &fetchPacket);
             if (this->dataMemory != NULL) {

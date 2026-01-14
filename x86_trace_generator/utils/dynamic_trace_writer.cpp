@@ -22,56 +22,79 @@
 
 #include "dynamic_trace_writer.hpp"
 
-#include <cassert>
+#include <cstdlib>
 
-#include "../../src/utils/logging.hpp"
+#include "tracer/sinuca/file_handler.hpp"
+#include "utils/logging.hpp"
+
 extern "C" {
 #include <alloca.h>
 }
 
-sinucaTracer::DynamicTraceFile::DynamicTraceFile(const char* source,
-                                                 const char* img,
-                                                 THREADID tid) {
-    unsigned long bufferSize =
-        sinucaTracer::GetPathTidInSize(source, "dynamic", img);
-    char* path = (char*)alloca(bufferSize);
+int DynamicTraceWriter::OpenFile(const char* sourceDir, const char* imageName,
+                                 int tid) {
+    unsigned long bufferSize;
+    char* path;
 
-    FormatPathTidIn(path, source, "dynamic", img, tid, bufferSize);
-    this->UseFile(path);
+    bufferSize = GetPathTidInSize(sourceDir, "dynamic", imageName);
+    path = (char*)alloca(bufferSize);
+    FormatPathTidIn(path, sourceDir, "dynamic", imageName, tid, bufferSize);
+    this->file = fopen(path, "wb");
+    if (this->file == NULL) {
+        SINUCA3_ERROR_PRINTF("Failed to alloc file in dynamic trace!");
+        return 1;
+    }
+    this->header.ReserveHeaderSpace(this->file);
 
-    this->totalExecInst = 0;
-    /*
-     * This space will be used to store the total of instruction executed per
-     * thread.
-     */
-    fseek(this->tf.file, 1 * sizeof(this->totalExecInst), SEEK_SET);
+    return 0;
 }
 
-sinucaTracer::DynamicTraceFile::~DynamicTraceFile() {
-    SINUCA3_DEBUG_PRINTF("Last DynamicTraceFile flush\n");
-    if (this->tf.offsetInBytes > 0) {
-        this->FlushBuffer();
+int DynamicTraceWriter::FlushRecordArray() {
+    if (this->file == NULL) {
+        SINUCA3_ERROR_PRINTF("File pointer is nil in mem trace!\n");
+        return 1;
     }
 
-    rewind(this->tf.file);
-    fwrite(&this->totalExecInst, sizeof(this->totalExecInst), 1, this->tf.file);
-    SINUCA3_DEBUG_PRINTF("totalExecInst [%lu]\n", this->totalExecInst);
-}
+    unsigned long occupationInBytes =
+        this->recordArrayOccupation * sizeof(*this->recordArray);
 
-void sinucaTracer::DynamicTraceFile::PrepareId(BBLID id) { this->bblId = id; }
-
-void sinucaTracer::DynamicTraceFile::IncTotalExecInst(int ins) {
-    this->totalExecInst += ins;
-}
-
-void sinucaTracer::DynamicTraceFile::AppendToBufferId() {
-    this->DynamicAppendToBuffer(&this->bblId, sizeof(this->bblId));
-}
-
-void sinucaTracer::DynamicTraceFile::DynamicAppendToBuffer(void* ptr,
-                                                           unsigned long len) {
-    if (this->AppendToBuffer(ptr, len)) {
-        this->FlushBuffer();
-        this->AppendToBuffer(ptr, len);
+    if (fwrite(this->recordArray, 1, occupationInBytes, this->file) !=
+        occupationInBytes) {
+        SINUCA3_ERROR_PRINTF("Failed to flush memory records!\n");
+        return 1;
     }
+
+    return 0;
+}
+
+int DynamicTraceWriter::CheckRecordArray() {
+    if (this->IsRecordArrayFull()) {
+        if (this->FlushRecordArray()) {
+            SINUCA3_ERROR_PRINTF("Failed to flush mem record array!\n")
+            return 1;
+        }
+        this->ResetRecordArray();
+    }
+    return 0;
+}
+
+int DynamicTraceWriter::AddDynamicRecord(DynamicTraceRecord record) {
+    this->recordArray[this->recordArrayOccupation] = record;
+    ++this->recordArrayOccupation;
+    if (this->CheckRecordArray()) return 1;
+    return 0;
+}
+
+int DynamicTraceWriter::AddThreadEvent(ThreadEventType evType) {
+    DynamicTraceRecord record;
+    record.recordType = DynamicRecordThreadEvent;
+    record.data.threadEvent = evType;
+    return (this->AddDynamicRecord(record));
+}
+
+int DynamicTraceWriter::AddBasicBlockId(unsigned int identifier) {
+    DynamicTraceRecord record;
+    record.recordType = DynamicRecordBasicBlockIdentifier;
+    record.data.basicBlockId = identifier;
+    return (this->AddDynamicRecord(record));
 }

@@ -22,82 +22,109 @@
 
 #include "memory_trace_reader.hpp"
 
-#include <cstring>
+#include "tracer/sinuca/file_handler.hpp"
+#include "utils/logging.hpp"
 
 extern "C" {
 #include <alloca.h>
 }
 
-sinucaTracer::MemoryTraceFile::MemoryTraceFile(const char *folderPath,
-                                               const char *img, THREADID tid) {
-    unsigned long bufferSize = GetPathTidInSize(folderPath, "memory", img);
-    char *path = (char *)alloca(bufferSize);
-    FormatPathTidIn(path, folderPath, "memory", img, tid, bufferSize);
+int MemoryTraceReader::OpenFile(const char* sourceDir, const char* imageName,
+                                int tid) {
+    unsigned long bufferSize;
+    char* path;
 
-    if (this->UseFile(path) == NULL) {
-        this->isValid = false;
-        return;
+    bufferSize = GetPathTidInSize(sourceDir, "memory", imageName);
+    path = (char*)alloca(bufferSize);
+    FormatPathTidIn(path, sourceDir, "memory", imageName, tid, bufferSize);
+    this->file = fopen(path, "rb");
+    if (this->file == NULL) {
+        SINUCA3_ERROR_PRINTF("Failed to open memory trace file!\n");
+        return 1;
+    }
+    if (this->header.LoadHeader(this->file)) {
+        SINUCA3_ERROR_PRINTF("Failed to read memory trace header!\n");
+        return 1;
     }
 
-    this->RetrieveLenBytes((void *)&this->bufActiveSize, sizeof(unsigned long));
-    this->RetrieveBuffer();
-    this->isValid = true;
+    return 0;
 }
 
-void sinucaTracer::MemoryTraceFile::MemRetrieveBuffer() {
-    this->RetrieveLenBytes(&this->bufActiveSize, sizeof(unsigned long));
-    this->RetrieveBuffer();
+int MemoryTraceReader::ReadMemoryOperations(InstructionPacket* inst) {
+    if (this->reachedEnd) {
+        SINUCA3_ERROR_PRINTF(
+            "[ReadMemoryOperations] already reached end in mem trace file!\n");
+        return 1;
+    }
+
+    if (this->recordArrayIndex == this->numberOfRecordsRead) {
+        if (this->LoadRecordArray()) {
+            this->reachedEnd = true;
+            return 1;
+        }
+    }
+
+    if (this->recordArray[this->recordArrayIndex].recordType !=
+        MemoryRecordHeader) {
+        SINUCA3_ERROR_PRINTF(
+            "[ReadMemoryOperations] Expected memory operation header!\n");
+        SINUCA3_ERROR_PRINTF(
+            "[ReadMemoryOperations] recordType is [%d] and record array index "
+            "is [%d]\n",
+            this->recordArray[this->recordArrayIndex].recordType,
+            this->recordArrayIndex);
+        return 1;
+    }
+
+    int totalMemOps =
+        this->recordArray[this->recordArrayIndex].data.numberOfMemoryOps;
+
+    ++this->recordArrayIndex;
+
+    unsigned char recordType;
+    for (int i = 0; i < totalMemOps; ++i, ++this->recordArrayIndex) {
+        if (this->recordArrayIndex == this->numberOfRecordsRead) {
+            if (this->LoadRecordArray()) {
+                SINUCA3_ERROR_PRINTF(
+                    "[ReadMemoryOperations] invalid number of mem ops!\n");
+                this->reachedEnd = true;
+                return 1;
+            }
+        }
+
+        recordType = this->recordArray[this->recordArrayIndex].recordType;
+        if (recordType == MemoryRecordLoad) {
+            inst->dynamicInfo.readsAddr[inst->dynamicInfo.numReadings] =
+                this->recordArray[this->recordArrayIndex]
+                    .data.operation.address;
+            inst->dynamicInfo.readsSize[inst->dynamicInfo.numReadings] =
+                this->recordArray[this->recordArrayIndex].data.operation.size;
+            inst->dynamicInfo.numReadings++;
+        } else if (recordType == MemoryRecordStore) {
+            inst->dynamicInfo.writesAddr[inst->dynamicInfo.numWritings] =
+                this->recordArray[this->recordArrayIndex]
+                    .data.operation.address;
+            inst->dynamicInfo.writesSize[inst->dynamicInfo.numWritings] =
+                this->recordArray[this->recordArrayIndex].data.operation.size;
+            inst->dynamicInfo.numWritings++;
+        } else {
+            SINUCA3_ERROR_PRINTF(
+                "[ReadMemoryOperations] unexpected record type!\n");
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
-unsigned short sinucaTracer::MemoryTraceFile::GetNumOps() {
-    unsigned short numOps;
+int MemoryTraceReader::LoadRecordArray() {
+    this->recordArrayIndex = 0;
 
-    numOps = *(unsigned short *)this->GetData(SIZE_NUM_MEM_R_W);
-    if (this->tf.offsetInBytes >= this->bufActiveSize) {
-        this->MemRetrieveBuffer();
-    }
-    return numOps;
-}
+    unsigned long readBytes = 0;
+    readBytes =
+        fread(this->recordArray, 1, sizeof(this->recordArray), this->file);
 
-sinucaTracer::DataMEM *sinucaTracer::MemoryTraceFile::GetDataMemArr(
-    unsigned short len) {
-    DataMEM *arrPtr;
+    this->numberOfRecordsRead = readBytes / sizeof(*this->recordArray);
 
-    arrPtr = (DataMEM *)(this->GetData(len * sizeof(DataMEM)));
-    if (this->tf.offsetInBytes >= this->bufActiveSize) {
-        this->MemRetrieveBuffer();
-    }
-    return arrPtr;
-}
-
-void sinucaTracer::MemoryTraceFile::ReadNextMemAccess(
-    InstructionInfo *insInfo, DynamicInstructionInfo *dynInfo) {
-    DataMEM *writeOps;
-    DataMEM *readOps;
-
-    /*
-     * In case the instruction performs non standard memory operations
-     * with variable number of operands, the number of readings/writings
-     * is written directly to the memory trace file
-     *
-     * Otherwise, it was written in the static trace file.
-     */
-    if (insInfo->staticInfo.isNonStdMemOp) {
-        dynInfo->numReadings = this->GetNumOps();
-        dynInfo->numWritings = this->GetNumOps();
-    } else {
-        dynInfo->numReadings = insInfo->staticNumReadings;
-        dynInfo->numWritings = insInfo->staticNumWritings;
-    }
-
-    readOps = this->GetDataMemArr(dynInfo->numReadings);
-    writeOps = this->GetDataMemArr(dynInfo->numWritings);
-    for (unsigned short it = 0; it < dynInfo->numReadings; it++) {
-        dynInfo->readsAddr[it] = readOps[it].addr;
-        dynInfo->readsSize[it] = readOps[it].size;
-    }
-    for (unsigned short it = 0; it < dynInfo->numWritings; it++) {
-        dynInfo->writesAddr[it] = writeOps[it].addr;
-        dynInfo->writesSize[it] = writeOps[it].size;
-    }
+    return (this->numberOfRecordsRead == 0);
 }

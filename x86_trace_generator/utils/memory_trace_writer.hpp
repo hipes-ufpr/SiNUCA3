@@ -20,42 +20,73 @@
 
 /**
  * @file memory_trace_writer.hpp
- * @details All classes defined here inherit from TraceFileWriter and implement
- * the preparation and buffering/flush of data to each file making up a trace
- * (static, dynamic and memory files). All of them implement a PrepareData**
- * method and an AppendToBuffer** one. They should be called in the order:
- * PrepareData**, it fills data structures, and then AppendToBuffer** which
- * deals with buffering/flushing the data.
+ * @details A memory trace file stacks the memory operations. Each instruction
+ * may perform a variable number of accesses to the main memory, therefore
+ * this information must be stored somewhere. Since it may change dynamically,
+ * it is not suitable to be in the static trace, which means that the trace
+ * reader expects a MemoryTraceRecord with the number of operations performed by
+ * the instruction being fetched before the operations per se. Each access is
+ * stored in an individual MemoryTraceRecord. Note that the trace reader knowns
+ * if an instruction accesses the main memory, either writing or reading from
+ * it, because this is saved in the static trace.
  */
 
-#include <pin.H>
-
+#include <cstdio>
 #include <tracer/sinuca/file_handler.hpp>
 
-namespace sinucaTracer {
-
-// Set to be equal to same constant declared in default_packets.hpp
-const unsigned int MAX_MEM_OPERATIONS = 16;
-
-class MemoryTraceFile : public TraceFileWriter {
+/** @brief Check memory_trace_writer.hpp documentation for details */
+class MemoryTraceWriter {
   private:
-    struct DataMEM readOps[MAX_MEM_OPERATIONS];
-    struct DataMEM writeOps[MAX_MEM_OPERATIONS];
-    struct DataMEM stdAccessOp;
-    unsigned int numReadOps;
-    unsigned int numWriteOps;
-    bool wasLastOperationStd;
+    FILE* file;
+    FileHeader header;
+    MemoryTraceRecord recordArray[RECORD_ARRAY_SIZE]; /**<Record buffer. */
+    int recordArrayOccupation; /**<Number of records currently stored. */
 
-    void MemoryAppendToBuffer(void *ptr, unsigned long len);
+    inline void ResetRecordArray() { this->recordArrayOccupation = 0; }
+    inline int IsRecordArrayEmpty() {
+        return (this->recordArrayOccupation <= 0);
+    }
+    inline int IsRecordArrayFull() {
+        return (this->recordArrayOccupation == RECORD_ARRAY_SIZE);
+    }
+
+    int FlushRecordArray();
+    int CheckRecordArray();
+    int AddMemoryRecord(MemoryTraceRecord record);
 
   public:
-    MemoryTraceFile(const char *source, const char *img, THREADID tid);
-    ~MemoryTraceFile();
-    void PrepareDataNonStdAccess(PIN_MULTI_MEM_ACCESS_INFO *pinNonStdInfo);
-    void PrepareDataStdMemAccess(unsigned long addr, unsigned int opSize);
-    void AppendToBufferLastMemoryAccess();
-};
+    inline MemoryTraceWriter() : file(0), recordArrayOccupation(0) {
+        this->header.SetHeaderType(FileTypeMemoryTrace);
+    };
+    inline ~MemoryTraceWriter() {
+        if (!this->IsRecordArrayEmpty()) {
+            if (this->FlushRecordArray()) {
+                SINUCA3_ERROR_PRINTF("Failed to flush memory records!\n");
+            }
+        }
+        if (this->header.FlushHeader(this->file)) {
+            SINUCA3_ERROR_PRINTF("Failed to write memory file header!\n");
+        }
+        if (file) {
+            fclose(file);
+        }
+    }
 
-}  // namespace sinucaTracer
+    /** @brief Create the [tid] memory file in the [sourceDir] directory. */
+    int OpenFile(const char* sourceDir, const char* imageName, int tid);
+    /** @brief Add the number of memory operations. */
+    int AddNumberOfMemOperations(unsigned int memoryOperations);
+    /**
+     * @brief Add a memory operation.
+     * @param address Is the virtual address accessed.
+     * @param size Number of bytes accessed.
+     * @param isLoad True if it is a load op, false if it is a store op.
+     */
+    int AddMemOp(unsigned long address, unsigned int size, bool isLoadOp);
+
+    inline void SetTargetArch(unsigned char target) {
+        this->header.targetArch = target;
+    }
+};
 
 #endif

@@ -22,198 +22,111 @@
 
 #include "static_trace_writer.hpp"
 
-#include <cassert>
-#include <cstring>
-#include <sinuca3.hpp>
-#include <string>
+#include <cstdlib>
 
-#include "pin.H"
 #include "tracer/sinuca/file_handler.hpp"
+#include "utils/logging.hpp"
 
 extern "C" {
 #include <alloca.h>
 }
 
-sinucaTracer::StaticTraceFile::StaticTraceFile(const char* source,
-                                               const char* img) {
-    unsigned long bufferSize =
-        sinucaTracer::GetPathTidOutSize(source, "static", img);
-    char* path = (char*)alloca(bufferSize);
-    FormatPathTidOut(path, source, "static", img, bufferSize);
+int StaticTraceWriter::OpenFile(const char* sourceDir, const char* imageName) {
+    unsigned long bufferSize;
+    char* path;
 
-    this->::sinucaTracer::TraceFileWriter::UseFile(path);
-
-    this->threadCount = 0;
-    this->bblCount = 0;
-    this->instCount = 0;
-
-    /*
-     * This space will be used to store the total amount of BBLs,
-     * number of instructions, and number of threads.
-     */
-    fseek(this->tf.file, 3 * sizeof(unsigned int), SEEK_SET);
-}
-
-sinucaTracer::StaticTraceFile::~StaticTraceFile() {
-    this->FlushBuffer();
-    rewind(this->tf.file);
-    fwrite(&this->threadCount, sizeof(this->threadCount), 1, this->tf.file);
-    fwrite(&this->bblCount, sizeof(this->bblCount), 1, this->tf.file);
-    fwrite(&this->instCount, sizeof(this->instCount), 1, this->tf.file);
-}
-
-void sinucaTracer::StaticTraceFile::PrepareDataIntrinsic(
-    const INS* originalCall, const char* name, unsigned long nameSize,
-    bool read, bool read2, bool write, REG* readRegs, unsigned char numReadRegs,
-    REG* writeRegs, unsigned char numWriteRegs) {
-    memset(&this->data, 0, sizeof(this->data));
-
-    // Must record here that I hate doing this silent failure but it is what
-    // it is, I'm just doing whatever PrepareDataINS originally did.
-    if (nameSize >= MAX_INSTRUCTION_NAME_LENGTH) {
-        nameSize = MAX_INSTRUCTION_NAME_LENGTH - 1;
+    bufferSize = GetPathTidOutSize(sourceDir, "static", imageName);
+    path = (char*)alloca(bufferSize);
+    FormatPathTidOut(path, sourceDir, "static", imageName, bufferSize);
+    this->file = fopen(path, "wb");
+    if (this->file == NULL) {
+        SINUCA3_ERROR_PRINTF("Failed to alloc this->file\n");
+        return 1;
     }
-    memcpy(this->data.name, name, nameSize);
-    this->data.name[nameSize] = '\0';
+    this->header.ReserveHeaderSpace(this->file);
 
-    this->data.addr = INS_Address(*originalCall);
-    this->data.size = INS_Size(*originalCall);
-    this->data.baseReg = REG_INVALID();
-    this->data.indexReg = REG_INVALID();
-    this->data.isRead = read;
-    this->data.isRead2 = read2;
-    this->data.isWrite = write;
-
-    memcpy(this->data.readRegs, readRegs, numReadRegs);
-    memcpy(this->data.writeRegs, writeRegs, numWriteRegs);
-    this->data.numReadRegs = numReadRegs;
-    this->data.numWriteRegs = numWriteRegs;
+    return 0;
 }
 
-void sinucaTracer::StaticTraceFile::PrepareDataINS(const INS* ins) {
-    std::string insName = INS_Mnemonic(*ins);
-    unsigned long nameSize = insName.size();
-    if (nameSize >= MAX_INSTRUCTION_NAME_LENGTH) {
-        nameSize = MAX_INSTRUCTION_NAME_LENGTH - 1;
-    }
-    memcpy(this->data.name, insName.c_str(), nameSize);
-    this->data.name[nameSize] = '\0';
-
-    this->data.addr = INS_Address(*ins);
-    this->data.size = INS_Size(*ins);
-    this->data.baseReg = INS_MemoryBaseReg(*ins);
-    this->data.indexReg = INS_MemoryIndexReg(*ins);
-
-    this->ResetFlags();
-    this->SetFlags(ins);
-    this->SetBranchFields(ins);
-    this->FillRegs(ins);
-}
-
-void sinucaTracer::StaticTraceFile::AppendToBufferDataINS() {
-    this->StaticAppendToBuffer(&this->data, sizeof(this->data));
-}
-
-void sinucaTracer::StaticTraceFile::AppendToBufferNumIns(unsigned int numIns) {
-    this->StaticAppendToBuffer(&numIns, SIZE_NUM_BBL_INS);
-}
-
-void sinucaTracer::StaticTraceFile::StaticAppendToBuffer(void* ptr,
-                                                         unsigned long len) {
-    if (this->AppendToBuffer(ptr, len)) {
-        this->FlushBuffer();
-        this->AppendToBuffer(ptr, len);
-    }
-}
-
-void sinucaTracer::StaticTraceFile::ResetFlags() {
-    this->data.isControlFlow = 0;
-    this->data.isPredicated = 0;
-    this->data.isPrefetch = 0;
-    this->data.isIndirectControlFlow = 0;
-    this->data.isNonStandardMemOp = 0;
-    this->data.isRead = 0;
-    this->data.isRead2 = 0;
-    this->data.isWrite = 0;
-}
-
-void sinucaTracer::StaticTraceFile::SetFlags(const INS* ins) {
-    if (INS_IsPredicated(*ins)) {
-        this->data.isPredicated = 1;
-    }
-    if (INS_IsPrefetch(*ins)) {
-        this->data.isPrefetch = 1;
+int StaticTraceWriter::FlushBasicBlock() {
+    if (this->file == NULL) {
+        SINUCA3_ERROR_PRINTF("File pointer is nil in static trace obj!\n");
+        return 1;
     }
 
-    /*
-     * INS_IsStandardMemop() returns false if this instruction has a memory
-     * operand which has unconventional meaning; returns true otherwise
-     */
-    if (!INS_IsStandardMemop(*ins)) {
-        this->data.isNonStandardMemOp = 1;
-    } else {
-        if (INS_IsMemoryRead(*ins)) {
-            this->data.isRead = 1;
-        }
-        if (INS_HasMemoryRead2(*ins)) {
-            this->data.isRead2 = 1;
-        }
-        if (INS_IsMemoryWrite(*ins)) {
-            this->data.isWrite = 1;
+    unsigned long occupationInBytes =
+        this->basicBlockOccupation * sizeof(*basicBlock);
+
+    if (fwrite(this->basicBlock, 1, occupationInBytes, file) !=
+        occupationInBytes) {
+        SINUCA3_ERROR_PRINTF("Failed to flush static records!\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+int StaticTraceWriter::ReallocBasicBlock() {
+    this->basicBlockArraySize <<= 1;
+    this->basicBlock = (StaticTraceRecord*)realloc(
+        this->basicBlock,
+        sizeof(StaticTraceRecord) * this->basicBlockArraySize);
+    return (this->basicBlock == NULL);
+}
+
+int StaticTraceWriter::AddStaticRecord(StaticTraceRecord record, int pos) {
+    if (this->IsBasicBlockArrayFull()) {
+        if (this->ReallocBasicBlock()) {
+            SINUCA3_ERROR_PRINTF("Failed to realloc basic block!\n");
+            return 1;
         }
     }
+
+    this->basicBlock[pos] = record;
+    if (pos != 0) {
+        ++this->basicBlockOccupation;
+    }
+
+    if (this->IsBasicBlockReadyToBeFlushed()) {
+        if (this->FlushBasicBlock()) {
+            SINUCA3_ERROR_PRINTF("Failed to flush basic block!\n");
+            return 1;
+        }
+        this->ResetBasicBlock();
+    }
+
+    return 0;
 }
 
-void sinucaTracer::StaticTraceFile::SetBranchFields(const INS* ins) {
-    if (INS_IsIndirectControlFlow(*ins)) {
-        this->data.isIndirectControlFlow = 1;
+int StaticTraceWriter::AddBasicBlockSize(unsigned int basicBlockSize) {
+    if (!this->WasBasicBlockReset()) {
+        SINUCA3_ERROR_PRINTF("Basic block control variables were not reset!\n");
+        return 1;
+    }
+    if (basicBlockSize == 0) {
+        SINUCA3_ERROR_PRINTF("Basic block size is not expected to be 0!\n");
+        return 1;
     }
 
-    this->data.isControlFlow = 1;
+    StaticTraceRecord record;
 
-    SINUCA3_DEBUG_PRINTF("Inst: %s\n", INS_Mnemonic(*ins).c_str());
+    record.recordType = StaticRecordBasicBlockSize;
+    record.data.basicBlockSize = basicBlockSize;
+    this->currentBasicBlockSize = basicBlockSize;
 
-    if (INS_IsSyscall(*ins)) {
-        this->data.branchType = BRANCH_SYSCALL;
-    } else if (INS_IsCall(*ins)) {
-        this->data.branchType = BRANCH_CALL;
-    } else if (INS_IsRet(*ins)) {
-        this->data.branchType = BRANCH_RETURN;
-    } else if (INS_IsSysret(*ins)) {
-        this->data.branchType = BRANCH_RETURN;
-    } else if (INS_IsBranch(*ins)) {
-        if (INS_HasFallThrough(*ins)) {
-            this->data.branchType = BRANCH_COND;
-        } else {
-            this->data.branchType = BRANCH_UNCOND;
-        }
-    } else {
-        this->data.branchType = BRANCH_SYSCALL; /* default */
-        this->data.isControlFlow = 0;
-        SINUCA3_WARNING_PRINTF(
-            "Setting default branch type as Syscall with ControlFlow zero\n");
-    }
+    return (this->AddStaticRecord(record, 0));
 }
 
-void sinucaTracer::StaticTraceFile::FillRegs(const INS* ins) {
-    unsigned int operandCount = INS_OperandCount(*ins);
-    this->data.numReadRegs = this->data.numWriteRegs = 0;
-    for (unsigned int i = 0; i < operandCount; ++i) {
-        if (!INS_OperandIsReg(*ins, i)) {
-            continue;
-        }
-
-        if (INS_OperandWritten(*ins, i)) {
-            assert(this->data.numWriteRegs < MAX_REG_OPERANDS &&
-                   "[FillRegs] Error");
-            this->data.writeRegs[this->data.numWriteRegs++] =
-                INS_OperandReg(*ins, i);
-        }
-        if (INS_OperandRead(*ins, i)) {
-            assert(this->data.numReadRegs < MAX_REG_OPERANDS &&
-                   "[FillRegs] Error");
-            this->data.readRegs[this->data.numReadRegs++] =
-                INS_OperandReg(*ins, i);
-        }
+int StaticTraceWriter::AddInstruction(const Instruction* inst) {
+    if (inst == NULL) {
+        SINUCA3_ERROR_PRINTF("Instruction pointer is nil!\n");
+        return 1;
     }
+
+    StaticTraceRecord record;
+
+    record.recordType = StaticRecordInstruction;
+    record.data.instruction = *inst;
+
+    return (this->AddStaticRecord(record, this->basicBlockOccupation));
 }

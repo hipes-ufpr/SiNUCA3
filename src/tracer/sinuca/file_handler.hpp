@@ -2,7 +2,7 @@
 #define SINUCA3_SINUCA_TRACER_FILE_HANDLER_HPP_
 
 //
-// Copyright (C) 2024  HiPES - Universidade Federal do Paraná
+// Copyright (C) 2025  HiPES - Universidade Federal do Paraná
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -20,198 +20,164 @@
 
 /**
  * @file x86_file_handler.hpp
- * @brief Common file handling API for x86 traces.
- * @details It gathers constants, classes and functions used by the trace
- * generator based on intel pin for x86 architecture and the corresponding
- * trace reader. It is appropriate to have such file, as the traces for x86
- * architecture are binary files which implies a deep dependency on how the
- * the reading is done in relation to how the information is stored in the
- * traces. Therefore, maintaining the TraceFileWriter and TraceFileReader
- * implementations together allows for a better undestanding of how they
- * coexist.
+ * @brief Common trace file handling API.
  */
 
 #include <cstdio>
 #include <cstring>
-#include <sinuca3.hpp>
+
+#include "engine/default_packets.hpp"
+#include "utils/logging.hpp"
 
 extern "C" {
+#include <alloca.h>
 #include <errno.h>
+#include <stdint.h>
 }
 
-namespace sinucaTracer {
+#define _PACKED __attribute__((packed))
 
-typedef unsigned int BBLID;
-typedef unsigned int THREADID;
+const int MAX_IMAGE_NAME_SIZE = 255;
+const int RECORD_ARRAY_SIZE = 10000;
+const int CURRENT_TRACE_VERSION = 1;
+const unsigned char MAGIC_NUMBER = 187;
 
-const int CACHE_LINE_SIZE = 64;  // Used in alignas to avoid false sharing
-const int MAX_INSTRUCTION_NAME_LENGTH = 32;
-const unsigned long BUFFER_SIZE = 1 << 20;
-const unsigned long MAX_IMAGE_NAME_SIZE = 255;
-const unsigned long MAX_REG_OPERANDS = 8;
-/*
- * In case of a non standard memory access, the numbers of read and write
- * operations are stored first, hence the following constant exist, and then
- * memory accesses itself. It is done that way to save storage space. It
- * represents the size in bytes designated in the file for the purpose of
- * storing these numbers.
- */
-const unsigned long SIZE_NUM_MEM_R_W = sizeof(unsigned short);
-/*
- * Before each new BBL (basic block) is stored in the static trace, the number
- * of instructions that make up the block is stored. Thus, the following
- * constant is the size in bytes designated to store it in the file.
- */
-const unsigned long SIZE_NUM_BBL_INS = sizeof(unsigned int);
+const char TRACE_TARGET_X86[] = "X86";
+const char TRACE_TARGET_ARM[] = "ARM";
+const char TRACE_TARGET_RISCV[] = "RISCV";
+const char PREFIX_STATIC_FILE[] = "S3S";
+const char PREFIX_DYNAMIC_FILE[] = "S3D";
+const char PREFIX_MEMORY_FILE[] = "S3M";
+const int PREFIX_SIZE = sizeof(PREFIX_STATIC_FILE);
 
-/*
- * One may propably think that an enumerator would be more appropriate here.
- * The issue is that the files are binary and there is no guarantee that an
- * enum will occupy the same size accross different machines, or it is less
- * probable at the very least, which may cause bugs while reading traces
- * generated elsewhere.
- */
-const unsigned char BRANCH_CALL = 1;
-const unsigned char BRANCH_COND = 2;
-const unsigned char BRANCH_UNCOND = 3;
-const unsigned char BRANCH_SYSCALL = 4;
-const unsigned char BRANCH_RETURN = 5;
-
-/**
- * @details DataINS is a packed struct since it is written directly to the
- * static trace (binary file). It is designed to take as little space as
- * possible while storing instruction data.
- */
-struct DataINS {
-    char name[MAX_INSTRUCTION_NAME_LENGTH];
-    unsigned short int readRegs[MAX_REG_OPERANDS];
-    unsigned short int writeRegs[MAX_REG_OPERANDS];
-    unsigned long addr;
-    unsigned short int baseReg;
-    unsigned short int indexReg;
-    unsigned char size;
-    unsigned char numReadRegs;
-    unsigned char numWriteRegs;
-    unsigned char branchType;
-    unsigned char isPredicated : 1;
-    unsigned char isPrefetch : 1;
-    unsigned char isControlFlow : 1;
-    unsigned char isIndirectControlFlow : 1;
-    unsigned char isNonStandardMemOp : 1;
-    unsigned char isRead : 1;
-    unsigned char isRead2 : 1;
-    unsigned char isWrite : 1;
-} __attribute__((packed));
-
-/**
- * @details DataMEM is a packed struct since it is written directly to the
- * memory trace (binary file). It is designed to take as little space as
- * possible while storing memory access data.
- */
-struct DataMEM {
-    unsigned long addr; /**<Virtual address accessed. */
-    unsigned int size;  /**<Size in bytes of memory read or written. */
-} __attribute__((packed));
-
-/**
- * @details This struct is only used internally by the x86 reader. It turns out
- * that more than one instance of the same instruction might be in the processor
- * pipeline at once. Since the number of memory read and write accesses
- * might change between them if the instruction performs non standard memory
- * operations, these values are not kept in the staticInfo struct. As a
- * consequence, when the instruction is standard and the number of operations
- * is not dynamic, they are written to the staticNumReadings/Writings variables.
- */
-struct InstructionInfo {
-    unsigned short staticNumReadings;
-    unsigned short staticNumWritings;
-    StaticInstructionInfo staticInfo;
+enum FileType : uint8_t {
+    FileTypeStaticTrace,
+    FileTypeDynamicTrace,
+    FileTypeMemoryTrace
 };
 
-struct TraceFile {
-    FILE *file;
-    unsigned char *buf;
-    unsigned long offsetInBytes;
+enum TargetArch : uint8_t { TargetArchX86, TargetArchARM, TargetArchRISCV };
 
-    inline TraceFile() : offsetInBytes(0) {
-        this->buf = new unsigned char[BUFFER_SIZE];
+enum StaticTraceRecordType : uint8_t {
+    StaticRecordInstruction,
+    StaticRecordBasicBlockSize
+};
+
+enum DynamicTraceRecordType : uint8_t {
+    DynamicRecordBasicBlockIdentifier,
+    DynamicRecordThreadEvent
+};
+
+enum ThreadEventType : uint32_t {
+    ThreadEventBarrierSync,
+    ThreadEventCriticalStart,
+    ThreadEventCriticalEnd,
+    ThreadEventAbruptEnd
+};
+
+enum MemoryRecordType : uint8_t {
+    MemoryRecordHeader,
+    MemoryRecordLoad,
+    MemoryRecordStore
+};
+
+/** @brief Instruction extracted informations */
+struct Instruction {
+    uint64_t instructionAddress;
+    uint64_t instructionSize;
+    uint16_t readRegsArray[MAX_REGISTERS];
+    uint16_t writtenRegsArray[MAX_REGISTERS];
+    uint8_t wRegsArrayOccupation;
+    uint8_t rRegsArrayOccupation;
+    uint8_t instHasFallthrough;
+    uint8_t isBranchInstruction;
+    uint8_t isSyscallInstruction;
+    uint8_t isCallInstruction;
+    uint8_t isRetInstruction;
+    uint8_t isSysretInstruction;
+    uint8_t isPrefetchHintInst;
+    uint8_t isPredicatedInst;
+    uint8_t isIndirectCtrlFlowInst;
+    uint8_t instCausesCacheLineFlush;
+    uint8_t instPerformsAtomicUpdate;
+    uint8_t instReadsMemory;
+    uint8_t instWritesMemory;
+    char instructionMnemonic[INST_MNEMONIC_LEN];
+} _PACKED;
+
+/** @brief Written to static trace file. */
+struct StaticTraceRecord {
+    union _PACKED {
+        uint16_t basicBlockSize;
+        Instruction instruction;
+    } data;
+    uint8_t recordType;
+
+    inline StaticTraceRecord() { memset(this, 0, sizeof(*this)); }
+} _PACKED;
+
+/** @brief Written to dynamic trace file. */
+struct DynamicTraceRecord {
+    union _PACKED {
+        uint32_t basicBlockId;
+        uint32_t threadEvent;
+    } data;
+    uint8_t recordType;
+
+    inline DynamicTraceRecord() { memset(this, 0, sizeof(*this)); }
+} _PACKED;
+
+/** @brief Written to memory trace file. */
+struct MemoryTraceRecord {
+    union _PACKED {
+        struct _PACKED {
+            uint64_t address; /**<Virtual address accessed. */
+            uint16_t size;    /**<Size in bytes of memory read or written. */
+        } operation;
+        int32_t numberOfMemoryOps;
+    } data;
+    uint8_t recordType;
+
+    inline MemoryTraceRecord() { memset(this, 0, sizeof(*this)); }
+} _PACKED;
+
+/** @brief File header for general usage. */
+struct FileHeader {
+    uint8_t magicNumber;
+    int8_t prefix[PREFIX_SIZE];
+    uint8_t fileType;
+    uint8_t traceVersion;
+    uint8_t targetArch;
+
+    union _PACKED {
+        struct _PACKED {
+            uint32_t instCount;
+            uint32_t bblCount;
+            uint16_t threadCount;
+        } staticHeader;
+        struct {
+            uint64_t totalExecutedInstructions;
+        } dynamicHeader;
+    } data;
+
+    inline FileHeader() {
+        memset(this, 0, sizeof(*this));
+        magicNumber = MAGIC_NUMBER;
+        traceVersion = CURRENT_TRACE_VERSION;
     }
-    inline ~TraceFile() {
-        delete[] this->buf;
-        fclose(file);
-    }
-};
 
-class TraceFileReader {
-  protected:
-    TraceFile tf;
-    bool isValid; /**<False if UseFile fails>.*/
-    bool eofFound;
-    unsigned long eofLocation;   /**<Stores bytes left to end of file.*/
-    unsigned long bufActiveSize; /**<Closest value to BUFFER_SIZE that is a
-                                    multiple of the struct size (e.g. struct
-                                    DataINS). The memory trace stores this value
-                                    after every buffer write, an exception.*/
-
-    /**
-     * @brief Opens trace file and initializes attributes.
-     * @param path Indicates the complete path to trace file.
-     */
-    FILE *UseFile(const char *path);
-    /**
-     * @brief Wrapper to fread.
-     * @param ptr Where to write bytes read from file.
-     * @param len Number of bytes to read from file.
-     */
-    unsigned long RetrieveLenBytes(void *ptr, unsigned long len);
-    /**
-     * @brief Used to modify bufActiveSize
-     */
-    int SetBufActiveSize(unsigned long size);
-    /**
-     * @brief Wrapper to RetrieveLenBytes having the buffer as pointer. It also
-     * detects end of file and resets the offsetInBytes variable.
-     */
-    void RetrieveBuffer();
-    /**
-     * @brief Obtains data from the buffer
-     * @param len Number of bytes to add to the buffer offset
-     * @return Pointer to data (needs to be cast)
-     */
-    void *GetData(unsigned long len);
-
-  public:
-    inline bool Valid() { return this->isValid; }
-};
-
-class TraceFileWriter {
-  protected:
-    TraceFile tf;
-
-    /**
-     * @brief Opens trace file and initializes attributes.
-     * @param path Indicates the complete path to trace file.
-     */
-    FILE *UseFile(const char *path);
-    /**
-     * @brief Appends data to the buffer.
-     * @param ptr Pointer to data to be written.
-     * @param len Number of bytes to copy into buffer.
-     * @return 1 if there is not enough space in buffer, 0 otherwise.
-     */
-    int AppendToBuffer(void *ptr, unsigned long len);
-    /**
-     * @brief Wrapper to fwrite.
-     * @param ptr Where to read bytes from to be written to file.
-     * @param len Number of bytes to be written to file.
-     */
-    void FlushLenBytes(void *ptr, unsigned long len);
-    /**
-     * @brief Wrapper to FlushLenBytes having the buffer as pointer. It also
-     * resets the offsetInBytes variable.
-     */
-    void FlushBuffer();
-};
+    /** @brief Write header to file. */
+    int FlushHeader(FILE *file);
+    /** @brief Read header from file. */
+    int LoadHeader(FILE *file);
+    /** @brief Read header from file if it is mapped to virtual memory. */
+    int LoadHeader(char *file, unsigned long *fileOffset);
+    /** @brief Adjust file pointer. The header is generally written at file
+     * clousure, so the file ptr must be moved to leave enough space for it. */
+    void ReserveHeaderSpace(FILE *file);
+    /** @brief Set header type and prefix. */
+    void SetHeaderType(uint8_t fileType);
+} _PACKED;
 
 inline void printFileErrorLog(const char *path, const char *mode) {
     SINUCA3_ERROR_PRINTF("Could not open [%s] in [%s] mode: ", path, mode);
@@ -236,7 +202,7 @@ unsigned long GetPathTidInSize(const char *sourceDir, const char *prefix,
  * @param destSize Max capacity of dest string.
  */
 void FormatPathTidIn(char *dest, const char *sourceDir, const char *prefix,
-                     const char *imageName, THREADID tid, long destSize);
+                     const char *imageName, int tid, long destSize);
 
 /**
  * @brief Get size of the formatted path string without the thread id.
@@ -256,7 +222,5 @@ unsigned long GetPathTidOutSize(const char *sourceDir, const char *prefix,
  */
 void FormatPathTidOut(char *dest, const char *sourceDir, const char *prefix,
                       const char *imageName, long destSize);
-
-}  // namespace sinucaTracer
 
 #endif

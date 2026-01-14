@@ -32,6 +32,7 @@
 #include <std_components/misc/delay_queue.hpp>
 #include <std_components/misc/queue.hpp>
 #include <std_components/predictors/gshare_predictor.hpp>
+#include <tracer/sinuca/trace_reader.hpp>
 #include <std_components/predictors/ras.hpp>
 #include <utils/map.hpp>
 
@@ -50,6 +51,7 @@ int Test(const char* test) {
     TEST(TestQueue);
     TEST(TestDelayQueue);
     TEST(TestGshare);
+    TEST(TestTraceReader);
     TEST(TestHashMap);
 
     return -1;

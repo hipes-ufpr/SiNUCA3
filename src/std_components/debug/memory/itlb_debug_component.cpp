@@ -49,7 +49,7 @@ void iTLBDebugComponent::F0() {
         this->fetchBuffer.Enqueue(&packet);
         this->waitingFor -= 1;
         SINUCA3_DEBUG_PRINTF("%p: F0: Fetched instruction %s\n", this,
-                             packet.response.staticInfo->opcodeAssembly);
+                             packet.response.staticInfo->instMnemonic);
     }
 
     if (this->waitingFor < this->fetchBuffer.GetSize() &&
@@ -81,7 +81,7 @@ void iTLBDebugComponent::F1() {
     if (!this->tlbRequestBuffer.IsFull() &&
         !this->fetchBuffer.Dequeue(&packet)) {
         Address virtualAddress =
-            static_cast<Address>(packet.response.staticInfo->opcodeAddress);
+            static_cast<Address>(packet.response.staticInfo->instAddress);
         this->itlb->SendRequest(this->itlbID, &virtualAddress);
         this->tlbRequestBuffer.Enqueue(&virtualAddress);
         SINUCA3_DEBUG_PRINTF("%p: F1: Sending request %p to itlb.\n", this,

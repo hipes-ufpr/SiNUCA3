@@ -35,7 +35,7 @@ void SimpleExecutionUnit::Clock() {
         InstructionPacket packet;
         while (this->ReceiveRequestFromConnection(i, &packet) == 0) {
             SINUCA3_DEBUG_PRINTF("[SimpleExecutionUnit] %p: executing %s.\n",
-                                 this, packet.staticInfo->opcodeAssembly);
+                                 this, packet.staticInfo->instMnemonic);
             ++this->numberOfInstructions;
         }
     }

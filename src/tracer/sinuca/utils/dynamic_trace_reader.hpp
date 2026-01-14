@@ -21,31 +21,61 @@
 /**
  * @file dynamic_trace_reader.hpp
  * @brief Class implementation of the dynamic trace reader.
- * @details The x86 based dynamic trace is a binary file having a sequential
- * list of indices of basic blocks indicating the flow of execution. Each index
- * is stored as a BBLID, a type defined in x86_file_handler header.
+ * @details .
  */
 
+#include <cstdio>
 #include <tracer/sinuca/file_handler.hpp>
 
-namespace sinucaTracer {
+#include "utils/logging.hpp"
 
-class DynamicTraceFile : public TraceFileReader {
+/** @brief Check dynamic_trace_reader.hpp documentation for details */
+class DynamicTraceReader {
   private:
-    unsigned long totalExecInst; /**<Total instructions executed per thread. */
+    FILE* file;
+    FileHeader header;
+    DynamicTraceRecord recordArray[RECORD_ARRAY_SIZE];
+    int numberOfRecordsRead;
+    int recordArrayIndex;
+    bool reachedEnd;
+
+    int LoadRecordArray();
+
   public:
-    DynamicTraceFile(const char *sourceDir, const char *imgName, THREADID tid);
-    /**
-     * @brief Reads new bbl index from buffer. It retrieves a new buffer when
-     * necessary.
-     * @param bbl Pointer where index is copied to.
-     * @return 1 if end of file reached, 0 otherwise.
-     */
-    int ReadNextBBl(BBLID *bbl);
+    inline DynamicTraceReader()
+        : file(0), numberOfRecordsRead(0), reachedEnd(0) {}
+    inline ~DynamicTraceReader() {
+        if (file) {
+            fclose(this->file);
+        }
+        if (!this->reachedEnd && this->recordArrayIndex != numberOfRecordsRead) {
+            SINUCA3_WARNING_PRINTF(
+                "Basic block ids may have been left unread\n");
+        }
+    }
 
-    inline unsigned long GetTotalExecInst() { return this->totalExecInst; }
+    int OpenFile(const char* sourceDir, const char* imageName, int tid);
+    int ReadDynamicRecord();
+
+    inline unsigned long GetTotalExecutedInstructions() {
+        return this->header.data.dynamicHeader.totalExecutedInstructions;
+    }
+    inline DynamicTraceRecordType GetRecordType() {
+        return (DynamicTraceRecordType)this->recordArray[this->recordArrayIndex]
+        .recordType;
+    }
+    inline unsigned int GetBasicBlockIdentifier() {
+        return this->recordArray[this->recordArrayIndex]
+        .data.basicBlockId;
+    }
+    inline ThreadEventType GetThreadEvent() {
+        return (ThreadEventType)this->recordArray[this->recordArrayIndex].data
+        .threadEvent;
+    }
+    
+    inline bool HasReachedEnd() { return this->reachedEnd; }
+    inline unsigned int GetVersionInt() { return this->header.traceVersion; }
+    inline unsigned int GetTargetInt() { return this->header.targetArch; }
 };
-
-}  // namespace sinucaTracer
 
 #endif

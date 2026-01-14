@@ -32,9 +32,10 @@ class TraceDumperComponent : public Component<int> {
     Component<FetchPacket>* fetch;
     unsigned long fetched;
     unsigned int fetchID;
-    bool def;
+    bool def; /**< */
 
     void Override(const char* instruction);
+    /** @brief */
     bool IsOverride(const char* instruction);
 
   public:

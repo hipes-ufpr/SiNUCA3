@@ -26,12 +26,10 @@ int main(void) {
     volatile int b = 5;
 
     BeginInstrumentationBlock();
-    EnableThreadInstrumentation();
 
     a = IterativeFactorial(a);
     b = RecursiveFactorial(b);
 
-    DisableThreadInstrumentation();
     EndInstrumentationBlock();
 
     return 0;

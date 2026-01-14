@@ -46,19 +46,6 @@ void BeginInstrumentationBlock(void);
 void EndInstrumentationBlock(void);
 
 /**
- * @brief Enables analysis code execution for the current thread.
- *
- * This function allows the execution of previously inserted instrumentation
- * code (analysis) for the calling thread.
- */
-void EnableThreadInstrumentation(void);
-
-/**
- * @brief Disables analysis code execution for the current thread.
- */
-void DisableThreadInstrumentation(void);
-
-/**
  * @brief Initializes the structures needed for handling intrinsics.
  */
 void InitIntrinsics(void);

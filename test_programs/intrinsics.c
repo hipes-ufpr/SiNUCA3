@@ -14,15 +14,12 @@ int main(void) {
     InitIntrinsics();
 
     BeginInstrumentationBlock();
-    EnableThreadInstrumentation();
-
     volatile int ret;
 
     __asm__ volatile(CALL_INTRINSIC_TEMPLATE(Factorial) : "=a"(ret) : "b"(5) :);
 
     assert(ret == 120);
 
-    DisableThreadInstrumentation();
     EndInstrumentationBlock();
 
     DeInitIntrinsics();

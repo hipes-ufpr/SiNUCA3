@@ -29,6 +29,7 @@ enum FetchResult {
     FetchResultOk,
     FetchResultEnd,
     FetchResultError,
+    FetchResultNop  /**<No operation. */
 };
 
 class TraceReader {
@@ -57,7 +58,7 @@ class TraceReader {
     /**
      * @brief Number of basic blocks in static trace.
      */
-    virtual unsigned long GetTotalBBLs() = 0;
+    virtual int GetTotalBasicBlocks() = 0;
     /**
      * @brief Any statistic of interest.
      */
@@ -68,10 +69,7 @@ class TraceReader {
      * @param tid Thread identifier.
      */
     virtual FetchResult Fetch(InstructionPacket *ret, int tid) = 0;
-    /**
-     * @brief Free allocated memory in OpenTrace.
-     */
-    virtual void CloseTrace() = 0;
+
     virtual ~TraceReader() {}
 };
 

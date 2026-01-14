@@ -20,35 +20,74 @@
 
 /**
  * @file dynamic_trace_writer.hpp
- * @details All classes defined here inherit from TraceFileWriter and implement
- * the preparation and buffering/flush of data to each file making up a trace
- * (static, dynamic and memory files). All of them implement a PrepareData**
- * method and an AppendToBuffer** one. They should be called in the order:
- * PrepareData**, it fills data structures, and then AppendToBuffer** which
- * deals with buffering/flushing the data.
+ * @details A dynamic trace stores the basic blocks that were executed and
+ * thread events (e.g. when a thread reaches a barrier). The trace reader uses
+ * this info to simulate an execution. This file defines the DynamicTraceWriter
+ * class which encapsulates the dynamic trace file and the methods that may
+ * modify it.
  */
 
-#include <pin.H>
-
+#include <cstdio>
 #include <tracer/sinuca/file_handler.hpp>
 
-namespace sinucaTracer {
+#include "utils/logging.hpp"
 
-class DynamicTraceFile : public TraceFileWriter {
+/** @brief Check dynamic_trace_writer.hpp documentation for details */
+class DynamicTraceWriter {
   private:
-    BBLID bblId;                 /**<Basic block identifier. */
-    unsigned long totalExecInst; /**<Total instructions executed per thread. */
+    FILE* file;
+    FileHeader header;
+    DynamicTraceRecord recordArray[RECORD_ARRAY_SIZE]; /**<Buffer of records. */
+    int recordArrayOccupation; /**<The number of records currently stored. */
 
-    void DynamicAppendToBuffer(void *ptr, unsigned long len);
+    inline void ResetRecordArray() { this->recordArrayOccupation = 0; }
+    inline int IsRecordArrayEmpty() {
+        return (this->recordArrayOccupation <= 0);
+    }
+    inline int IsRecordArrayFull() {
+        return (this->recordArrayOccupation == RECORD_ARRAY_SIZE);
+    }
+
+    int FlushRecordArray();
+    int CheckRecordArray();
+    int AddDynamicRecord(DynamicTraceRecord record);
 
   public:
-    DynamicTraceFile(const char *source, const char *img, THREADID tid);
-    void PrepareId(BBLID id);
-    void IncTotalExecInst(int ins);
-    void AppendToBufferId();
-    ~DynamicTraceFile();
-};
+    inline DynamicTraceWriter() : file(0), recordArrayOccupation(0) {
+        this->header.SetHeaderType(FileTypeDynamicTrace);
+    };
+    inline ~DynamicTraceWriter() {
+        if (!this->IsRecordArrayEmpty()) {
+            if (this->FlushRecordArray()) {
+                SINUCA3_ERROR_PRINTF("Failed to flush dynamic records!\n");
+            }
+        }
+        if (this->header.FlushHeader(this->file)) {
+            SINUCA3_ERROR_PRINTF("Failed to write dynamic file header!\n");
+        }
+        if (file) {
+            fclose(file);
+        }
+    }
 
-}  // namespace sinucaTracer
+    /** @brief Create the [tid] dynamic file in the [sourceDir] directory. */
+    int OpenFile(const char* sourceDir, const char* img, int tid);
+    /**
+     * @brief Add thread event record to the trace file.
+     * @param type Event type
+     * @param mutexAddr Unique identifier to mutex. Field ignored if the event
+     * does not request it.
+    */
+    int AddThreadEvent(ThreadEventType evType);
+    /** @brief Add the identifier of basic block executed. */
+    int AddBasicBlockId(unsigned int basicBlockId);
+
+    inline void IncExecutedInstructions(int ins) {
+        this->header.data.dynamicHeader.totalExecutedInstructions += ins;
+    }
+    inline void SetTargetArch(unsigned char target) {
+        this->header.targetArch = target;
+    }
+};
 
 #endif

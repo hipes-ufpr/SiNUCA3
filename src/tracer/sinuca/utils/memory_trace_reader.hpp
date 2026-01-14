@@ -21,46 +21,46 @@
 /**
  * @file memory_trace_reader.hpp
  * @brief Class implementation of the memory trace reader.
- * @details The x86 based memory trace is a binary file having a list of memory
- * operations in sequential order. Each operation is a pair of address and size.
- * Since the final buffer size is not a fixed value, the pintool also stores
- * this value in the file before each buffer flush.
+ * @details The x86 based memory trace is a binary file .
  */
 
-#include <sinuca3.hpp>
+#include <engine/default_packets.hpp>
 #include <tracer/sinuca/file_handler.hpp>
+#include <utils/logging.hpp>
 
-namespace sinucaTracer {
-
-class MemoryTraceFile : public TraceFileReader {
+/** @brief Check memory_trace_reader.hpp documentation for details */
+class MemoryTraceReader {
   private:
-    /**
-     * @brief Reads number of operations from file.
-     */
-    unsigned short GetNumOps();
-    /**
-     * @brief Reads DataMEM array from file.
-     * @param len Array size.
-     */
-    DataMEM *GetDataMemArr(unsigned short len);
+    FILE* file;
+    FileHeader header;
+    MemoryTraceRecord recordArray[RECORD_ARRAY_SIZE];
+    int numberOfRecordsRead;
+    int recordArrayIndex;
+    bool reachedEnd;
+
+    int LoadRecordArray();
 
   public:
-    MemoryTraceFile(const char *folderPath, const char *img, THREADID tid);
-    /**
-     * @brief First reads buffer size, then the buffer itself.
-     */
-    void MemRetrieveBuffer();
-    /**
-     * @brief Reads vector of DataMEM struct from trace and number of operations
-     * in case of a non standard memory access.
-     * @note Read operations are always written before write ones.
-     * @param insInfo Used to get static number of readings and writings.
-     * @param dynInfo Where the information is copied to.
-     */
-    void ReadNextMemAccess(InstructionInfo *insInfo,
-                           DynamicInstructionInfo *dynInfo);
-};
+    inline MemoryTraceReader()
+        : file(0), numberOfRecordsRead(0), recordArrayIndex(0), reachedEnd(0) {
+          };
+    inline ~MemoryTraceReader() {
+        if (file) {
+            fclose(this->file);
+        }
+        if (!this->reachedEnd &&
+            this->recordArrayIndex != numberOfRecordsRead) {
+            SINUCA3_WARNING_PRINTF(
+                "Memory operations may have been left unread!\n");
+        }
+    }
 
-}  // namespace sinucaTracer
+    int OpenFile(const char* sourceDir, const char* imgName, int tid);
+    int ReadMemoryOperations(InstructionPacket* inst);
+
+    inline bool HasReachedEnd() { return this->reachedEnd; }
+    inline unsigned int GetVersionInt() { return this->header.traceVersion; }
+    inline unsigned int GetTargetInt() { return this->header.targetArch; }
+};
 
 #endif

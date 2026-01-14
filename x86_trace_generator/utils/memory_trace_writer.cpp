@@ -22,88 +22,78 @@
 
 #include "memory_trace_writer.hpp"
 
-#include <cassert>
-#include <cstddef>
+#include "tracer/sinuca/file_handler.hpp"
+#include "utils/logging.hpp"
 
-#include "../../src/utils/logging.hpp"
 extern "C" {
 #include <alloca.h>
 }
 
-sinucaTracer::MemoryTraceFile::MemoryTraceFile(const char* source,
-                                               const char* img, THREADID tid) {
-    unsigned long bufferSize =
-        sinucaTracer::GetPathTidInSize(source, "memory", img);
+int MemoryTraceWriter::OpenFile(const char* sourceDir, const char* imageName,
+                                int tid) {
+    unsigned long bufferSize;
+
+    bufferSize = GetPathTidInSize(sourceDir, "memory", imageName);
     char* path = (char*)alloca(bufferSize);
-    FormatPathTidIn(path, source, "memory", img, tid, bufferSize);
-
-    this->::sinucaTracer::TraceFileWriter::UseFile(path);
-}
-
-sinucaTracer::MemoryTraceFile::~MemoryTraceFile() {
-    SINUCA3_DEBUG_PRINTF("Last MemoryTraceFile flush\n");
-    if (this->tf.offsetInBytes > 0) {
-        this->FlushLenBytes(&this->tf.offsetInBytes,
-                            sizeof(this->tf.offsetInBytes));
-        this->FlushBuffer();
+    FormatPathTidIn(path, sourceDir, "memory", imageName, tid, bufferSize);
+    this->file = fopen(path, "wb");
+    if (this->file == NULL) {
+        SINUCA3_ERROR_PRINTF("Failed to alloc this->file\n");
+        return 1;
     }
+    this->header.ReserveHeaderSpace(this->file);
+
+    return 0;
 }
 
-void sinucaTracer::MemoryTraceFile::PrepareDataNonStdAccess(
-    PIN_MULTI_MEM_ACCESS_INFO* pinNonStdInfo) {
-    this->numReadOps = 0;
-    this->numWriteOps = 0;
+int MemoryTraceWriter::FlushRecordArray() {
+    if (this->file == NULL) {
+        SINUCA3_ERROR_PRINTF("File pointer is nil in mem trace!\n");
+        return 1;
+    }
 
-    for (unsigned int it = 0; it < pinNonStdInfo->numberOfMemops; ++it) {
-        if (pinNonStdInfo->memop[it].memopType == PIN_MEMOP_LOAD) {
-            this->readOps[this->numReadOps].addr =
-                pinNonStdInfo->memop[it].memoryAddress;
-            this->readOps[this->numReadOps].size =
-                pinNonStdInfo->memop[it].bytesAccessed;
-            this->numReadOps++;
-        } else {
-            this->readOps[this->numReadOps].addr =
-                pinNonStdInfo->memop[it].memoryAddress;
-            this->writeOps[this->numWriteOps].size =
-                pinNonStdInfo->memop[it].bytesAccessed;
-            this->numWriteOps++;
+    unsigned long occupationInBytes =
+        this->recordArrayOccupation * sizeof(*this->recordArray);
+
+    if (fwrite(this->recordArray, 1, occupationInBytes, this->file) !=
+        occupationInBytes) {
+        SINUCA3_ERROR_PRINTF("[1] Failed to flush memory records!\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+int MemoryTraceWriter::CheckRecordArray() {
+    if (this->IsRecordArrayFull()) {
+        if (this->FlushRecordArray()) {
+            SINUCA3_ERROR_PRINTF("Failed to flush mem record array!\n")
+            return 1;
         }
+        this->ResetRecordArray();
     }
-    // This variable is checked in AppendToBufferLastMemoryAccess
-    this->wasLastOperationStd = false;
+    return 0;
 }
 
-void sinucaTracer::MemoryTraceFile::PrepareDataStdMemAccess(
-    unsigned long addr, unsigned int opSize) {
-    this->stdAccessOp.addr = addr;
-    this->stdAccessOp.size = opSize;
-    // This variable is checked in AppendToBufferLastMemoryAccess
-    this->wasLastOperationStd = true;
+int MemoryTraceWriter::AddMemoryRecord(MemoryTraceRecord record) {
+    this->recordArray[this->recordArrayOccupation] = record;
+    ++this->recordArrayOccupation;
+    if (this->CheckRecordArray()) return 1;
+    return 0;
 }
 
-void sinucaTracer::MemoryTraceFile::AppendToBufferLastMemoryAccess() {
-    if (this->wasLastOperationStd) {
-        this->MemoryAppendToBuffer(&this->stdAccessOp,
-                                   sizeof(this->stdAccessOp));
-    } else {
-        // Append number of read operations
-        this->MemoryAppendToBuffer(&this->numReadOps, SIZE_NUM_MEM_R_W);
-        // Append number of write operations
-        this->MemoryAppendToBuffer(&this->numWriteOps, SIZE_NUM_MEM_R_W);
-        // Append read operations' buffer
-        this->MemoryAppendToBuffer(this->readOps,
-                                   this->numReadOps * sizeof(*this->readOps));
-        // Append write operations' buffer
-        this->MemoryAppendToBuffer(this->writeOps,
-                                   this->numWriteOps * sizeof(*this->writeOps));
-    }
+int MemoryTraceWriter::AddNumberOfMemOperations(unsigned int numMemOps) {
+    MemoryTraceRecord record;
+    record.recordType = MemoryRecordHeader;
+    record.data.numberOfMemoryOps = numMemOps;
+    return (this->AddMemoryRecord(record));
 }
 
-void sinucaTracer::MemoryTraceFile::MemoryAppendToBuffer(void* ptr,
-                                                         size_t len) {
-    if (this->AppendToBuffer(ptr, len)) {
-        this->FlushLenBytes(&this->tf.offsetInBytes, sizeof(unsigned long));
-        this->FlushBuffer();
-        this->AppendToBuffer(ptr, len);
-    }
+int MemoryTraceWriter::AddMemOp(unsigned long address, unsigned int size,
+                                bool isLoadOp) {
+    MemoryTraceRecord record;
+    record.recordType = (isLoadOp) ? MemoryRecordLoad : MemoryRecordStore;
+    record.data.operation.address = address;
+    record.data.operation.size = size;
+    return (this->AddMemoryRecord(record));
 }

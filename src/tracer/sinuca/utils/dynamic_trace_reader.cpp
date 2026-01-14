@@ -22,48 +22,65 @@
 
 #include "dynamic_trace_reader.hpp"
 
-#include <cstdio>
-#include <cstring>
-#include <sinuca3.hpp>
+#include <cstdlib>
+
+#include "tracer/sinuca/file_handler.hpp"
+#include "utils/logging.hpp"
 
 extern "C" {
 #include <alloca.h>
 }
 
-sinucaTracer::DynamicTraceFile::DynamicTraceFile(const char *folderPath,
-                                                 const char *imageName,
-                                                 THREADID tid) {
-    unsigned long bufferSize =
-        GetPathTidInSize(folderPath, "dynamic", imageName);
-    char *path = (char *)alloca(bufferSize);
+int DynamicTraceReader::OpenFile(const char *sourceDir, const char *imageName,
+                                 int tid) {
+    unsigned long bufferSize;
+    char *path;
 
-    FormatPathTidIn(path, folderPath, "dynamic", imageName, tid, bufferSize);
-    if (this->UseFile(path) == NULL) {
-        this->isValid = false;
-        return;
-    }
-
-    /*
-     * The number of executed instructions is placed at the top of the dynamic
-     * file.
-     */
-    fread(&this->totalExecInst, sizeof(this->totalExecInst), 1, this->tf.file);
-    SINUCA3_DEBUG_PRINTF("totalExecInst [%lu]\n", this->totalExecInst);
-
-    this->bufActiveSize =
-        (unsigned int)(BUFFER_SIZE / sizeof(BBLID)) * sizeof(BBLID);
-    this->RetrieveBuffer(); /* First buffer read */
-    this->isValid = true;
-}
-
-int sinucaTracer::DynamicTraceFile::ReadNextBBl(BBLID *bbl) {
-    if (this->eofFound && this->tf.offsetInBytes == this->eofLocation) {
+    bufferSize = GetPathTidInSize(sourceDir, "dynamic", imageName);
+    path = (char *)alloca(bufferSize);
+    FormatPathTidIn(path, sourceDir, "dynamic", imageName, tid, bufferSize);
+    this->file = fopen(path, "rb");
+    if (this->file == NULL) {
+        SINUCA3_ERROR_PRINTF("Failed to open dynamic trace file!\n");
         return 1;
     }
-    if (this->tf.offsetInBytes >= this->bufActiveSize) {
-        this->RetrieveBuffer();
+    if (this->header.LoadHeader(this->file)) {
+        SINUCA3_ERROR_PRINTF("Failed to read dynamic trace header!\n");
+        return 1;
     }
-    *bbl = *(BBLID *)(this->GetData(sizeof(BBLID)));
 
     return 0;
+}
+
+int DynamicTraceReader::ReadDynamicRecord() {
+    if (this->reachedEnd) {
+        SINUCA3_ERROR_PRINTF(
+            "[ReadDynamicRecord] already reached end in dynamic trace file!\n");
+        return 1;
+    }
+
+    this->recordArrayIndex =
+        (this->numberOfRecordsRead == 0) ? 0 : this->recordArrayIndex + 1;
+
+    if (this->recordArrayIndex == this->numberOfRecordsRead) {
+        if (this->LoadRecordArray()) {
+            this->reachedEnd = true;
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+int DynamicTraceReader::LoadRecordArray() {
+    if (this->file == NULL) return 1;
+
+    this->recordArrayIndex = 0;
+    unsigned long readBytes = 0;
+    readBytes =
+        fread(this->recordArray, 1, sizeof(this->recordArray), this->file);
+
+    this->numberOfRecordsRead = readBytes / sizeof(*this->recordArray);
+
+    return (this->numberOfRecordsRead == 0);
 }
