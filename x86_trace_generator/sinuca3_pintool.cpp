@@ -38,6 +38,7 @@
 #include <climits>
 #include <sinuca3.hpp>
 
+#include "engine/default_packets.hpp"
 #include "pin.H"
 #include "tracer/sinuca/file_handler.hpp"
 #include "utils/dynamic_trace_writer.hpp"
@@ -86,7 +87,7 @@ KNOB<UINT32> knobNumberOfInstructions(KNOB_MODE_WRITEONCE, "pintool", "n", "-1",
                                       "Set maximum of instructions.");
 KNOB<std::string> KnobIntrinsics(KNOB_MODE_APPEND, "pintool", "i", "",
                                  "Intrinsic instructions in the format "
-                                 "name:readregs:writeregs:numreads:numwrites");
+                                 "name:readregs:writeregs");
 
 std::vector<const char*> ignoreRtnsVec;
 
@@ -106,9 +107,6 @@ struct IntrinsicInfo {
     REG write[MAX_REGISTERS];
     unsigned char numReadRegs;
     unsigned char numWriteRegs;
-    bool isRead;
-    bool isRead2;
-    bool isWrite;
 };
 
 std::vector<IntrinsicInfo> intrinsics;
@@ -381,10 +379,6 @@ int IntrinsicToSinucaInst(const INS* originalCall, IntrinsicInfo* info,
                           Instruction* inst) {
     memset(inst, 0, sizeof(*inst));
 
-    // bool read = info->numReadRegs >= 1;
-    // bool read2 = info->numReadRegs >= 2;
-    // bool write = info->numWriteRegs >= 1;
-
     unsigned long size = sizeof(inst->instructionMnemonic) - 1;
     strncpy(inst->instructionMnemonic, info->name, size);
     if (size < strlen(info->name)) {
@@ -394,9 +388,8 @@ int IntrinsicToSinucaInst(const INS* originalCall, IntrinsicInfo* info,
 
     inst->instructionAddress = INS_Address(*originalCall);
     inst->instructionSize = INS_Size(*originalCall);
-    // esses campos nao existem mais // this->data.isRead = read;
-    // esses campos nao existem mais // this->data.isRead2 = read2;
-    // esses campos nao existem mais // this->data.isWrite = write;
+    inst->rRegsArrayOccupation = info->numReadRegs;
+    inst->wRegsArrayOccupation = info->numWriteRegs;
 
     // outros campos nao preenchidos
 
@@ -481,17 +474,17 @@ VOID OnTrace(TRACE trace, VOID* ptr) {
              */
             staticTrace->IncStaticInstructionCount();
 
-            // IntrinsicInfo* intrinsic = GetIntrinsicInfo(&ins);
-            // bool isIntrinsic = (intrinsic != NULL);
+            IntrinsicInfo* intrinsic = GetIntrinsicInfo(&ins);
+            bool isIntrinsic = (intrinsic != NULL);
 
-            // if (isIntrinsic) {
-            //     IntrinsicToSinucaInst(&ins, intrinsic, &sinucaInst);
-            //     if (staticTrace->AddInstruction(&sinucaInst)) {
-            //         SINUCA3_ERROR_PRINTF(
-            //             "[OnTrace] Failed to add intrinsic to file\n");
-            //     }
-            //     continue;
-            // }
+            if (isIntrinsic) {
+                IntrinsicToSinucaInst(&ins, intrinsic, &sinucaInst);
+                if (staticTrace->AddInstruction(&sinucaInst)) {
+                    SINUCA3_ERROR_PRINTF(
+                        "[OnTrace] Failed to add intrinsic to file\n");
+                }
+                continue;
+            }
 
             if (TranslatePinInst(&sinucaInst, &ins)) {
                 SINUCA3_ERROR_PRINTF("[OnTrace] Failed to translate ins\n");
@@ -591,12 +584,12 @@ static inline REG RegisterNameToREG(const char* name) {
 
 static inline void SetRegistersInIntrinsicsInfo(REG* arr, unsigned char* num,
                                                 char* str) {
-    // char* sections[sinucaTracer::MAX_REG_OPERANDS];
-    // *num = SeparateStringInSections(str, ',', sections,
-    //                                 sinucaTracer::MAX_REG_OPERANDS);
-    // for (unsigned char i = 0; i < *num; ++i) {
-    //     arr[i] = RegisterNameToREG(sections[i]);
-    // }
+    char* sections[MAX_REGISTERS];
+    *num = SeparateStringInSections(str, ',', sections,
+                                    MAX_REGISTERS);
+    for (unsigned char i = 0; i < *num; ++i) {
+        arr[i] = RegisterNameToREG(sections[i]);
+    }
 }
 
 VOID LoadIntrinsics() {
@@ -609,26 +602,23 @@ VOID LoadIntrinsics() {
         memcpy((void*)strValue, (void*)value.c_str(),
                sizeof(char) * (value.size() + 1));
 
-        char* sections[5];
-        SeparateStringInSections(strValue, ':', sections, 5);
+        char* sections[3];
+        SeparateStringInSections(strValue, ':', sections, 3);
         char* name = sections[0];
         char* readRegs = sections[1];
         char* writeRegs = sections[2];
-        char* numReads = sections[3];
-        char* numWrites = sections[4];
 
         SINUCA3_LOG_PRINTF(
-            "Using intrinsic: %s readRegs: %s writeRegs: %s numReads: %s "
-            "numWrites: %s\n",
-            name, readRegs, writeRegs, numReads, numWrites);
+            "Using intrinsic: %s readRegs: %s writeRegs: %s\n",
+            name, readRegs, writeRegs);
 
         intrinsics.push_back(IntrinsicInfo{});
         IntrinsicInfo* i = &intrinsics[intrinsics.size() - 1];
 
         // Copy the name.
         unsigned int nameSize = strlen(name);
-        // if (nameSize > sinucaTracer::MAX_INSTRUCTION_NAME_LENGTH)
-        //     nameSize = sinucaTracer::MAX_INSTRUCTION_NAME_LENGTH - 1;
+        if (nameSize > INST_MNEMONIC_LEN)
+            nameSize = INST_MNEMONIC_LEN - 1;
         memcpy(&i->name[0], name, nameSize + 1);
         strcpy(&i->loaderName[0], "__");
         strcat(&i->loaderName[0], &i->name[0]);
@@ -637,12 +627,6 @@ VOID LoadIntrinsics() {
         // Copy registers.
         SetRegistersInIntrinsicsInfo(i->read, &i->numReadRegs, readRegs);
         SetRegistersInIntrinsicsInfo(i->write, &i->numWriteRegs, writeRegs);
-
-        // Copy numbers.
-        int nReads = atoi(numReads);
-        i->isRead = nReads > 0;
-        i->isRead2 = nReads > 1;
-        i->isWrite = atoi(numWrites) > 0;
     }
 }
 
@@ -846,17 +830,17 @@ VOID OnImageLoad(IMG img, VOID* ptr) {
                                         "treated!\n", rtnName.c_str());
             }
 
-            // for (IntrinsicInfo& intrinsic : intrinsics) {
-            //     if (rtnName == intrinsic.loaderName) {
-            //         RTN_InsertCall(rtn, IPOINT_BEFORE,
-            //                        (AFUNPTR)StopInstrumentationInThread,
-            //                        IARG_THREAD_ID, IARG_END);
-            //         RTN_InsertCall(rtn, IPOINT_AFTER,
-            //                        (AFUNPTR)ResumeInstrumentationInThread,
-            //                        IARG_THREAD_ID, IARG_END);
-            //         break;
-            //     }
-            // }
+            for (IntrinsicInfo& intrinsic : intrinsics) {
+                if (rtnName == intrinsic.loaderName) {
+                    RTN_InsertCall(rtn, IPOINT_BEFORE,
+                                   (AFUNPTR)StopInstrumentationInThread,
+                                   IARG_THREAD_ID, IARG_END);
+                    RTN_InsertCall(rtn, IPOINT_AFTER,
+                                   (AFUNPTR)ResumeInstrumentationInThread,
+                                   IARG_THREAD_ID, IARG_END);
+                    break;
+                }
+            }
 
             RTN_Close(rtn);
         }

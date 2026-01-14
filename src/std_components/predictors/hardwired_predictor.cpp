@@ -25,6 +25,7 @@
 
 #include <cstring>
 #include <sinuca3.hpp>
+#include "engine/default_packets.hpp"
 
 int HardwiredPredictor::Configure(Config config) {
     if (config.Bool("syscall", &this->syscall)) return 1;
@@ -71,7 +72,11 @@ void HardwiredPredictor::Respond(int id, PredictorPacket request) {
                 predict = this->cond;
                 ++this->numberOfConds;
                 break;
-            default:
+            case BranchSysret:
+                predict = this->sysret;
+                ++this->numberOfSysrets;
+                break;
+            case BranchNone:
                 break;
         }
     }

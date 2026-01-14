@@ -36,13 +36,13 @@ const int INST_MNEMONIC_LEN = 25 + sizeof('\0');
 
 /** @brief Enumerates the types of branches. */
 enum Branch {
+    BranchNone,
     BranchSyscall,
     BranchCall,
     BranchSysret,
     BranchRet,
     BranchUncond,
-    BranchCond,
-    BranchNone
+    BranchCond
 };
 
 /**
@@ -62,13 +62,13 @@ struct StaticInstructionInfo {
     unsigned char numberOfReadRegs;
     unsigned char numberOfWriteRegs;
 
-    bool isPrefetchHintInst;
-    bool isPredicatedInst;
-    bool isIndirectControlFlowInst;
-    bool instCausesCacheLineFlush;
-    bool instPerformsAtomicUpdate;
-    bool instReadsMemory;
-    bool instWritesMemory;
+    bool isPrefetchHintInst : 1;
+    bool isPredicatedInst : 1;
+    bool isIndirectControlFlowInst : 1;
+    bool instCausesCacheLineFlush : 1;
+    bool instPerformsAtomicUpdate : 1;
+    bool instReadsMemory : 1;
+    bool instWritesMemory : 1;
 
     char instMnemonic[INST_MNEMONIC_LEN];
 
