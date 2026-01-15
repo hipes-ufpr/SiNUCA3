@@ -197,8 +197,8 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
 
     response.data.response.instruction = instruction;
     response.data.response.target =
-        instruction->opcodeAddress + ((this->interleavingFactor == 1)
-                                          ? instruction->opcodeSize
+        instruction->instAddress + ((this->interleavingFactor == 1)
+                                          ? instruction->instSize
                                           : (this->interleavingFactor));
     response.data.response.numberOfInstructions = this->interleavingFactor;
     response.data.response.interleavingBits = this->interleavingBits;
@@ -216,7 +216,9 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
         response.data.response.instruction = instruction;
         response.data.response.target =
             instruction->instAddress + this->interleavingFactor;
-        response.data.response.numberOfBits = this->interleavingFactor;
+        
+        // TODO: change numberOfBits field; not present in struct response
+        // response.data.response.numberOfBits = this->interleavingFactor;
 
         for (unsigned int i = 0; i < this->interleavingFactor; ++i) {
             if (!(branchTaken)) {
@@ -242,7 +244,8 @@ inline void BranchTargetBuffer::Query(const StaticInstructionInfo* instruction,
         response.data.response.instruction = instruction;
         response.data.response.target =
             instruction->instAddress + this->interleavingFactor;
-        response.data.response.numberOfBits = this->interleavingFactor;
+        // TODO: change numberOfBits field; not present in struct response
+        // response.data.response.numberOfBits = this->interleavingFactor;
         for (unsigned int i = 0; i < this->interleavingFactor; ++i) {
             response.data.response.validBits[i] = true;
         }
@@ -276,16 +279,16 @@ void BranchTargetBuffer::Clock() {
                     SINUCA3_DEBUG_PRINTF(
                         "[BranchTargetBuffer] %p: consulting instruction [%lx] "
                         "%s\n",
-                        this, packet.data.requestQuery->opcodeAddress,
-                        packet.data.requestQuery->opcodeAssembly);
+                        this, packet.data.requestQuery->instAddress,
+                        packet.data.requestQuery->instMnemonic);
                     this->Query(packet.data.requestQuery, i);
                     break;
 
                 case BTBPacketTypeRequestAddEntry:
                     SINUCA3_DEBUG_PRINTF(
                         "[BranchTargetBuffer] %p: adding entry [%lx] %s\n",
-                        this, packet.data.requestQuery->opcodeAddress,
-                        packet.data.requestQuery->opcodeAssembly);
+                        this, packet.data.requestQuery->instAddress,
+                        packet.data.requestQuery->instMnemonic);
                     this->AddEntry(packet.data.requestAddEntry.instruction,
                                    packet.data.requestAddEntry.target);
                     break;
@@ -293,8 +296,8 @@ void BranchTargetBuffer::Clock() {
                 case BTBPacketTypeRequestUpdate:
                     SINUCA3_DEBUG_PRINTF(
                         "[BranchTargetBuffer] %p: updating [%lx] %s\n", this,
-                        packet.data.requestQuery->opcodeAddress,
-                        packet.data.requestQuery->opcodeAssembly);
+                        packet.data.requestQuery->instAddress,
+                        packet.data.requestQuery->instMnemonic);
                     this->Update(packet.data.requestUpdate.instruction,
                                  packet.data.requestUpdate.branchState);
                     break;

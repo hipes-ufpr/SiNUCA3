@@ -389,8 +389,17 @@ int TestTraceReader() {
                                  instPkt.dynamicInfo.numWritings);
             SINUCA3_DEBUG_PRINTF("\t Load mem total ops [%d]\n",
                                  instPkt.dynamicInfo.numReadings);
-            SINUCA3_DEBUG_PRINTF("\t Instruction is [%s]\n",
-                                 instPkt.staticInfo->instMnemonic);
+            SINUCA3_DEBUG_PRINTF("\t Instruction is prefetch [%s]\n",
+                                 instPkt.staticInfo->isPrefetchHintInst ? "ON" : "OFF");
+            SINUCA3_DEBUG_PRINTF("\t Instruction is predicated [%s]\n",
+                                 instPkt.staticInfo->isPredicatedInst ? "ON" : "OFF");
+            SINUCA3_DEBUG_PRINTF("\t Instruction is indirect control flow [%s]\n",
+                                 instPkt.staticInfo->isIndirectControlFlowInst ? "ON" : "OFF");
+            SINUCA3_DEBUG_PRINTF("\t Instruction performs atomic update [%s]\n",
+                                 instPkt.staticInfo->instPerformsAtomicUpdate ? "ON" : "OFF");
+            SINUCA3_DEBUG_PRINTF("\t Instruction causes cache line flush [%s]\n",
+                                 instPkt.staticInfo->instCausesCacheLineFlush ? "ON" : "OFF");
+                                 
 
             if (instPkt.staticInfo->branchType == BranchCall) {
                 SINUCA3_DEBUG_PRINTF("\t Branch type is BranchCall\n");

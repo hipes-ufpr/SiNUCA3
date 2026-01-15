@@ -33,7 +33,7 @@
  *
  */
 
-// #define NDEBUG
+#define NDEBUG
 
 #include <climits>
 #include <sinuca3.hpp>
@@ -318,6 +318,7 @@ int TranslatePinInst(Instruction* inst, const INS* pinInst) {
     inst->instWritesMemory = INS_IsMemoryWrite(*pinInst);
     /* e.g. CMOV */
     inst->isPredicatedInst = INS_IsPredicated(*pinInst);
+    inst->instPerformsAtomicUpdate = INS_IsAtomicUpdate(*pinInst);
 
     for (unsigned int i = 0; i < INS_OperandCount(*pinInst); ++i) {
         /* Interest only in register operands */

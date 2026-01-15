@@ -28,6 +28,7 @@
 #include <sinuca3.hpp>
 #include <std_components/predictors/interleavedBTB.hpp>
 
+#include "engine/default_packets.hpp"
 #include "utils/map.hpp"
 
 int BoomFetch::Configure(Config config) {
@@ -108,7 +109,7 @@ bool BoomFetch::SentToRas(unsigned long i) {
 
         return true;
     } else if (this->fetchBuffer[i].instruction.staticInfo->branchType ==
-               BranchReturn) {
+               BranchRet) {
         /*
          * We found a return statement, so we unstacked the most recent
          * target from the ras.
@@ -126,7 +127,7 @@ bool BoomFetch::SentToRas(unsigned long i) {
 bool BoomFetch::SentToBTB(unsigned long i) {
     BTBPacket btbPacket;
 
-    if (this->fetchBuffer[i].instruction.staticInfo->isControlFlow) {
+    if (this->fetchBuffer[i].instruction.staticInfo->branchType != BranchNone) {
         btbPacket.type = BTBPacketTypeRequestQuery;
         btbPacket.data.requestQuery =
             this->fetchBuffer[i].instruction.staticInfo;
@@ -208,8 +209,8 @@ int BoomFetch::ClockCheckPredictor() {
         assert(this->fetchBuffer[i].instruction.staticInfo ==
                response.data.targetResponse.instruction.staticInfo);
         unsigned long target =
-            this->fetchBuffer[i].instruction.staticInfo->opcodeAddress +
-            this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
+            this->fetchBuffer[i].instruction.staticInfo->instAddress +
+            this->fetchBuffer[i].instruction.staticInfo->instSize;
 
         this->fetchBuffer[i].flags |= BoomFetchBufferEntryFlagsPredictorCheck;
 
@@ -294,8 +295,8 @@ int BoomFetch::ClockCheckBTB() {
 
             taken =
                 (next !=
-                 this->fetchBuffer[i].instruction.staticInfo->opcodeAddress +
-                     this->fetchBuffer[i].instruction.staticInfo->opcodeSize);
+                 this->fetchBuffer[i].instruction.staticInfo->instAddress +
+                     this->fetchBuffer[i].instruction.staticInfo->instSize);
 
             updateRequest.data.requestUpdate.branchState = taken;
 
@@ -351,7 +352,7 @@ void BoomFetch::ClockRequestFetch() {
     unsigned long fetchBufferByteUsage = 0;
     for (unsigned long i = 0; i < this->fetchBufferUsage; ++i) {
         fetchBufferByteUsage +=
-            this->fetchBuffer[i].instruction.staticInfo->opcodeSize;
+            this->fetchBuffer[i].instruction.staticInfo->instSize;
     }
 
     FetchPacket request;
