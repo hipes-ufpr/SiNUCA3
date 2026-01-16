@@ -19,7 +19,11 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstdlib>
 #include <sinuca3.hpp>
+
+#include "engine/default_packets.hpp"
+#include "utils/logger.hpp"
 
 GsharePredictor::GsharePredictor()
     : entries(NULL),
@@ -36,10 +40,11 @@ GsharePredictor::~GsharePredictor() { this->Deallocate(); }
 int GsharePredictor::Allocate() {
     this->entries = new BimodalCounter[this->numberOfEntries];
     if (!this->entries) {
-        SINUCA3_ERROR_PRINTF("Gshare failed to allocate table\n");
+        SINUCA3_ERROR_PRINTF("[Allocate] Gshare failed to allocate table!\n");
         return 1;
     }
-    this->indexQueue.Allocate(this->indexQueueSize, sizeof(this->currentIndex));
+
+    this->indexQueue.Allocate(this->indexQueueSize, sizeof(unsigned long));
     return 0;
 }
 
@@ -50,98 +55,90 @@ void GsharePredictor::Deallocate() {
     }
     if (!this->indexQueue.IsEmpty()) {
         SINUCA3_WARNING_PRINTF(
-            "Gshare index queue not empty when it was expected to be\n");
+            "[Deallocate] Gshare index queue not empty when it was expected to "
+            "be\n");
     }
     this->indexQueue.Deallocate();
 }
 
-int GsharePredictor::RoundNumberOfEntries(unsigned long requestedSize) {
+void GsharePredictor::RoundNumberOfEntries(unsigned long requestedSize) {
     unsigned int bits = (unsigned int)floor(log2(requestedSize));
     if (bits == 0) {
-        return 1;
-    }
-    this->numberOfEntries = 1 << bits;
-    this->indexBitsSize = bits;
-    return 0;
-}
-
-void GsharePredictor::PreparePacket(PredictorPacket* pkt) {
-    if (this->wasPredictedToBeTaken) {
-        pkt->type = PredictorPacketTypeResponseTake;
+        this->numberOfEntries = 2;
+        this->indexBitsSize = 1;
     } else {
-        pkt->type = PredictorPacketTypeResponseDontTake;
+        this->numberOfEntries = 1 << bits;
+        this->indexBitsSize = bits;
     }
+    SINUCA3_DEBUG_PRINTF("[RoundNumberOfEntries] number of entries is [%lu]\n",
+                         this->numberOfEntries);
 }
 
-int GsharePredictor::EnqueueIndex() {
-    bool ret = this->indexQueue.Enqueue(&this->currentIndex);
-    SINUCA3_DEBUG_PRINTF("Gshare Enq [%ld]\n", this->currentIndex);
+void GsharePredictor::PreparePacket(PredictorPacket* pkt, bool predIsTake) {
+    pkt->type = predIsTake ? PredictorPacketTypeResponseTake
+                           : PredictorPacketTypeResponseDontTake;
+}
+
+int GsharePredictor::EnqueueIndex(unsigned long idx) {
+    bool ret = this->indexQueue.Enqueue(&idx);
     return ret;
 }
 
-int GsharePredictor::DequeueIndex() {
-    bool ret = this->indexQueue.Dequeue(&this->currentIndex);
-    SINUCA3_DEBUG_PRINTF("Gshare Deq [%ld]\n", this->currentIndex);
+int GsharePredictor::DequeueIndex(unsigned long* idx) {
+    bool ret = this->indexQueue.Dequeue(idx);
     return ret;
 }
 
-void GsharePredictor::UpdateEntry() {
-    bool pred = this->entries[this->currentIndex].GetPrediction();
-    if (pred != this->wasBranchTaken) {
+void GsharePredictor::UpdateEntry(unsigned long index, bool wasBranchTaken) {
+    bool pred = this->entries[index].GetPrediction();
+    if (pred != wasBranchTaken) {
         this->numberOfWrongPredictions++;
     }
-    this->entries[this->currentIndex].UpdatePrediction(this->wasBranchTaken);
+    this->entries[index].UpdatePrediction(wasBranchTaken);
 }
 
-void GsharePredictor::UpdateGlobBranchHistReg() {
-    SINUCA3_DEBUG_PRINTF("Gshare Gbhr Bef [%ld]\n", this->globalBranchHistReg);
+void GsharePredictor::UpdateGlobBranchHistReg(bool wasBranchTaken) {
     this->globalBranchHistReg <<= 1;
-    if (this->wasBranchTaken) {
-        this->globalBranchHistReg |= 1;
-    }
-    SINUCA3_DEBUG_PRINTF("Gshare Gbhr Aft [%ld]\n", this->globalBranchHistReg);
+    this->globalBranchHistReg |= (wasBranchTaken) ? 1 : 0;
 }
 
-void GsharePredictor::Update() {
-    if (this->DequeueIndex()) {
-        SINUCA3_ERROR_PRINTF("Gshare table was not updated\n");
+void GsharePredictor::Update(bool wasBranchTaken) {
+    unsigned long index;
+    if (this->DequeueIndex(&index)) {
+        SINUCA3_ERROR_PRINTF("[Update] Dequeue failed!\n");
         return;
     }
-    this->UpdateEntry();
-    this->UpdateGlobBranchHistReg();
+    this->UpdateEntry(index, wasBranchTaken);
+    this->UpdateGlobBranchHistReg(wasBranchTaken);
 }
 
-void GsharePredictor::QueryEntry() {
+bool GsharePredictor::QueryEntry(unsigned long index) {
     this->numberOfPredictions++;
-    this->wasPredictedToBeTaken =
-        this->entries[this->currentIndex].GetPrediction();
+    return this->entries[index].GetPrediction();
 }
 
 void GsharePredictor::Query(PredictorPacket* pkt, unsigned long addr) {
-    this->CalculateIndex(addr);
-    this->QueryEntry();
-    this->PreparePacket(pkt);
-    if (this->EnqueueIndex()) {
-        SINUCA3_WARNING_PRINTF("Gshare index queue full\n");
+    unsigned long idx = this->CalculateIndex(addr);
+    this->PreparePacket(pkt, this->QueryEntry(idx));
+    if (this->EnqueueIndex(idx)) {
+        SINUCA3_WARNING_PRINTF("[Query] Enqueue failed!\n");
     }
 }
 
-void GsharePredictor::CalculateIndex(unsigned long addr) {
+unsigned long GsharePredictor::CalculateIndex(unsigned long addr) {
     unsigned long mask = (1 << this->indexBitsSize) - 1;
-    this->currentIndex = (this->globalBranchHistReg ^ addr) & mask;
-    SINUCA3_DEBUG_PRINTF("Gshare Idx [%ld]\n", this->currentIndex);
+    return (this->globalBranchHistReg ^ addr) & mask;
 }
 
 int GsharePredictor::Configure(Config config) {
-    long numberOfEntries = 0;
-    if (config.Integer("numberOfEntries", &numberOfEntries, true)) return 1;
-    if (numberOfEntries <= 0)
-        return config.Error("numberOfEntries", "is not > 0.");
-    this->numberOfEntries = numberOfEntries;
+    long requestedSize = 0;
+    if (config.Integer("requestedSize", &requestedSize, true)) return 1;
+    if (requestedSize <= 0) return config.Error("requestedSize", "is not > 0.");
+    this->RoundNumberOfEntries(requestedSize);
 
-    long indexQueueSize = 1;
+    long indexQueueSize = 0;
     if (config.Integer("indexQueueSize", &indexQueueSize)) return 1;
-    if (indexQueueSize <= 0)
+    if (indexQueueSize < 0)
         return config.Error("indexQueueSize", "is not > 0.");
     this->indexQueueSize = indexQueueSize;
 
@@ -179,87 +176,76 @@ void GsharePredictor::Clock() {
                 }
             }
             if (packet.type == PredictorPacketTypeRequestDirectionUpdate) {
-                this->wasBranchTaken = packet.data.directionUpdate.taken;
-                this->Update();
+                this->Update(packet.data.directionUpdate.taken);
             }
         }
     }
 }
 
 #ifndef NDEBUG
-const int testSize = 2;
+const int numInst = 101;
+const int len = 4;
+const int numUpdatesPerIns = 12;
 
 int TestGshare() {
     GsharePredictor predictor;
-    PredictorPacket sendPackets[testSize * 2];
-    PredictorPacket recvPackets[testSize];
-    StaticInstructionInfo ins[testSize];
-    const long addrs[] = {0x1, 0x2};
-    const bool taken[] = {false, true};
+    PredictorPacket* queryPackets = new PredictorPacket[numInst];
+    PredictorPacket* updatePackets = new PredictorPacket[numInst];
+    StaticInstructionInfo* ins = new StaticInstructionInfo[numInst];
+    bool* taken = new bool[numInst];
 
-    for (int i = 0; i < testSize; ++i) {
-        sendPackets[i].type = PredictorPacketTypeRequestQuery;
-        sendPackets[i].data.requestQuery.staticInfo = &ins[i];
-        ins[i].instAddress = addrs[i];
-    }
-    for (int i = testSize; i < testSize * 2; ++i) {
-        sendPackets[i].type = PredictorPacketTypeRequestDirectionUpdate;
-        sendPackets[i].data.directionUpdate.taken = taken[i - testSize];
+    srand(0);
+    for (int i = 0; i < numInst; i++) {
+        ins[i].instAddress = (long)rand();
+        taken[i] = (bool)(rand() % 2);
     }
 
     Map<Linkable*> aliases;
     yaml::Parser parser;
-    predictor.Configure(
-        CreateFakeConfig(&parser, "numberOfEntries: 2\n", &aliases));
-    int id = predictor.Connect(testSize);
-
-    // clock 1 (predictor is empty)
-    for (int i = 0; i < testSize; ++i) {
-        predictor.SendRequest(id, &sendPackets[i]);
+    if (predictor.Configure(
+            CreateFakeConfig(&parser, "requestedSize: 1024\n", &aliases))) {
+        return 1;
     }
-    predictor.Clock();
-    predictor.PosClock();
+    int id = predictor.Connect(len);
 
-    // clock 2 (predictor should not respond)
-    assert(predictor.ReceiveResponse(id, &recvPackets[0]) != 0);
-    predictor.Clock();
-    predictor.PosClock();
+    // update predictor `numUpdatesPerIns` times for each instruction
+    for (int i = 0; i < numUpdatesPerIns; i++) {
+        // simulate fetch of instructions
+        for (int j = 0; j < numInst;) {
+            int k;
+            // send query requests
+            for (k = 0; k < len && j < numInst; k++, j++) {
+                queryPackets[j].type = PredictorPacketTypeRequestQuery;
+                queryPackets[j].data.requestQuery.staticInfo = &ins[j];
+                predictor.SendRequest(id, &queryPackets[j]);
+            }
 
-    // clock 3 (predictor expected to respond)
-    for (int i = 0; i < testSize; ++i) {
-        assert(predictor.ReceiveResponse(id, &recvPackets[i]) == 0);
-        SINUCA3_DEBUG_PRINTF("Gshare Predicted [%d] for [%ld] ins addr\n",
-                             recvPackets[i].type, ins[i].instAddress);
-        predictor.SendRequest(id, &sendPackets[i + testSize]);  // send update
+            predictor.Clock();
+            predictor.PosClock();
+            predictor.Clock();
+            predictor.PosClock();
+
+            j -= k;
+            // send update requests
+            for (k = 0; k < len && j < numInst; k++, j++) {
+                updatePackets[j].type =
+                    PredictorPacketTypeRequestDirectionUpdate;
+                updatePackets[j].data.directionUpdate.taken = taken[j];
+                predictor.SendRequest(id, &updatePackets[j]);
+            }
+
+            predictor.Clock();
+            predictor.PosClock();
+            predictor.Clock();
+            predictor.PosClock();
+        }
     }
-    predictor.Clock();
-    predictor.PosClock();
 
-    // clock 4 (query again)
-    for (int i = 0; i < testSize; ++i) {
-        predictor.SendRequest(id, &sendPackets[i]);
-    }
-    predictor.Clock();
-    predictor.PosClock();
-
-    // clock 5 (predictor should not respond)
-    assert(predictor.ReceiveResponse(id, &recvPackets[0]) != 0);
-    predictor.Clock();
-    predictor.PosClock();
-
-    // clock 6 (predictor expected to respond)
-    for (int i = 0; i < testSize; ++i) {
-        assert(predictor.ReceiveResponse(id, &recvPackets[i]) == 0);
-        SINUCA3_DEBUG_PRINTF("Gshare Predicted [%d] for [%ld] ins addr\n",
-                             recvPackets[i].type, ins[i].instAddress);
-        predictor.SendRequest(id, &sendPackets[i + testSize]);  // send update
-    }
-    predictor.Clock();
-    predictor.PosClock();
-
-    // clock 7 (process last update request)
-    predictor.Clock();
     predictor.PrintStatistics();
+    delete[] queryPackets;
+    delete[] updatePackets;
+    delete[] taken;
+    delete[] ins;
 
     return 0;
 }

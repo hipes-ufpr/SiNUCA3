@@ -47,28 +47,25 @@ class GsharePredictor : public Component<PredictorPacket> {
     unsigned long numberOfEntries;          /**<Size of table> */
     unsigned long numberOfPredictions;      /**<Used for statistics> */
     unsigned long numberOfWrongPredictions; /**<Used for statistics> */
-    unsigned long currentIndex;
     unsigned int indexQueueSize; /**<Queue size. Default is unlimited size> */
     unsigned int indexBitsSize;  /**<Number of bits used to address table> */
-    bool wasPredictedToBeTaken;
-    bool wasBranchTaken;
 
     Component<PredictorPacket>* sendTo;
     int sendToId;
 
     /**
      * @brief Round the number of entries to the greatest power of 2 less than
-     * the value in requestedSize.
+     * the value in requestedSize. Default is 2.
      */
-    int RoundNumberOfEntries(unsigned long requestedSize);
+    void RoundNumberOfEntries(unsigned long requestedSize);
     /**
      * @brief Fill response packet with predicted direction of execution.
      */
-    void PreparePacket(PredictorPacket* pkt);
+    void PreparePacket(PredictorPacket* pkt, bool wasPredictedToBeTaken);
     /**
      * @brief Update the predictor table and gbhr.
      */
-    void Update();
+    void Update(bool wasBranchTaken);
     /**
      * @brief Calculate index of access, save it and fill packet with prediction
      * from table.
@@ -78,21 +75,21 @@ class GsharePredictor : public Component<PredictorPacket> {
      * @note Since this predictor does not have a tag in each entry, when
      * queried, it will always output a valid answer.
      */
-    void QueryEntry();
+    bool QueryEntry(unsigned long index);
     /**
      * @return 0 if successfuly, 1 otherwise.
      */
-    int EnqueueIndex();
+    int EnqueueIndex(unsigned long index);
     /**
      * @return 0 if successfuly, 1 otherwise.
      */
-    int DequeueIndex();
+    int DequeueIndex(unsigned long* index);
 
     int Allocate();
     void Deallocate();
-    void CalculateIndex(unsigned long addr);
-    void UpdateGlobBranchHistReg();
-    void UpdateEntry();
+    unsigned long CalculateIndex(unsigned long addr);
+    void UpdateGlobBranchHistReg(bool wasBranchTaken);
+    void UpdateEntry(unsigned long index, bool wasBranchTaken);
 
   public:
     GsharePredictor();
