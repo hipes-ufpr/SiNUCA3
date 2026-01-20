@@ -29,6 +29,7 @@
 #include <std_components/predictors/interleavedBTB.hpp>
 
 #include "engine/default_packets.hpp"
+#include "utils/logging.hpp"
 #include "utils/map.hpp"
 
 int BoomFetch::Configure(Config config) {
@@ -170,6 +171,8 @@ void BoomFetch::ClockSendBuffered() {
             break;
         }
 
+        SINUCA3_DEBUG_PRINTF("BoomFetch sending [%lx] %s\n", this->fetchBuffer[i].instruction.staticInfo->instAddress, this->fetchBuffer[i].instruction.staticInfo->instMnemonic);
+
         this->instructionMemory->SendRequest(this->instructionMemoryID,
                                              &this->fetchBuffer[i].instruction);
 
@@ -197,17 +200,29 @@ int BoomFetch::ClockCheckPredictor() {
 
     PredictorPacket response;
     unsigned long i = 0;
+    int ret = 0;
 
     while (this->fetchBuffer[i].flags & BoomFetchBufferEntryFlagsPredictorCheck)
         ++i;
+
+    bool cont = this->predictor->ReceiveResponse(this->predictorID, &response) == 0; 
+    if (!cont) return 1;
+
+
     /*
      * We depend on the predictor sending the responses in order and, of course,
      * sending only what we actually asked for.
      */
-    while (this->predictor->ReceiveResponse(this->predictorID, &response) ==
-           0) {
+
+    while (cont) {
+        /*
+         * We had a bug here that’s probably the reason Djikstra hated early returns.
+         */
         assert(this->fetchBuffer[i].instruction.staticInfo ==
                response.data.targetResponse.instruction.staticInfo);
+
+        SINUCA3_DEBUG_PRINTF("Predictor Check [%lx] %s\n", this->fetchBuffer[i].instruction.staticInfo->instAddress, this->fetchBuffer[i].instruction.staticInfo->instMnemonic);
+
         unsigned long target =
             this->fetchBuffer[i].instruction.staticInfo->instAddress +
             this->fetchBuffer[i].instruction.staticInfo->instSize;
@@ -224,35 +239,42 @@ int BoomFetch::ClockCheckPredictor() {
 
         /* If a missprediction happened. */
         if (target != this->fetchBuffer[i].instruction.nextInstruction) {
-            return 1;
+            ret = 1;
         }
 
         ++i;
+        cont = this->predictor->ReceiveResponse(this->predictorID, &response) == 0;
     }
 
-    return 0;
+    return ret;
 }
 
 int BoomFetch::ClockCheckRas() {
     if (this->ras == NULL) return 0;
 
+    int ret = 0;
     unsigned long target = 0;
     PredictorPacket response;
 
     this->ras->Clock();
     this->ras->PosClock();
 
-    while (this->ras->ReceiveResponse(this->rasID, &response) == 0) {
+    bool cont = this->ras->ReceiveResponse(this->rasID, &response) == 0;
+    if (!cont) return 1;
+
+    while (cont) {
         target = response.data.targetResponse.target;
 
         /* The return address does not match the next address */
         if (response.data.targetResponse.instruction.nextInstruction !=
             target) {
-            return 1;
+            ret = 1;
         }
+
+        cont = this->ras->ReceiveResponse(this->rasID, &response) == 0;
     }
 
-    return 0;
+    return ret;
 }
 
 int BoomFetch::ClockCheckBTB() {
@@ -261,6 +283,7 @@ int BoomFetch::ClockCheckBTB() {
     BTBPacket response;
     BTBPacket updateRequest;
 
+    int ret = 0;
     bool btbAvailable, taken;
     unsigned int i, next;
 
@@ -268,7 +291,10 @@ int BoomFetch::ClockCheckBTB() {
     this->btb->PosClock();
 
     next = 0;
-    while (this->btb->ReceiveResponse(this->btbID, &response) == 0) {
+    bool cont = this->btb->ReceiveResponse(this->btbID, &response) == 0;
+    
+    if (!cont) return 1;
+    while (cont) {
         i = 0;
         while (
             ((this->fetchBuffer[i].flags &
@@ -303,7 +329,7 @@ int BoomFetch::ClockCheckBTB() {
                 this->btb->SendRequest(this->btbID, &updateRequest);
 
             if (next != response.data.response.target) {
-                return 1;
+                ret = 1;
             }
         } else {
             updateRequest.type = BTBPacketTypeRequestAddEntry;
@@ -316,12 +342,14 @@ int BoomFetch::ClockCheckBTB() {
                 this->btb->SendRequest(this->btbID, &updateRequest);
 
             if (next != response.data.response.target) {
-                return 1;
+                ret = 1;
             }
         }
+
+        cont = this->btb->ReceiveResponse(this->btbID, &response) == 0;
     }
 
-    return 0;
+    return ret;
 }
 
 void BoomFetch::ClockUnbuffer() {
@@ -389,8 +417,8 @@ void BoomFetch::Clock() {
 
     // Don't fetch if a misspredict happened. The fetchClock is set to 0 so when
     // the missprediction is paid, we start fetching immediatly.
-    if (!forceFetch && predictionResult == 0 && rasResult == 0 &&
-        btbResult == 0) {
+    if (!forceFetch && predictionResult != 0 && rasResult != 0 &&
+        btbResult != 0) {
         ++this->misspredictions;
         this->currentPenalty = this->misspredictPenalty;
         this->fetchClock = 0;
