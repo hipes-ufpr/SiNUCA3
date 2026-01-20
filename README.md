@@ -6,7 +6,16 @@ Third iteration of the Simulator of Non-Uniform Cache Architectures.
 
 ## Main authors
 
-todo: put the name of everyone here.
+SiNUCA3 is developed by the following students of
+[Dr. Marco Zanata](https://github.com/mazalves):
+
+- [Gabriel G. de Brito](https://github.com/gboncoffee)
+- [Vinícius Santos](https://github.com/Vini72SH)
+- [Fernando de Barros Castro](https://github.com/ferbcastro)
+- [Bruno Krügel](https://github.com/bk304)
+- [Daniel Siqueira](https://github.com/Dalien-S)
+- [Pedro Endrigo dos Santos](https://github.com/Endrigopedro)
+- [Giuliano Tavares](https://github.com/GiuTP)
 
 ## Dependencies
 
@@ -42,12 +51,15 @@ You'll need to add your custom components to the
 
 Most of the API is accessible via `sinuca3.hpp`.
 
-## Modularization schema
+## Modularization and configuration schema
 
-We use virtual classes for modularization, so you can code anything as a
-component as long as it behaves as one. For example, you may code anything to be
-put in the place of the cache as long as it has the methods defined for the
-`MemoryComponent` virtual class (wait, it's just a single method!).
+Simulation components are loosely defined as a stage of the pipeline. They
+communicate via a message passing interface. Each cycle, a component can read
+messages send to it by other components in the previous cycle. To create a
+component, one's need to inherit from `Component<T>`, whereas T is the type of
+message it receives.
+
+To simulate a system, define it in a yaml configuration file.
 
 When needing to actually reuse code, prefer to compose, I.e, add the specific
 class as a private attribute and call it's methods.

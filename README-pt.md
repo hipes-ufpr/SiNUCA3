@@ -5,7 +5,16 @@ Arquiteturas de Cache Não-Uniformes).
 
 ## Principais autores
 
-todo: colocar o nome de geral aqui.
+O SiNUCA3 é desenvolvido pelos seguintes alunos do 
+[Dr. Marco Zanata](https://github.com/mazalves):
+
+- [Gabriel G. de Brito](https://github.com/gboncoffee)
+- [Vinícius Santos](https://github.com/Vini72SH)
+- [Fernando de Barros Castro](https://github.com/ferbcastro)
+- [Bruno Krügel](https://github.com/bk304)
+- [Daniel Siqueira](https://github.com/Dalien-S)
+- [Pedro Endrigo dos Santos](https://github.com/Endrigopedro)
+- [Giuliano Tavares](https://github.com/GiuTP)
 
 ## Dependências
 
@@ -43,11 +52,13 @@ A maior parte da API é acessível pelo header `sinuca3.hpp`.
 
 ## Esquema de modularização
 
-Nós usamos classes virtuais para modularização, para que se possa escrever
-qualquer coisa como um componente desde que ele se comporte como um. Por
-exemplo, você pode escrever qualquer coisa para colocar no lugar do cache desde
-que tenha os métodos definidos para a classe virtual `MemoryComponent` (espera,
-é só um método!).
+Componentes de simulação são definidos aproximadamente como estágios de um
+pipeline. Eles se comunicam por uma interface de mensagens. A cada ciclo, um
+componente por ler mensagens transmitidas pelos outros no ciclo anterior. Para
+criar um componente, basta herdar de `Component<T>`, onde T é o tipo de mensagem
+que ele recebe.
+
+Para simular um sistema, defina-o em arquivos de configuração yaml.
 
 Quando precisar reusar código, prefira composição, isso é, adicione a classe
 específica como um atributo privado e chame seus métodos.
