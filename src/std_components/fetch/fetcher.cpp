@@ -106,10 +106,13 @@ int Fetcher::ClockCheckPredictor() {
     PredictorPacket response;
     unsigned long i = 0;
     int ret = 0;
+
+    bool cont =
+        this->predictor->ReceiveResponse(this->predictorID, &response) == 0;
+    if (!cont) return 1;
     // We depend on the predictor sending the responses in order and, of course,
     // sending only what we actually asked for.
-    while (this->predictor->ReceiveResponse(this->predictorID, &response) ==
-           0) {
+    while (cont) {
         assert(this->fetchBuffer[i].instruction.staticInfo ==
                response.data.targetResponse.instruction.staticInfo);
         this->fetchBuffer[i].flags |= FetchBufferEntryFlagsPredicted;
@@ -126,6 +129,8 @@ int Fetcher::ClockCheckPredictor() {
             ret = 1;
         }
         ++i;
+        cont =
+            this->predictor->ReceiveResponse(this->predictorID, &response) == 0;
     }
 
     return ret;
@@ -180,9 +185,10 @@ void Fetcher::Clock() {
     // If paying a misspredict penalty.
     if (this->currentPenalty > 0) {
         --this->currentPenalty;
-        // In the last cycle of paying the prediction, we need to force fetching
-        // new instructions.
-        if (this->currentPenalty > 0) return;
+        // In the last three cycles of paying the prediction, we need to force
+        // fetching new instructions, so they arrive in the last one and we can
+        // buffer them.
+        if (this->currentPenalty > 2) return;
         forceFetch = true;
     }
 

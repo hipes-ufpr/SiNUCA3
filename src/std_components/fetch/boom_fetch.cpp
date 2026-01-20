@@ -293,10 +293,9 @@ int BoomFetch::ClockCheckBTB() {
             updateRequest.data.requestUpdate.instruction =
                 this->fetchBuffer[i].instruction.staticInfo;
 
-            taken =
-                (next !=
-                 this->fetchBuffer[i].instruction.staticInfo->instAddress +
-                     this->fetchBuffer[i].instruction.staticInfo->instSize);
+            taken = (next !=
+                     this->fetchBuffer[i].instruction.staticInfo->instAddress +
+                         this->fetchBuffer[i].instruction.staticInfo->instSize);
 
             updateRequest.data.requestUpdate.branchState = taken;
 
@@ -381,9 +380,10 @@ void BoomFetch::Clock() {
     // If paying a misspredict penalty.
     if (this->currentPenalty > 0) {
         --this->currentPenalty;
-        // In the last cycle of paying the prediction, we need to force fetching
-        // new instructions.
-        if (this->currentPenalty > 0) return;
+        // In the last three cycles of paying the prediction, we need to force
+        // fetching new instructions, so they arrive in the last one and we can
+        // buffer them.
+        if (this->currentPenalty > 2) return;
         forceFetch = true;
     }
 
