@@ -28,6 +28,8 @@
 #include <sinuca3.hpp>
 #include <vector>
 
+#include "tracer/trace_reader.hpp"
+
 int NewComponentDefinition(Map<Definition>* definitions,
                            Map<Linkable*>* aliases,
                            std::vector<InstanceWithDefinition>* instances,
@@ -135,9 +137,32 @@ int Engine::Configure(Config config) {
 }
 
 int Engine::SendBufferedAndFetch(int id) {
+    static int fetcherIdToThreadId = 0;
+    static int lastFetchedProcessId = -1;
+    if (lastFetchedProcessId != this->fetcherIdToProcessId[id]) {
+        fetcherIdToThreadId = 0;
+        lastFetchedProcessId = this->fetcherIdToProcessId[id];
+    } else {
+        ++fetcherIdToThreadId;
+    }
+
     InstructionPacket toSend = this->fetchBuffers[id];
-    const FetchResult r = this->traceReader->Fetch(&this->fetchBuffers[id], id);
+    const FetchResult r =
+        this->traceReaders[this->fetcherIdToProcessId[id]]->Fetch(
+            &this->fetchBuffers[id], fetcherIdToThreadId);
     toSend.nextInstruction = this->fetchBuffers[id].staticInfo->instAddress;
+    toSend.processId = this->fetcherIdToProcessId[id];
+
+    if (r == FetchResultEnd) {
+        this->end = true;
+        return 1;
+    } else if (r == FetchResultError) {
+        this->error = true;
+        return 1;
+    } else if (r == FetchResultWait) {
+        this->isFetcherWaiting[id] = true;
+        return 1;
+    }
 
     // This unfortunately drops the packet if the buffer is full. The component
     // must ensure the buffers never fills.
@@ -148,14 +173,6 @@ int Engine::SendBufferedAndFetch(int id) {
             id);
     }
 
-    if (r == FetchResultEnd) {
-        this->end = true;
-        return 1;
-    } else if (r == FetchResultError) {
-        this->error = true;
-        return 1;
-    }
-
     ++this->fetchedInstructions;
 
     return 0;
@@ -164,6 +181,11 @@ int Engine::SendBufferedAndFetch(int id) {
 void Engine::Fetch(int id, FetchPacket packet) {
     if (packet.request == 0) {
         this->SendBufferedAndFetch(id);
+        return;
+    }
+
+    if (this->isFetcherWaiting[id]) {
+        // The fetcher is waiting for an event, so it cannot fetch instructions.
         return;
     }
 
@@ -196,8 +218,10 @@ void Engine::PrintStatistics() {
 
 unsigned long Engine::GetTraceSize() {
     unsigned long size = 0;
-    for (int i = 0; i < this->traceReader->GetTotalThreads(); ++i) {
-        size += this->traceReader->GetTotalInstToBeFetched(i);
+    for (unsigned int i = 0; i < this->traceReaders.size(); ++i) {
+        for (int j = 0; j < this->traceReaders[i]->GetTotalThreads(); ++j) {
+            size += this->traceReaders[i]->GetTotalInstToBeFetched(j);
+        }
     }
     return size;
 }
@@ -214,16 +238,49 @@ void Engine::PrintTime(time_t start, unsigned long cycle) {
     SINUCA3_LOG_PRINTF("Estimated simulation end: %s", ctime(&estimatedEnd));
 }
 
-int Engine::SetupSimulation(TraceReader* traceReader) {
-    this->traceReader = traceReader;
+int Engine::SetupSimulation(std::vector<TraceReader*>* traceReaders) {
+    this->traceReaders = *traceReaders;
     this->numberOfFetchers = this->GetNumberOfConnections();
     this->fetchBuffers = new InstructionPacket[this->numberOfFetchers];
+    this->isFetcherWaiting = new bool[this->numberOfFetchers];
+    this->fetcherIdToProcessId = new int[this->numberOfFetchers];
+    memset(this->isFetcherWaiting, 0, sizeof(bool) * this->numberOfFetchers);
 
-    // Bufferize the first instruction of each core.
-    for (long i = 0; i < this->numberOfFetchers; ++i) {
-        if (this->traceReader->Fetch(&this->fetchBuffers[i], i) !=
-            FetchResultOk) {
+    int threads = 0;
+    int fetcher = 0;
+    for (unsigned int i = 0; i < this->traceReaders.size(); ++i) {
+        threads = this->traceReaders[i]->GetTotalThreads();
+        if (i * threads > this->numberOfFetchers) {
+            SINUCA3_ERROR_PRINTF(
+                "The number of fetch connections (%d) is less than the "
+                "number of threads in the trace files (%d).\n",
+                this->numberOfFetchers, i * threads);
             return 1;
+        }
+        for (int j = 0; j < threads; ++j, ++fetcher) {
+            this->fetcherIdToProcessId[fetcher] = i;
+            FetchResult r =
+                this->traceReaders[i]->Fetch(&this->fetchBuffers[fetcher], j);
+            if (r == FetchResultError) {
+                return 1;
+            } else if (r == FetchResultEnd) {
+                SINUCA3_WARNING_PRINTF(
+                    "Unexpected end of trace file %d while setting up "
+                    "simulation.\n",
+                    i);
+                this->end = true;
+                return 1;
+            } else if (r == FetchResultWait) {
+                SINUCA3_WARNING_PRINTF(
+                    "Thread %d of trace file %d is waiting for an event, it "
+                    "will "
+                    "not be fetched until the event is triggered.\n",
+                    j, i);
+                this->isFetcherWaiting[fetcher] = true;
+            } else {
+                ++this->fetchedInstructions;
+                this->fetchBuffers[fetcher].processId = i;
+            }
         }
         ++this->fetchedInstructions;
     }
@@ -231,8 +288,8 @@ int Engine::SetupSimulation(TraceReader* traceReader) {
     return 0;
 }
 
-int Engine::Simulate(TraceReader* traceReader) {
-    if (this->SetupSimulation(traceReader)) {
+int Engine::Simulate(std::vector<TraceReader*>* traceReaders) {
+    if (this->SetupSimulation(traceReaders)) {
         return 1;
     }
 

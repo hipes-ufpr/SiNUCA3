@@ -45,7 +45,8 @@ class Engine : public Component<FetchPacket> {
     Linkable**
         components; /** @brief The components of the simulation INCLUDING
                        THE ENGINE ITSELF, guaranteed to be the first element. */
-    TraceReader* traceReader; /** @brief The trace reader. */
+    std::vector<TraceReader*>
+        traceReaders; /** @brief Trace reader instances. */
     InstructionPacket*
         fetchBuffers;        /** @brief Fetch buffers for each connection. */
     long numberOfComponents; /** @brief The number of components. */
@@ -53,9 +54,12 @@ class Engine : public Component<FetchPacket> {
                               engine. I.e., cores. */
     unsigned long totalCycles; /** @brief Counter of cycles. */
     unsigned long
-        fetchedInstructions; /** @brief Counter of instructions fetched. */
-    unsigned long traceSize; /** @brief The total amount of instructions to be
-                                executed. */
+        fetchedInstructions;   /** @brief Counter of instructions fetched. */
+    unsigned long traceSize;   /** @brief The total amount of instructions to be
+                                  executed. */
+    bool* isFetcherWaiting;    /** @brief Whether each fetcher is waiting for an
+                                  event. */
+    int* fetcherIdToProcessId; /** @brief Maps fetcher IDs to process IDs. */
 
     /**
      * @brief Will be one when there's no more instructions in the trace file.
@@ -75,7 +79,7 @@ class Engine : public Component<FetchPacket> {
     void PrintTime(time_t start, unsigned long cycle);
 
     /** @brief Called at the beggining of Simulate(). */
-    int SetupSimulation(TraceReader* traceReader);
+    int SetupSimulation(std::vector<TraceReader*>* traceReaders);
 
     /** @brief Auxiliar to Fetch(). */
     int SendBufferedAndFetch(int id);
@@ -105,7 +109,7 @@ class Engine : public Component<FetchPacket> {
      * @returns Non-zero if the simulation stopped because of a problem. 0 if it
      * stopped normally.
      */
-    int Simulate(TraceReader* traceReader);
+    int Simulate(std::vector<TraceReader*>* traceReaders);
 
     virtual int Configure(Config config);
     virtual void Clock();

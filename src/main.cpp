@@ -77,7 +77,7 @@ void usage() {
     // TODO: Make this pretty.
     printf(
         "Use -h to see this text, -c to set a configuration file (required for "
-        "simulation), -t to set a trace (also required for simulation) and -l "
+        "simulation), -t to set (a) trace file(s) (also required for simulation) and -l "
         "to see license information.\n"
         "\n"
         "Other simulation options:\n"
@@ -105,7 +105,9 @@ int main(int argc, char* const argv[]) {
     const char* traceReaderName = "sinuca3";
     const char* rootConfigFile = NULL;
     const char* traceDir = ".";
-    const char* traceFileName = NULL;
+    std::vector<TraceReader*> traceReaders;
+    std::vector<const char*> traceFileNames;
+
     char nextOpt;
 
     // When compiling debug mode, enable our testing facilities and set the log
@@ -130,9 +132,6 @@ int main(int argc, char* const argv[]) {
             case 'c':
                 rootConfigFile = optarg;
                 break;
-            case 't':
-                traceFileName = optarg;
-                break;
             case 'd':
                 traceDir = optarg;
                 break;
@@ -145,6 +144,9 @@ int main(int argc, char* const argv[]) {
             case 'h':
                 usage();
                 return 0;
+            case 't':
+                traceFileNames.push_back(optarg);
+                break;
             case 'L':
                 if (sscanf(optarg, "%d", &logLevel) != 1) {
                     SINUCA3_ERROR_PRINTF(
@@ -182,7 +184,7 @@ int main(int argc, char* const argv[]) {
         usage();
         return 1;
     }
-    if (traceFileName == NULL) {
+    if (traceFileNames.empty()) {
         usage();
         return 1;
     }
@@ -202,16 +204,21 @@ int main(int argc, char* const argv[]) {
                configYamlValue.value.mapping, configYamlValue.location);
     if (engine.Configure(config)) return 1;
 
-    TraceReader* traceReader = AllocTraceReader(traceReaderName);
-    if (traceReader == NULL) {
-        SINUCA3_ERROR_PRINTF("The trace reader %s does not exist.",
-                             traceReaderName);
-        return 1;
+    for (unsigned int i = 0; i < traceFileNames.size(); i++) {
+        TraceReader* traceReader = AllocTraceReader(traceReaderName);
+        if (traceReader == NULL) {
+            SINUCA3_ERROR_PRINTF("The trace reader %s does not exist.",
+                                 traceReaderName);
+            return 1;
+        }
+        if (traceReader->OpenTrace(traceFileNames[i], traceDir)) return 1;
+        traceReaders.push_back(traceReader);
     }
-    if (traceReader->OpenTrace(traceFileName, traceDir)) return 1;
 
-    engine.Simulate(traceReader);
-    delete traceReader;
+    engine.Simulate(&traceReaders);
+    for (unsigned int i = 0; i < traceReaders.size(); i++) {
+        delete traceReaders[i];
+    }
 
     return 0;
 }
