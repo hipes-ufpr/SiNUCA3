@@ -19,9 +19,17 @@
 //
 
 /**
- * @file
- * @brief All load operands are expected to be ready when a request is received
- * @details
+ * @file lsu.hpp
+ * @brief Load store unit component.
+ * @details This component expects to receive load and store requests from
+ * a reservation station with all operands ready. It is responsible for
+ * simulating the pipeline of a load store unit which interacts with a
+ * tlb and a cache. It also implements optimizations such as load bypassing and
+ * load forwarding. These optimizations can be turned on and off via
+ * configuration knobs. After the successful ending of a request, this
+ * component sends a message to the next stage notifying the completion of the
+ * request. Store requests must sit in the store buffer until they are committed
+ * and update the cache. The size of this buffer can also be configured.
  */
 
 #include <sinuca3.hpp>
@@ -29,6 +37,7 @@
 #include "engine/component.hpp"
 #include "engine/default_packets.hpp"
 #include "utils/circular_buffer.hpp"
+#include "utils/pair.hpp"
 
 #define MOD2(a, b) ((a) & ((b) - 1))
 #define DIV2(a, b) ((a) >> __builtin_ctzl(b))
@@ -58,71 +67,6 @@ struct LSUPacket {
     LSUPacketType type;
 };
 
-template <typename T, typename U>
-struct Pair {
-    T key;
-    U elem;
-};
-
-template <typename T, typename U>
-int ErasePairWithKey(std::vector<Pair<T, U> >* buffer, T key) {
-    for (size_t i = 0; i < buffer->size(); i++) {
-        if (buffer->at(i).key == key) {
-            buffer->at(i) = buffer->back();
-            buffer->pop_back();
-            return 0;
-        }
-    }
-    return 1;
-}
-
-template <typename T, typename U>
-bool ContainsKey(std::vector<Pair<T, U> >* buffer, T key) {
-    for (size_t i = 0; i < buffer->size(); i++) {
-        if (buffer->at(i).key == key) return true;
-    }
-    return false;
-}
-
-template <typename T, typename U>
-void PushBackElemWithKey(std::vector<Pair<T, U> >* buffer, T key, U elem) {
-    Pair<T, U> pair;
-    pair.key = key;
-    pair.elem = elem;
-    buffer->push_back(pair);
-}
-
-template <typename T, typename U>
-void ChangeKeyOfElem(std::vector<Pair<T, U> >* buffer, T key, T newKey) {
-    for (size_t i = 0; i < buffer->size(); i++) {
-        if (buffer->at(i).key == key) {
-            buffer->at(i).key = newKey;
-            return;
-        }
-    }
-}
-
-template <typename T, typename U>
-void UpdateElemWithKey(std::vector<Pair<T, U> >* buffer, T key, U newElem) {
-    for (size_t i = 0; i < buffer->size(); i++) {
-        if (buffer->at(i).key == key) {
-            buffer->at(i).elem = newElem;
-            return;
-        }
-    }
-}
-
-template <typename T, typename U>
-bool GetElemWithKey(std::vector<Pair<T, U> >* buffer, T key, U* elem) {
-    for (size_t i = 0; i < buffer->size(); i++) {
-        if (buffer->at(i).key == key) {
-            *elem = buffer->at(i).elem;
-            return true;
-        }
-    }
-    return false;  // Key not found
-}
-
 template <typename T>
 bool EraseElem(std::vector<T>* buffer, T elem) {
     for (size_t i = 0; i < buffer->size(); i++) {
@@ -140,6 +84,7 @@ void PushBackElem(std::vector<T>* buffer, T elem) {
     buffer->push_back(elem);
 }
 
+/** @brief Check lsu.hpp documentation for details. */
 class LoadStoreUnit : public Component<LSUPacket> {
   private:
     Component<MemoryPacket>* tlb;

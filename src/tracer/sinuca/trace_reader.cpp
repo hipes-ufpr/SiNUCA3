@@ -166,10 +166,10 @@ FetchResult SinucaTraceReader::Fetch(InstructionPacket* ret, int tid) {
         return FetchResultEnd;
     }
     if (this->threadDataVec[tid]->dynFile.HasReachedEnd()) {
-        return FetchResultNop;
+        return FetchResultWait;
     }
     if (this->IsThreadSleeping(tid)) {
-        return FetchResultNop;
+        return FetchResultWait;
     }
 
     /* Detect need to fetch new basic block */
@@ -179,7 +179,7 @@ FetchResult SinucaTraceReader::Fetch(InstructionPacket* ret, int tid) {
             if (this->fetchFailed) {
                 return FetchResultError;
             } else {
-                return FetchResultNop;
+                return FetchResultWait;
             }
         }
         this->threadDataVec[tid]->isInsideBasicBlock = true;
@@ -364,7 +364,7 @@ int TestTraceReader() {
 
             res = reader->Fetch(&instPkt, i);
 
-            if (res == FetchResultNop) {
+            if (res == FetchResultWait) {
                 SINUCA3_DEBUG_PRINTF("\t Thread [%d] returned NOP!\n", i);
                 continue;
             }

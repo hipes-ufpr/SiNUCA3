@@ -108,8 +108,6 @@ struct DynamicInstructionInfo {
 struct InstructionPacket {
     const StaticInstructionInfo* staticInfo;
     DynamicInstructionInfo dynamicInfo;
-    unsigned int processId; /** @brief Identifier of the process originating the
-                               instruction.*/
     unsigned long nextInstruction; /** @brief The engine fills this as it
                              buffers the next instruction. */
 };

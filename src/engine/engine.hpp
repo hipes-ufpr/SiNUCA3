@@ -27,6 +27,7 @@
 #include <engine/build_definitions.hpp>
 #include <engine/component.hpp>
 #include <tracer/trace_reader.hpp>
+#include "utils/pair.hpp"
 
 int NewComponentDefinition(Map<Definition>* definitions,
                            Map<Linkable*>* aliases,
@@ -45,10 +46,13 @@ class Engine : public Component<FetchPacket> {
     Linkable**
         components; /** @brief The components of the simulation INCLUDING
                        THE ENGINE ITSELF, guaranteed to be the first element. */
-    std::vector<TraceReader*>
-        traceReaders; /** @brief Trace reader instances. */
+    TraceReader** apps; /** @brief Trace reader instances. */
     InstructionPacket*
         fetchBuffers;        /** @brief Fetch buffers for each connection. */
+    Pair<int, int>* fetcherIdToAppAndThreadId; /** @brief Maps fetcher id to app and thread id. */
+    int* numberOfInstructionsToFetch; /** @brief Number of instructions to fetch for
+                                     each connection. */
+    long numberOfApps; /** @brief The number of apps to be simulated. */
     long numberOfComponents; /** @brief The number of components. */
     long numberOfFetchers; /** @brief The number of components connected to the
                               engine. I.e., cores. */
@@ -57,9 +61,6 @@ class Engine : public Component<FetchPacket> {
         fetchedInstructions;   /** @brief Counter of instructions fetched. */
     unsigned long traceSize;   /** @brief The total amount of instructions to be
                                   executed. */
-    bool* isFetcherWaiting;    /** @brief Whether each fetcher is waiting for an
-                                  event. */
-    int* fetcherIdToProcessId; /** @brief Maps fetcher IDs to process IDs. */
 
     /**
      * @brief Will be one when there's no more instructions in the trace file.

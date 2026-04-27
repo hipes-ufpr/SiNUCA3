@@ -16,14 +16,8 @@
 //
 
 /**
- * @file
+ * @file lsu.cpp
  */
-
-// todo: add more comments to the code
-// todo: adapt code to segmented buffer
-// todo: create component to be 'middle-man' between sendTo and rob
-// todo: add debug prints to the code
-// todo: break unaligned load operations into multiple aligned load operations
 
 #include "lsu.hpp"
 
