@@ -73,18 +73,19 @@ void license() {
  */
 void usage() {
     license();
-    printf("\n");
-    // TODO: Make this pretty.
-    printf(
-        "Use -h to see this text, -c to set a configuration file (required for "
-        "simulation), -t to set (a) trace file(s) (also required for simulation) and -l "
-        "to see license information.\n"
-        "\n"
-        "Other simulation options:\n"
-        "   -T <string> sets the trace reader to use (orcs, foo, bar, "
-        "TODO...)\n"
-        "   -L<0..3> sets the log level\n"
-        "   -f<file> adds a logger file filter\n");
+    printf("\nUsage: sinuca3 [OPTIONS]\n\n");
+    printf("Required options:\n");
+    printf("  -c <file>     Configuration file for simulation\n");
+    printf("  -t <file>     Trace file(s) for simulation (can be specified multiple times)\n\n");
+    printf("Other options:\n");
+    printf("  -h            Show this help message\n");
+    printf("  -l            Show license information\n");
+    printf("  -d <dir>      Trace directory (default: '.')\n");
+    printf("  -T <reader>   Trace reader to use (default: 'sinuca3')\n");
+    printf("  -L <0-3>      Set log level (0=Error, 1=Warning, 2=Info, 3=Debug)\n");
+    printf("  -f <file>     Add logger file filter\n");
+    printf("\nExample:\n");
+    printf("  sinuca3 -c config.yaml -t trace1 -t trace2 -d ./traces\n");
 }
 
 /**

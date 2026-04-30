@@ -137,58 +137,37 @@ int Engine::Configure(Config config) {
 }
 
 int Engine::SendBufferedAndFetch(int id) {
-    InstructionPacket prevInst;
-    while (this->numberOfInstructionsToFetch[id] > 0) {
-        int app = this->fetcherIdToAppAndThreadId[id].key;
-        int thread = this->fetcherIdToAppAndThreadId[id].elem;
-        prevInst = this->fetchBuffers[id];
-
-        const FetchResult r =
-            this->apps[app]->Fetch(
-                &this->fetchBuffers[id], thread);
-        if (r == FetchResultEnd) {
-            this->end = true;
-            return 1;
-        } else if (r == FetchResultError) {
-            this->error = true;
-            return 1;
-        } else if (r == FetchResultWait) {
-            return 1;
-        }
-
-        prevInst.nextInstruction = this->fetchBuffers[id].staticInfo->instAddress;
-        --this->numberOfInstructionsToFetch[id];
-    }
-
+    InstructionPacket toSend;
+    this->fetchers[id].GetPkt(&toSend);
     // This unfortunately drops the packet if the buffer is full. The component
     // must ensure the buffers never fills.
-    if (this->SendResponseToConnection(id, (FetchPacket*)&prevInst) != 0) {
+    if (this->SendResponseToConnection(id, (FetchPacket*)&toSend) != 0) {
         SINUCA3_WARNING_PRINTF(
             "== INSTRUCTION DROP DETECTED == core %d made requests "
             "with a full buffer, instructions will be dropped.\n",
             id);
     }
-
-    ++this->fetchedInstructions;
-    this->numberOfInstructionsToFetch[id] = 1;
-
+    this->fetchers[id].waiting = false;
+    this->fetchers[id].TryFetch();
     return 0;
 }
 
 void Engine::Fetch(int id, FetchPacket packet) {
-    if (packet.request == 0) {
-        this->SendBufferedAndFetch(id);
-        return;
-    }
+    (void)id;
+    (void)packet;
+    // if (packet.request == 0) {
+    //     this->SendBufferedAndFetch(id);
+    //     return;
+    // }
 
-    long weight = this->fetchBuffers[id].staticInfo->instSize;
+    // long weight = this->fetchBuffers[id].staticInfo->instSize;
 
-    while (weight < packet.request) {
-        if (this->SendBufferedAndFetch(id)) {
-            return;
-        }
-        weight += this->fetchBuffers[id].staticInfo->instSize;
-    }
+    // while (weight < packet.request) {
+    //     if (this->SendBufferedAndFetch(id)) {
+    //         return;
+    //     }
+    //     weight += this->fetchBuffers[id].staticInfo->instSize;
+    // }
 }
 
 void Engine::Clock() {
@@ -196,9 +175,18 @@ void Engine::Clock() {
     const int numberOfConnections = this->GetNumberOfConnections();
 
     for (int i = 0; i < numberOfConnections; ++i) {
-        if (!this->ReceiveRequestFromConnection(i, &packet)) {
-            this->Fetch(i, packet);
+        if (!this->fetchers[i].waiting && !this->ReceiveRequestFromConnection(i, &packet)) {
+            this->fetchers[i].waiting = true;
         }
+        if (this->fetchers[i].Ready()) {
+            if (this->fetchers[i].waiting) {
+                this->SendBufferedAndFetch(i);
+            }
+        } else {
+            this->fetchers[i].TryFetch();
+        }
+        this->end |= this->fetchers[i].end;
+        this->error |= this->fetchers[i].error;
     }
 }
 
@@ -210,10 +198,8 @@ void Engine::PrintStatistics() {
 
 unsigned long Engine::GetTraceSize() {
     unsigned long size = 0;
-    for (unsigned int i = 0; i < this->numberOfApps; ++i) {
-        for (int j = 0; j < this->apps[i]->GetTotalThreads(); ++j) {
-            size += this->apps[i]->GetTotalInstToBeFetched(j);
-        }
+    for (unsigned int i = 0; i < this->numberOfFetchers; ++i) {
+        size += this->fetchers[i].GetInstToBeFetched();
     }
     return size;
 }
@@ -230,31 +216,16 @@ void Engine::PrintTime(time_t start, unsigned long cycle) {
     SINUCA3_LOG_PRINTF("Estimated simulation end: %s", ctime(&estimatedEnd));
 }
 
-int Engine::SetupSimulation(std::vector<TraceReader*>* traceReaders) {
+int Engine::SetupSimulation(std::vector<TraceReader*>* tracers) {
     this->numberOfFetchers = this->GetNumberOfConnections();
-    this->fetchBuffers = new InstructionPacket[this->numberOfFetchers];
-    this->numberOfInstructionsToFetch = new int[this->numberOfFetchers];
-    this->fetcherIdToAppAndThreadId = new Pair<int, int>[this->numberOfFetchers];
-
-    this->numberOfApps = traceReaders->size();
-    this->apps = new TraceReader*[this->numberOfApps];
-
-    long totalThreads = 0;
-    for (long i = 0; i < this->numberOfApps; ++i) {
-        this->apps[i] = traceReaders->at(i);
-        for (int j = 0; j < this->apps[i]->GetTotalThreads(); ++j) {
-            if (totalThreads >= this->numberOfFetchers) {
-                SINUCA3_ERROR_PRINTF(
-                    "Total number of threads in the trace readers exceeds "
-                    "the number of fetcher connections in the engine.\n");
-                return 1;
-            }
-            Pair<int, int> p = {i, j};
-            this->fetcherIdToAppAndThreadId[totalThreads] = p;
-            totalThreads++;
+    this->fetchers = new Fetcher[this->numberOfFetchers];
+    /* Map each thread to a fetcher. */
+    for (unsigned long i = 0, k = 0; i < tracers->size(); i++) {
+        int threads = tracers->at(i)->GetTotalThreads();
+        for (int j = 0; j < threads; j++, k++) {
+            this->fetchers[k].Set(tracers->at(i), j);
         }
     }
-
     return 0;
 }
 
@@ -308,13 +279,50 @@ Engine::~Engine() {
         }
         delete[] this->components;
     }
-    if (this->fetchBuffers != NULL) {
-        delete[] this->fetchBuffers;
+    if (this->fetchers != NULL) {
+        delete[] this->fetchers;
     }
-    if (this->fetcherIdToAppAndThreadId != NULL) {
-        delete[] this->fetcherIdToAppAndThreadId;
+}
+
+void Engine::Fetcher::Set(TraceReader* tracer, int tid) {
+    this->tracer = tracer;
+    this->tid = tid;
+}
+bool Engine::Fetcher::FetcherSet() const {
+    return (this->tracer != NULL && this->tid >= 0);
+}
+bool Engine::Fetcher::Ready() const {
+    return (this->FetcherSet() && this->currValid);
+}
+void Engine::Fetcher::TryFetch() {
+    if (!this->FetcherSet()) {
+        return;
     }
-    if (this->numberOfInstructionsToFetch != NULL) {
-        delete[] this->numberOfInstructionsToFetch;
+    InstructionPacket* target = (this->currFetched) ? &this->next : &this->curr;
+
+    const FetchResult r = this->tracer->Fetch(target, this->tid);
+    if (r == FetchResultError) {
+        this->error = true;
+    } else if (r == FetchResultEnd) {
+        this->end = true;
+    } else if (r != FetchResultWait) {
+        if (target == &this->next) {
+            this->currValid = true;
+            this->curr.nextInstruction = this->next.staticInfo->instAddress;
+        } else {
+            this->currFetched = true;
+        }
     }
+}
+void Engine::Fetcher::GetPkt(InstructionPacket* target) {
+    *target = this->curr;
+    this->curr = this->next;
+    this->currFetched = this->currValid;
+    this->currValid = false;
+}
+unsigned long Engine::Fetcher::GetInstToBeFetched() const {
+    if (!this->FetcherSet()) {
+        return 0;
+    }
+    return this->tracer->GetTotalInstToBeFetched(this->tid);
 }

@@ -12,10 +12,10 @@ ifndef CC
 endif
 
 NOOPT  = -O0 -fno-inline -fno-builtin -fno-omit-frame-pointer
-CFLAGS = -Wall -Wextra -std=c11 -O1 -g -I../x86_trace_generator/
+CFLAGS = -Wall -Wextra -std=c11 -g -I../x86_trace_generator/
 ADD_FILES = ../x86_trace_generator/instrumentation_control.s
 
-all: factorials intrinsics pi
+all: factorials intrinsics pi matrix
 
 factorials: factorials.c $(ADD_FILES)
 	$(CC) $(CFLAGS) -o $@ $^
@@ -26,5 +26,8 @@ intrinsics: intrinsics.c $(ADD_FILES)
 pi: pi.c $(ADD_FILES)
 	$(CC) -static $(CFLAGS) -o $@ $^ -L. -fopenmp
 
+matrix: matrix.c $(ADD_FILES)
+	$(CC) $(CFLAGS) $(NOOPT) -o $@ $^
+
 clean:
-	-rm factorials intrinsics pi
+	-rm factorials intrinsics pi matrix

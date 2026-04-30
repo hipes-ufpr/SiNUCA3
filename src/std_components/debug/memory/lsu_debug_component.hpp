@@ -37,6 +37,7 @@ enum InstructionType {
 struct InstructionDecode {
     InstructionType type;
     int remainingCycles;
+    unsigned long address; /* Only used for loads and stores. */
 };
 
 class LSUDebugComponent : public Component<MemoryPacket> {
@@ -45,11 +46,13 @@ class LSUDebugComponent : public Component<MemoryPacket> {
     Component<LSUPacket>* lsu;
 
     CircularBuffer instCommitQueue;
-    std::vector<unsigned long> resolvedStoreAddresses;
+    std::vector<MemoryPacket> resolvedRequests;
 
     int lsuConnId;
     int fetchConnectionId;
     int fixedInstLatency;
+    int loadsCounter;
+    int storesCounter;
 
   public:
     inline LSUDebugComponent()
@@ -57,13 +60,15 @@ class LSUDebugComponent : public Component<MemoryPacket> {
           lsu(NULL),
           lsuConnId(-1),
           fetchConnectionId(-1),
-          fixedInstLatency(10) {
+          fixedInstLatency(10),
+          loadsCounter(0),
+          storesCounter(0) {
         this->instCommitQueue.Allocate(0, sizeof(InstructionDecode));
     }
 
     virtual int Configure(Config config);
     virtual void Clock();
-    virtual void PrintStatistics() {}
+    virtual void PrintStatistics();
 
     virtual ~LSUDebugComponent() { this->instCommitQueue.Deallocate(); }
 };

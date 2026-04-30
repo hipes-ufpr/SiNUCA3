@@ -21,37 +21,32 @@
 
 #include "lsu.hpp"
 
-#include <cmath>
-
 #include "engine/default_packets.hpp"
 #include "utils/logger.hpp"
+#include "utils/pair.hpp"
 
 void LoadStoreUnit::PrintStatistics() {
-    SINUCA3_LOG_PRINTF(
-        "Total load requests: %d\nTotal store requests: %d\nFinished store "
-        "requests: %d\nCompleted store requests: %d\nFinished load requests: "
-        "%d\nPending requests: %d\n",
-        this, this->totalLoadRequests, this->totalStoreRequests,
-        this->finishedStoreRequests, this->completedStoreRequests,
-        this->finishedLoadRequests, this->pendingRequestsQueue.GetOccupation());
+    SINUCA3_LOG_PRINTF("=== LOAD STORE UNIT STATISTICS ===\n");
+    SINUCA3_LOG_PRINTF("Total load requests: %d\n", this->loadsCounter);
+    SINUCA3_LOG_PRINTF("Total store requests: %d\n", this->storesCounter);
+    SINUCA3_LOG_PRINTF("Completed store requests: %d\n",
+                       this->completedStoreRequests);
+    SINUCA3_LOG_PRINTF("Completed load requests: %d\n",
+                       this->finishedLoadRequests);
+    SINUCA3_LOG_PRINTF("Pending requests: %d\n",
+                       this->pendingRequestsQueue.GetOccupation());
 }
 
 int LoadStoreUnit::Configure(Config config) {
-    if (config.ComponentReference("Cache", &this->cache, true))
-        return config.Error("Cache", "missing required component reference");
-    if (config.ComponentReference("Tlb", &this->tlb, true))
-        return config.Error("Tlb", "missing required component reference");
+    if (config.ComponentReference("cache", &this->cache, true))
+        return config.Error("cache", "missing required component reference");
+    if (config.ComponentReference("tlb", &this->tlb, true))
+        return config.Error("tlb", "missing required component reference");
     if (config.ComponentReference("sendTo", &this->sendTo, true))
         return config.Error("sendTo", "missing required component reference");
 
     /* Adjustable configuration knobs */
-    config.Integer("numCacheReadPorts", &this->numberOfCacheReadPorts, false);
-    config.Integer("numTlbReadPorts", &this->numberOfTlbReadPorts, false);
-    config.Integer("numCacheWritePorts", &this->numberOfCacheWritePorts, false);
-    config.Integer("numTlbWritePorts", &this->numberOfTlbWritePorts, false);
-    config.Integer("cacheLineSize", &this->cacheLineSize, false);
-    config.Integer("finishedBufSize", &this->finishedStoreBufferSize, false);
-    config.Integer("completedBufSize", &this->completedStoreBufferSize, false);
+    config.Integer("storeBufferSize", &this->storeBufferSize, false);
     config.Bool("loadBypassingEnabled", &this->loadBypassingEnabled, false);
     config.Bool("loadForwardingEnabled", &this->loadForwardingEnabled, false);
 
@@ -76,8 +71,6 @@ int LoadStoreUnit::Configure(Config config) {
 }
 
 void LoadStoreUnit::Clock() {
-    /* Reset port usage for the current cycle. */
-    this->ResetPortUsage();
     /* Receive responses from connected components. */
     this->ReceiveResponses();
     /* Check store commit acknowledgments. */
@@ -94,25 +87,24 @@ void LoadStoreUnit::CheckStoreCommit() {
     static MemoryPacket response;
     static bool hasResponse = false;
 
-    while (1) {
-        if (!hasResponse &&
-            this->pendingResponses[SEND_TO_RESPONSE].Dequeue(&response)) {
-            return; /* No pending responses. */
-        }
-
+    while (hasResponse ||
+           !this->pendingResponses[SEND_TO_RESPONSE].Dequeue(&response)) {
         hasResponse = true;
-        if ((long)this->completedStoreBuffer.size() >=
-            this->completedStoreBufferSize) {
-            return; /* Completed store buffer is full. */
-        }
-        if (!EraseElem(&this->finishedStoreBuffer, response)) {
+
+        StoreRequest* storeRequest;
+        if (!GetElemWithKey(&this->storesTable, response, &storeRequest)) {
             SINUCA3_ERROR_PRINTF(
-                "store address not registered in finished buffer");
+                "store address not registered in the stores table");
+            return;
+        }
+        if (!storeRequest->stateIsFinished || storeRequest->stateIsCommited) {
+            SINUCA3_ERROR_PRINTF("store with invalid state");
             return;
         }
 
-        /* Move store request from finished buffer to completed buffer. */
-        PushBackElem(&this->completedStoreBuffer, response);
+        /* Update state */
+        storeRequest->stateIsCommited = true;
+
         hasResponse = false;
     }
 }
@@ -121,109 +113,42 @@ void LoadStoreUnit::CheckMemoryUpdate() {
     static MemoryPacket response;
     static bool hasResponse = false;
 
-    while (1) {
-        if (!hasResponse &&
-            this->pendingResponses[CACHE_SOLVE_LOAD_DATA].Dequeue(&response)) {
-            return; /* No pending responses. */
-        }
-
+    while (hasResponse ||
+           !this->pendingResponses[CACHE_SOLVE_STORE_DATA].Dequeue(&response)) {
         hasResponse = true;
-        if (!EraseElem(&this->completedStoreBuffer, response)) {
+
+        StoreRequest* storeRequest;
+        if (!GetElemWithKey(&this->storesTable, response, &storeRequest)) {
             SINUCA3_ERROR_PRINTF(
-                "store address not registered in completed buffer");
+                "store address not registered in the stores table\n");
             return;
         }
-        if (!ErasePairWithKey(&this->storeAddressToSize, response)) {
-            SINUCA3_ERROR_PRINTF(
-                "store address not registered in store address to size buffer");
+        if (!storeRequest->stateIsFinished || !storeRequest->stateIsCommited) {
+            SINUCA3_ERROR_PRINTF("store with invalid state\n");
             return;
         }
 
+        ErasePairWithKey(&this->storesTable, response);
+
+        /* Symbolic remove from buffer */
+        --this->storeBufferOccupation;
         ++this->completedStoreRequests;
+
         hasResponse = false;
     }
 }
 
-void LoadStoreUnit::ResetPortUsage() {
-    this->cacheReadPortUsage = 0;
-    this->cacheWritePortUsage = 0;
-    this->tlbReadPortUsage = 0;
-    this->tlbWritePortUsage = 0;
-}
-
-void LoadStoreUnit::BuildAlignedLoadSubrequests(unsigned long address,
-                                                int size) {
-    int lineOfFirstByte = (int)DIV2(address, this->cacheLineSize);
-    int lineOfLastByte = (int)DIV2(address + size - 1, this->cacheLineSize);
-
-    LSUPacket subrequest;
-    subrequest.type = LSUPacketTypeLoadRequest;
-    int tmp;
-    int subReqSize;
-    int splitCount = 0;
-
-    while (lineOfFirstByte <= lineOfLastByte) {
-        /* Align to closest greater power of 2 */
-        tmp = this->cacheLineSize - MOD2(address, this->cacheLineSize);
-        subReqSize = 1 << ((int)log2(tmp) + 1);
-        subrequest.operation.vtAddr -= (subReqSize - tmp);
-        subrequest.operation.size = subReqSize;
-        /* Associate a unique id and size to the subrequest */
-        ++splitCount;
-        Pair<unsigned int, int> pair;
-        pair.key = this->globalLoadIdentifier;
-        pair.elem = subrequest.operation.size;
-        PushBackElemWithKey(&this->loadAddressToIdAndSize,
-                            subrequest.operation.vtAddr, pair);
-        /* Enqueue the subrequest */
-        this->pendingRequestsQueue.Enqueue(&subrequest);
-        /* Update the line number and address */
-        ++lineOfFirstByte;
-        address = lineOfFirstByte * this->cacheLineSize;
-        size -= subrequest.operation.size;
-    }
-
-    /* Associate the load identifier with the number of subrequests created. */
-    PushBackElemWithKey(&this->loadIdentifierToDebt, this->globalLoadIdentifier,
-                        splitCount);
-    /* Increment global load identifier to distinguish between requests */
-    ++this->globalLoadIdentifier;
-}
-
-void LoadStoreUnit::BuildAlignedStoreSubrequests(unsigned long address,
-                                                 int size) {
-    LSUPacket request;
-    Pair<unsigned long, int> pair;
-    // Not breaking store requests into subrequests because
-    // dont see speedup, but this can be changed in the future
-    request.type = LSUPacketTypeStoreRequest;
-    request.operation.vtAddr = address;
-    request.operation.size = size;
-    this->pendingRequestsQueue.Enqueue(&request);
-
-    /* Associate the store address with its size */
-    pair.key = request.operation.vtAddr;
-    pair.elem = request.operation.size;
-    PushBackElemWithKey(&this->storeAddressToSize, pair.key, pair.elem);
-}
-
 bool LoadStoreUnit::IsStoreUnitStalled() {
-    return ((int)this->finishedStoreBuffer.size() >=
-            this->finishedStoreBufferSize);
+    return (this->storeBufferOccupation >= this->storeBufferSize);
 }
 
 void LoadStoreUnit::ReceiveNewRequests() {
     LSUPacket request;
+
     int numberOfConnections = this->GetNumberOfConnections();
     for (int i = 0; i < numberOfConnections; i++) {
         while (this->ReceiveRequestFromConnection(i, &request) == 0) {
-            if (request.type == LSUPacketTypeLoadRequest) {
-                this->BuildAlignedLoadSubrequests(request.operation.vtAddr,
-                                                  request.operation.size);
-            } else {
-                this->BuildAlignedStoreSubrequests(request.operation.vtAddr,
-                                                   request.operation.size);
-            }
+            this->pendingRequestsQueue.Enqueue(&request);
         }
     }
 }
@@ -257,25 +182,46 @@ void LoadStoreUnit::ProcessRequests() {
     bool loadReady = false;
     bool storeReady = false;
 
-    if (!hasPendingReq && this->pendingRequestsQueue.Dequeue(&req)) {
-        return; /* No pending requests. */
+    if (!hasPendingReq) {
+        hasPendingReq = !this->pendingRequestsQueue.Dequeue(&req);
     }
 
-    if (req.type == LSUPacketTypeLoadRequest &&
-        this->unresolvedStoreAddressRequests == 0) {
-        ++this->totalLoadRequests;
+    if (hasPendingReq && req.type == LSUPacketTypeLoadRequest && this->unresolvedStores == 0) {
         loadReady = true;
-        hasPendingReq = this->pendingRequestsQueue.Dequeue(&req);
+
+        ++this->loadsNotForwardedToFetchStage;
+        ++this->loadsCounter;
+
+        LoadRequest loadRequest;
+        loadRequest.waitingTranslation = true;
+        loadRequest.accessSize = req.operation.size;
+        loadRequest.physicalAddress = 0;
+        loadRequest.virtualAddress = req.operation.vtAddr;
+        PushBackElemWithKey(&this->loadsTable, req.operation.vtAddr, loadRequest);
+
+        SINUCA3_DEBUG_PRINTF("address is %lu\n", req.operation.vtAddr);
     }
     /* Call 1st stage of load unit. */
     this->GenerateLoadAddress(req.operation.vtAddr, loadReady);
+    if (loadReady) {
+        hasPendingReq = !this->pendingRequestsQueue.Dequeue(&req);
+    }
 
     if (!this->IsStoreUnitStalled()) {
-        if (req.type == LSUPacketTypeStoreRequest) {
-            ++this->totalStoreRequests;
-            ++this->unresolvedStoreAddressRequests;
+        if (hasPendingReq && req.type == LSUPacketTypeStoreRequest) {
             storeReady = true;
             hasPendingReq = false;
+
+            ++this->unresolvedStores;
+            ++this->storesCounter;
+
+            StoreRequest storeRequest;
+            storeRequest.stateIsFinished = false;
+            storeRequest.stateIsCommited = false;
+            storeRequest.accessSize = req.operation.size;
+            storeRequest.physicalAddress = 0;
+            storeRequest.virtualAddress = req.operation.vtAddr;
+            PushBackElemWithKey(&this->storesTable, req.operation.vtAddr, storeRequest);
         }
         /* Call 1st stage of store unit if not stalled. */
         this->GenerateStoreAddress(req.operation.vtAddr, storeReady);
@@ -294,105 +240,78 @@ void LoadStoreUnit::GenerateLoadAddress(unsigned long address, bool ready) {
 }
 
 void LoadStoreUnit::TranslateLoadAddress(unsigned long address, bool ready) {
-    static std::vector<MemoryPacket> addressTranslations;
-    static unsigned long addressToTranslate = 0;
-    static bool translationReady = false;
-    Pair<unsigned int, int> idAndSize;
+    static MemoryPacket translation;
+    static bool hasPendingLoad = false;
 
-    this->FetchLoadData(&addressTranslations);
-    MemoryPacket tlbRequest;
-
-    if (translationReady &&
-        (this->tlbWritePortUsage < this->numberOfTlbWritePorts)) {
-        tlbRequest = addressToTranslate;
+    /* Send request to tlb */
+    if (ready) {
+        MemoryPacket tlbRequest = address;
         this->tlb->SendRequest(this->connId[TLB_SOLVE_LOAD_ADDRESS],
                                &tlbRequest);
-        /* Assuming 1 tlb write port per request. */
-        ++this->tlbWritePortUsage;
     }
-
-    translationReady = ready;
-    addressToTranslate = address;
-
-    // this piece of code may not seem to make sense now bc the tlb/cache is
-    // not implemented. But when they are implemented, the tlb response
-    // should contain both the translated physical address and the original
-    // virtual address, so we can forward the translated address
-    MemoryPacket tlbResponse;
-    while (
-        !this->pendingResponses[TLB_SOLVE_LOAD_ADDRESS].Dequeue(&tlbResponse) &&
-        (this->tlbReadPortUsage >= this->numberOfTlbReadPorts)) {
-        GetElemWithKey(&this->loadAddressToIdAndSize, tlbResponse, &idAndSize);
-        int correspondingSize = idAndSize.key;
-
-        if (!(this->loadBypassingEnabled &&
-              this->IsLoadBypassingPossible(tlbResponse, correspondingSize)) &&
-            !(this->loadForwardingEnabled &&
-              this->IsLoadForwardingPossible(tlbResponse, correspondingSize))) {
-            return; /* No valid bypassing and forwarding possible. */
+    /* Process tlb response */
+    bool pendingLoadReady = false;
+    LoadRequest* loadRequest;
+    if (hasPendingLoad ||
+        !this->pendingResponses[TLB_SOLVE_LOAD_ADDRESS].Dequeue(&translation)) {
+        hasPendingLoad = true;
+        if (!GetElemWithKey(&this->loadsTable, translation, &loadRequest)) {
+            SINUCA3_ERROR_PRINTF(
+                "load address not registered in the loads table\n");
+            return;
         }
-        ChangeKeyOfElem(&this->loadAddressToIdAndSize, tlbResponse,
-                        tlbResponse);
-        PushBackElem(&addressTranslations, tlbResponse);
-        /* Assuming 1 tlb read port per request. */
-        ++this->tlbReadPortUsage;
+        if (!loadRequest->waitingTranslation) {
+            SINUCA3_ERROR_PRINTF("load with invalid state\n");
+            return;
+        }
+
+        if (this->loadBypassingEnabled) {
+            if (this->IsLoadBypassingPossible(translation,
+                                              loadRequest->accessSize)) {
+                pendingLoadReady = true;
+            } else if (this->loadForwardingEnabled) {
+                if (this->IsLoadForwardingPossible(translation,
+                                                   loadRequest->accessSize)) {
+                    pendingLoadReady = true;
+                }
+            }
+        } else {
+            if (this->storeBufferOccupation == 0) {
+                pendingLoadReady = true;
+            }
+        }
     }
+    if (pendingLoadReady) {
+        loadRequest->waitingTranslation = false;
+        loadRequest->physicalAddress = translation;
+        hasPendingLoad = false;
+        --this->loadsNotForwardedToFetchStage;
+        SINUCA3_DEBUG_PRINTF("set waiting to false\n");
+    }
+    /* Call next stage */
+    this->FetchLoadData(translation, pendingLoadReady);
 }
 
-void LoadStoreUnit::FetchLoadData(std::vector<unsigned long>* addresses) {
-    MemoryPacket cacheReq;
-    for (int i = 0; i < (int)addresses->size(); i++) {
-        if (this->cacheWritePortUsage >= this->numberOfCacheWritePorts) {
-            break; /* No available cache write ports. */
-        }
-
-        // cache request should contain the size info
-        // change in the future when cache is implemented
-        cacheReq = addresses->at(i);
+void LoadStoreUnit::FetchLoadData(unsigned long address, bool ready) {
+    /* Send request to cache */
+    if (ready) {
+        MemoryPacket cacheRequest = address;
         this->cache->SendRequest(this->connId[CACHE_SOLVE_LOAD_DATA],
-                                 &cacheReq);
-        /* Remove the address to avoid reprocessing */
-        EraseElem(addresses, cacheReq);
-        /* Assuming 1 cache write port per request. */
-        ++this->cacheWritePortUsage;
+                                 &cacheRequest);
     }
-
-    Pair<unsigned int, int> idAndSize;
+    /* Process cache response */
     MemoryPacket cacheResponse;
-    int debt;
-    unsigned int identifier;
-    while ((this->cacheReadPortUsage >= this->numberOfCacheReadPorts) &&
-           !this->pendingResponses[CACHE_SOLVE_LOAD_DATA].Dequeue(
-               &cacheResponse)) {
-        if (!GetElemWithKey(&this->loadAddressToIdAndSize, cacheResponse,
-                            &idAndSize)) {
+    if (!this->pendingResponses[CACHE_SOLVE_LOAD_DATA].Dequeue(
+            &cacheResponse)) {
+        if (!ErasePairWithKey(&this->loadsTable, cacheResponse)) {
             SINUCA3_ERROR_PRINTF(
-                "load address not registered in id and size buffer");
+                "load address not registered in the loads table\n");
             return;
         }
-        identifier = idAndSize.key;
-        if (!GetElemWithKey(&this->loadIdentifierToDebt, identifier, &debt)) {
-            SINUCA3_ERROR_PRINTF(
-                "load identifier not registered in debt buffer");
-            return;
-        }
-
-        /* Remove this subrequest's entry to avoid unlimited growth. */
-        ErasePairWithKey(&this->loadAddressToIdAndSize, cacheResponse);
-
-        if (debt <= 0) {
-            /* Notify the next stage of the completed load request. */
-            this->sendTo->SendRequest(this->sendToConnId, &cacheResponse);
-            /* Remove this subrequest's entry to avoid unlimited growth. */
-            ErasePairWithKey(&this->loadIdentifierToDebt, identifier);
-            ++this->finishedLoadRequests;
-        } else {
-            --debt;
-            UpdateElemWithKey(&this->loadIdentifierToDebt, identifier, debt);
-        }
-
-        /* Assuming 1 cache read port per request. */
-        ++this->cacheReadPortUsage;
+        ++this->finishedLoadRequests;
+        /* Notify component */
+        // Todo: uncomment
+        // this->sendTo->SendRequest(this->sendToConnId, &cacheResponse);
     }
 }
 
@@ -408,32 +327,45 @@ void LoadStoreUnit::GenerateStoreAddress(unsigned long address, bool ready) {
 }
 
 void LoadStoreUnit::TranslateStoreAddress(unsigned long address, bool ready) {
-    static unsigned long addressToTranslate = 0;
-    static bool translationReady = false;
-    MemoryPacket tlbRequest;
+    static MemoryPacket translation;
+    static bool hasPendingStore = false;
 
-    if (translationReady &&
-        (this->tlbWritePortUsage < this->numberOfTlbWritePorts)) {
-        tlbRequest = addressToTranslate;
+    /* Send request to tlb */
+    if (ready) {
+        MemoryPacket tlbRequest = address;
         this->tlb->SendRequest(this->connId[TLB_SOLVE_STORE_ADDRESS],
                                &tlbRequest);
-        /* Assuming 1 tlb write port per request. */
-        ++this->tlbWritePortUsage;
     }
+    /* Deal with tlb response */
+    if (hasPendingStore ||
+        !this->pendingResponses[TLB_SOLVE_STORE_ADDRESS].Dequeue(
+            &translation)) {
+        hasPendingStore = true;
 
-    translationReady = ready;
-    addressToTranslate = address;
+        if (this->loadsNotForwardedToFetchStage > 0) {
+            return; /* Store operation must wait. */
+        }
+        StoreRequest* storeRequest;
+        if (!GetElemWithKey(&this->storesTable, translation, &storeRequest)) {
+            SINUCA3_ERROR_PRINTF(
+                "store address not registered in the stores table\n");
+            return;
+        }
+        if (!storeRequest->stateIsFinished) {
+            SINUCA3_ERROR_PRINTF("store with invalid state\n");
+            return;
+        }
+        storeRequest->physicalAddress = translation;
+        /* Update state */
+        storeRequest->stateIsFinished = true;
+        /* Symbolic add to buffer */
+        ++this->storeBufferOccupation;
+        /* Notify component */
+        this->sendTo->SendRequest(this->sendToConnId, &translation);
+        /* Store is considered resolved */
+        --this->unresolvedStores;
 
-    MemoryPacket tlbResponse;
-    while ((this->tlbReadPortUsage >= this->numberOfTlbReadPorts) &&
-           ((int)this->finishedStoreBuffer.size() >=
-            this->finishedStoreBufferSize) &&
-           !this->pendingResponses[TLB_SOLVE_STORE_ADDRESS].Dequeue(
-               &tlbResponse)) {
-        PushBackElem(&this->finishedStoreBuffer, tlbResponse);
-        /* Assuming 1 tlb read port per request. */
-        ++this->tlbReadPortUsage;
-        --this->unresolvedStoreAddressRequests;
+        hasPendingStore = false;
     }
 }
 
@@ -457,40 +389,34 @@ bool ContainsInterval(unsigned long addr1, int size1, unsigned long addr2,
     return (offset + size1 <= size2);
 }
 
-bool LoadStoreUnit::IsLoadBypassingPossible(unsigned long address, int size) {
-    for (int i = 0; i < (int)this->finishedStoreBuffer.size(); i++) {
-        unsigned long stAddress = this->storeAddressToSize[i].key;
-        int stSize = this->storeAddressToSize[i].elem;
-        if (HasIntersection(address, size, stAddress, stSize)) {
+bool LoadStoreUnit::IsLoadBypassingPossible(unsigned long ldAddress,
+                                            int ldSize) {
+    for (unsigned long i = 0; i < this->storesTable.size(); i++) {
+        if (!this->storesTable[i].second.stateIsFinished) {
+            continue; /* Store not finished, ignore for bypassing. */
+        }
+        unsigned long stAddress = this->storesTable[i].second.physicalAddress;
+        int stSize = this->storesTable[i].second.accessSize;
+        if (HasIntersection(ldAddress, ldSize, stAddress, stSize)) {
             return false;
         }
     }
-    for (int i = 0; i < (int)this->completedStoreBuffer.size(); i++) {
-        unsigned long stAddress = this->storeAddressToSize[i].key;
-        int stSize = this->storeAddressToSize[i].elem;
-        if (HasIntersection(address, size, stAddress, stSize)) {
-            return false;
-        }
-    }
+
     return true; /* No intersection found. Bypassing possible. */
 }
 
-bool LoadStoreUnit::IsLoadForwardingPossible(unsigned long address, int size) {
-    // More than one store request may contain the load request, but we are not
-    // emulating the actual data forwarding, so one match is enough
-    for (int i = 0; i < (int)this->finishedStoreBuffer.size(); i++) {
-        unsigned long stAddress = this->storeAddressToSize[i].key;
-        int stSize = this->storeAddressToSize[i].elem;
-        if (ContainsInterval(address, size, stAddress, stSize)) {
+bool LoadStoreUnit::IsLoadForwardingPossible(unsigned long ldAddress,
+                                             int ldSize) {
+    for (unsigned long i = 0; i < this->storesTable.size(); i++) {
+        if (!this->storesTable[i].second.stateIsFinished) {
+            continue; /* Store not finished, ignore for forwarding. */
+        }
+        unsigned long stAddress = this->storesTable[i].second.physicalAddress;
+        int stSize = this->storesTable[i].second.accessSize;
+        if (ContainsInterval(ldAddress, ldSize, stAddress, stSize)) {
             return true;
         }
     }
-    for (int i = 0; i < (int)this->completedStoreBuffer.size(); i++) {
-        unsigned long stAddress = this->storeAddressToSize[i].key;
-        int stSize = this->storeAddressToSize[i].elem;
-        if (ContainsInterval(address, size, stAddress, stSize)) {
-            return true;
-        }
-    }
+
     return false; /* No store contains load. Forwarding not possible. */
 }

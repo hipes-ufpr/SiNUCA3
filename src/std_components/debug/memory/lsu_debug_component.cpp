@@ -26,6 +26,7 @@
 
 #include "engine/default_packets.hpp"
 #include "std_components/memory/lsu.hpp"
+#include "utils/logger.hpp"
 
 int LSUDebugComponent::Configure(Config config) {
     if (config.ComponentReference("fetch", &this->fetch, true))
@@ -39,6 +40,12 @@ int LSUDebugComponent::Configure(Config config) {
     return 0;
 }
 
+void LSUDebugComponent::PrintStatistics() {
+    SINUCA3_LOG_PRINTF("=== LSU DEBUG COMPONENT STATISTICS ===\n");
+    SINUCA3_LOG_PRINTF("Total loads: %d\n", this->loadsCounter);
+    SINUCA3_LOG_PRINTF("Total stores: %d\n", this->storesCounter);
+}
+
 void LSUDebugComponent::Clock() {
     InstructionDecode instDecode;
     FetchPacket instRequest;
@@ -47,9 +54,10 @@ void LSUDebugComponent::Clock() {
 
     static InstructionDecode oldestInst;
     static bool hasOldestInst = false;
+    static bool requestSentToFetch = false;
 
-    while (this->fetch->ReceiveResponse(this->fetchConnectionId,
-                                        &instResponse) == 0) {
+    if (!this->fetch->ReceiveResponse(this->fetchConnectionId, &instResponse)) {
+        instDecode.remainingCycles = this->fixedInstLatency;
         if (instResponse.response.staticInfo->instReadsMemory ||
             instResponse.response.staticInfo->instWritesMemory) {
             for (int i = 0; i < instResponse.response.dynamicInfo.numReadings;
@@ -62,8 +70,9 @@ void LSUDebugComponent::Clock() {
                 this->lsu->SendRequest(this->lsuConnId, &lsuRequest);
                 /* Enqueue instruction */
                 instDecode.type = InstructionTypeLoad;
-                instDecode.remainingCycles = this->fixedInstLatency;
+                instDecode.address = lsuRequest.operation.vtAddr;
                 this->instCommitQueue.Enqueue(&instDecode);
+                ++this->loadsCounter;
             }
             for (int i = 0; i < instResponse.response.dynamicInfo.numWritings;
                  i++) {
@@ -75,23 +84,31 @@ void LSUDebugComponent::Clock() {
                 this->lsu->SendRequest(this->lsuConnId, &lsuRequest);
                 /* Enqueue instruction */
                 instDecode.type = InstructionTypeStore;
-                instDecode.remainingCycles = this->fixedInstLatency;
+                instDecode.address = lsuRequest.operation.vtAddr;
                 this->instCommitQueue.Enqueue(&instDecode);
+                ++this->storesCounter;
             }
         } else {
             /* Enqueue instruction */
             instDecode.type = InstructionTypeOther;
-            instDecode.remainingCycles = this->fixedInstLatency;
+            instDecode.address = 0;
             this->instCommitQueue.Enqueue(&instDecode);
+            SINUCA3_DEBUG_PRINTF("inst other enqueued!\n");
         }
+        requestSentToFetch = false;
     }
 
-    instRequest.request = 0;
-    this->fetch->SendRequest(this->fetchConnectionId, &instRequest);
+    if (!requestSentToFetch) {
+        instRequest.request = 0;
+        this->fetch->SendRequest(this->fetchConnectionId, &instRequest);
+        SINUCA3_DEBUG_PRINTF("sent request to fetcher!\n");
+        requestSentToFetch = true;
+    }
 
     MemoryPacket memPacket;
     while (this->ReceiveRequestFromConnection(0, &memPacket) == 0) {
-        this->resolvedStoreAddresses.push_back(memPacket);
+        this->resolvedRequests.push_back(memPacket);
+        SINUCA3_DEBUG_PRINTF("request with address [%lu] resolved!", memPacket);
     }
 
     if (!hasOldestInst && this->instCommitQueue.Dequeue(&oldestInst)) {
@@ -104,13 +121,15 @@ void LSUDebugComponent::Clock() {
     } else {
         if (oldestInst.type == InstructionTypeStore) {
             /* Check if the store address has been resolved. */
-            for (int i = 0; i < (int)this->resolvedStoreAddresses.size(); i++) {
-                if (this->resolvedStoreAddresses[i] == memPacket) {
+            for (unsigned long i = 0; i < this->resolvedRequests.size(); i++) {
+                if (this->resolvedRequests[i] == oldestInst.address) {
                     this->instCommitQueue.Dequeue(&oldestInst);
-                    this->resolvedStoreAddresses[i] =
-                        this->resolvedStoreAddresses.back();
-                    this->resolvedStoreAddresses.pop_back();
+                    this->resolvedRequests[i] = this->resolvedRequests.back();
+                    this->resolvedRequests.pop_back();
                     hasOldestInst = false;
+                    this->SendResponseToConnection(0, &oldestInst.address);
+                    SINUCA3_DEBUG_PRINTF("store with address [%lu] committed!",
+                                         oldestInst.address);
                     break;
                 }
             }

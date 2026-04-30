@@ -27,7 +27,8 @@
 #include <engine/build_definitions.hpp>
 #include <engine/component.hpp>
 #include <tracer/trace_reader.hpp>
-#include "utils/pair.hpp"
+
+#include "engine/default_packets.hpp"
 
 int NewComponentDefinition(Map<Definition>* definitions,
                            Map<Linkable*>* aliases,
@@ -46,21 +47,42 @@ class Engine : public Component<FetchPacket> {
     Linkable**
         components; /** @brief The components of the simulation INCLUDING
                        THE ENGINE ITSELF, guaranteed to be the first element. */
-    TraceReader** apps; /** @brief Trace reader instances. */
-    InstructionPacket*
-        fetchBuffers;        /** @brief Fetch buffers for each connection. */
-    Pair<int, int>* fetcherIdToAppAndThreadId; /** @brief Maps fetcher id to app and thread id. */
-    int* numberOfInstructionsToFetch; /** @brief Number of instructions to fetch for
-                                     each connection. */
-    long numberOfApps; /** @brief The number of apps to be simulated. */
     long numberOfComponents; /** @brief The number of components. */
     long numberOfFetchers; /** @brief The number of components connected to the
                               engine. I.e., cores. */
     unsigned long totalCycles; /** @brief Counter of cycles. */
     unsigned long
-        fetchedInstructions;   /** @brief Counter of instructions fetched. */
-    unsigned long traceSize;   /** @brief The total amount of instructions to be
-                                  executed. */
+        fetchedInstructions; /** @brief Counter of instructions fetched. */
+    unsigned long traceSize; /** @brief The total amount of instructions to be
+                                executed. */
+
+    struct Fetcher {
+        InstructionPacket curr;
+        InstructionPacket next;
+        bool waiting;
+        bool currFetched;
+        bool currValid;
+        bool error;
+        bool end;
+
+        TraceReader* tracer;
+        int tid;
+
+        Fetcher()
+            : currFetched(false),
+              currValid(false),
+              error(false),
+              end(false),
+              tracer(NULL),
+              tid(-1) {}
+        unsigned long GetInstToBeFetched() const;
+        void Set(TraceReader* tracer, int tid);
+        void GetPkt(InstructionPacket* target);
+        void TryFetch();
+        bool FetcherSet() const;
+        bool Ready() const;
+    };
+    Fetcher* fetchers; /** @brief */
 
     /**
      * @brief Will be one when there's no more instructions in the trace file.
@@ -91,11 +113,11 @@ class Engine : public Component<FetchPacket> {
   public:
     inline Engine()
         : components(NULL),
-          fetchBuffers(NULL),
           numberOfComponents(0),
           numberOfFetchers(0),
           totalCycles(0),
           fetchedInstructions(0),
+          fetchers(NULL),
           end(false),
           error(false) {}
 
@@ -110,7 +132,7 @@ class Engine : public Component<FetchPacket> {
      * @returns Non-zero if the simulation stopped because of a problem. 0 if it
      * stopped normally.
      */
-    int Simulate(std::vector<TraceReader*>* traceReaders);
+    int Simulate(std::vector<TraceReader*>* tracers);
 
     virtual int Configure(Config config);
     virtual void Clock();
