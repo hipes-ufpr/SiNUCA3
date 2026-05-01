@@ -1,5 +1,5 @@
-#ifndef LSU_DEBUG_COMPONENT_HPP
-#define LSU_DEBUG_COMPONENT_HPP
+#ifndef SINUCA3_LSU_DEBUG_COMPONENT_HPP
+#define SINUCA3_LSU_DEBUG_COMPONENT_HPP
 
 //
 // Copyright (C) 2026  HiPES - Universidade Federal do Paraná
@@ -37,10 +37,13 @@ enum InstructionType {
 struct InstructionDecode {
     InstructionType type;
     int remainingCycles;
+    long seqNum; /* Only for store requests */
     unsigned long address; /* Only used for loads and stores. */
 };
 
-class LSUDebugComponent : public Component<MemoryPacket> {
+struct DebugPacketLSU;
+
+class LSUDebugComponent : public Component<DebugPacketLSU> {
   private:
     Component<FetchPacket>* fetch;
     Component<LSUPacket>* lsu;

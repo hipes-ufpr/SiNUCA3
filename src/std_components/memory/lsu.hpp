@@ -39,47 +39,48 @@
 #include "utils/circular_buffer.hpp"
 #include "utils/pair.hpp"
 
-#define MOD2(a, b) ((a) & ((b) - 1))
-#define DIV2(a, b) ((a) >> __builtin_ctzl(b))
-
-enum LSUPacketType {
-    LSUPacketTypeLoadRequest,
-    LSUPacketTypeStoreRequest,
-    LSUPacketTypeInstCommit
+// todo: remove
+struct DebugPacketLSU {
+    unsigned long address;
+    long seqNum;
 };
+
+enum LSUPacketType { LSUPacketTypeLoadRequest, LSUPacketTypeStoreRequest };
 
 const int TLB_SOLVE_LOAD_ADDRESS = 0;
 const int TLB_SOLVE_STORE_ADDRESS = 1;
 const int CACHE_SOLVE_LOAD_DATA = 2;
 const int CACHE_SOLVE_STORE_DATA = 3;
-const int SEND_TO_RESPONSE = 4;
+const int SEND_TO = 4;
 
 struct LSUPacket {
-    union {
-        struct {
-            unsigned long vtAddr; /** @brief Virtual address. */
-            int size; /** @brief Size of the memory operation in bytes. */
-        } operation;  /** @brief On load or store request. */
-        struct {
-            unsigned long vtAddr; /** @brief Virtual address. */
-        } commit; /** @brief On instruction commit acknowledgment. */
-    };
+    struct {
+        unsigned long vtAddr; /** @brief Virtual address. */
+        int size; /** @brief Size of the memory operation in bytes. */
+    } operation;  /** @brief On load or store request. */
     LSUPacketType type;
 };
 
-struct StoreRequest {
-    unsigned long virtualAddress;
-    unsigned long physicalAddress;
-    int accessSize;
-    bool stateIsFinished;
-    bool stateIsCommited;
+struct MemoryRequest {
+    unsigned long vtAddress;
+    unsigned long phyAddress;
+    long seqNum;
+    int accSize;
+    bool wasIssued;
+    bool isTranslated;
+    bool isFinished; /* For stores */
+    bool isCommited; /* For stores */
 };
 
-struct LoadRequest {
-    unsigned long virtualAddress;
-    unsigned long physicalAddress;
-    int accessSize;
-    bool waitingTranslation;
+struct PipelineRegister {
+    MemoryRequest* op;
+    bool isValid;
+};
+
+struct PipelineData {
+    PipelineRegister reg;
+    PipelineRegister regNext;
+    bool stall;
 };
 
 /** @brief Check lsu.hpp documentation for details. */
@@ -87,59 +88,73 @@ class LoadStoreUnit : public Component<LSUPacket> {
   private:
     Component<MemoryPacket>* tlb;
     Component<MemoryPacket>* cache;
-    Component<MemoryPacket>* sendTo; /* Change to rob pointer later */
+    Component<DebugPacketLSU>* sendTo; /* Change to rob pointer later */
+    int connIds[5];
 
-    CircularBuffer pendingRequestsQueue;
-    std::vector<Pair<unsigned long, LoadRequest> > loadsTable;
-    std::vector<Pair<unsigned long, StoreRequest> > storesTable;
+    /* Queue with pointers to pending load requests */
+    CircularBuffer ldReqs;
+    /* Queue with pointers to pending store requests */
+    CircularBuffer stReqs;
+    /*  Table for load requests */
+    std::vector<Pair<long, MemoryRequest> > ldTable;
+    /*  Table for store requests */
+    std::vector<Pair<long, MemoryRequest> > stTable;
 
-    /* Establish different connection IDs to avoid message confusion. */
-    CircularBuffer pendingResponses[5];
-    int connId[5];
-    int sendToConnId;
-
-    /* Loads processed */
-    unsigned long loadsCounter;
-    /* Stores processed */
-    unsigned long storesCounter;
-    /* Stores in flight. A leading load must wait for these to finish. */
-    int unresolvedStores;
-    /* A leading store cannot change to finished state if this variable is not
-     * zero. */
-    int loadsNotForwardedToFetchStage;
-    /* Number of finished/completed stores in the buffer */
-    long storeBufferOccupation;
+    /* Number of translations not yet received by st unit */
+    long stUnitwaitingFor;
+    /* Occupation of the store buffer */
+    long stBufferOccupation;
+    /* Global sequence number */
+    long globalSeq;
 
     /* Configuration knobs */
-    long storeBufferSize;
-    bool loadBypassingEnabled;
-    bool loadForwardingEnabled;
+    long stBufferSize;
+    bool ldBypassingEnabled;
+    bool ldForwardingEnabled;
 
     /* Use in statistics */
-    int completedStoreRequests;
-    int finishedLoadRequests;
+    int finishedStores;
+    int finishedLoads;
+    int requestedLoads;
+    int requestedStores;
 
-    /** @brief Check if st. unit pipe stages methods must not be called. */
-    bool IsStoreUnitStalled();
-    /** @brief Receive acknowledgment from the reorder buffer. */
-    void CheckStoreCommit();
-    /** @brief Receive new operations to process. */
-    void ReceiveNewRequests();
-    /** @brief Process pending requests. */
-    void ProcessRequests();
-    /** @brief Receive responses from connected components. */
-    void ReceiveResponses();
-    /** @brief Check memory updates. */
-    void CheckMemoryUpdate();
+    /* Pipeline data */
+    PipelineData issueLoad;
+    PipelineData issueStore;
+    PipelineData genLoad;
+    PipelineData genStore;
+    PipelineData transLoad;
+    PipelineData transStore;
+    PipelineData fetchLoad;
 
-    /* Load pipeline stages */
-    void GenerateLoadAddress(unsigned long vtAddress, bool ready);
-    void TranslateLoadAddress(unsigned long vtAddress, bool ready);
-    void FetchLoadData(unsigned long physAddress, bool ready);
+    /* Get responses */
+    void ReceiveCommit();
+    void ReceiveUpdate();
+    void ReceiveTranslation();
+    void ReceiveFetchedData();
 
-    /* Store pipeline stages */
-    void GenerateStoreAddress(unsigned long address, bool ready);
-    void TranslateStoreAddress(unsigned long address, bool ready);
+    /* Get new requests. Add operation to table and enqueue request. */
+    void ReceiveRequests();
+    /* Run the pipeline calls. */
+    void RunPipeline();
+    /* Invalidate next cycle registers. */
+    void ClearNext();
+    /* Update registers. */
+    void UpdateRegisters();
+
+    /* Handle load and store completions. */
+    void OnLoadCompletion(MemoryRequest* req);
+    void OnStoreFinish(MemoryRequest* req);
+    void OnStoreCompletion(MemoryRequest* req);
+
+    /* Pipeline stages */
+    void IssueLoadRequest();
+    void IssueStoreRequest();
+    void GenerateLoadAddress();
+    void TranslateLoadAddress();
+    void FetchLoadData();
+    void GenerateStoreAddress();
+    void TranslateStoreAddress();
 
     /* Optimizations */
     /** @brief Check if address aliasing exists. */
@@ -149,27 +164,33 @@ class LoadStoreUnit : public Component<LSUPacket> {
 
   public:
     LoadStoreUnit()
-        : tlb(NULL),
-          cache(NULL),
-          sendTo(NULL),
-          loadsCounter(0),
-          storesCounter(0),
-          unresolvedStores(0),
-          loadsNotForwardedToFetchStage(0),
-          storeBufferOccupation(0),
-          storeBufferSize(16),
-          loadBypassingEnabled(false),
-          loadForwardingEnabled(false),
-          completedStoreRequests(0),
-          finishedLoadRequests(0) {
-        this->pendingRequestsQueue.Allocate(0, sizeof(LSUPacket));
+        : stUnitwaitingFor(0),
+          stBufferOccupation(0),
+          globalSeq(0),
+          stBufferSize(16),
+          ldBypassingEnabled(true),
+          ldForwardingEnabled(true),
+          finishedStores(0),
+          finishedLoads(0),
+          requestedLoads(0),
+          requestedStores(0) {
+        this->ldReqs.Allocate(0, sizeof(void*));
+        this->stReqs.Allocate(0, sizeof(void*));
+        this->issueLoad.reg.isValid = false;
+        this->issueStore.reg.isValid = false;
+        this->genLoad.reg.isValid = false;
+        this->genStore.reg.isValid = false;
+        this->transLoad.reg.isValid = false;
+        this->transStore.reg.isValid = false;
+        this->fetchLoad.reg.isValid = false;
+        for (int i = 0; i < 5; i++) this->connIds[i] = -1;
     }
     virtual int Configure(Config config);
     virtual void Clock();
     virtual void PrintStatistics();
     virtual ~LoadStoreUnit() {
-        this->pendingRequestsQueue.Deallocate();
-        for (int i = 0; i < 5; ++i) this->pendingResponses[i].Deallocate();
+        this->ldReqs.Deallocate();
+        this->stReqs.Deallocate();
     }
 };
 
