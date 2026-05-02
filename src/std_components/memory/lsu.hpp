@@ -66,6 +66,7 @@ struct MemoryRequest {
     unsigned long phyAddress;
     long seqNum;
     int accSize;
+    bool requestedFetch; /* For loads */
     bool wasIssued;
     bool isTranslated;
     bool isFinished; /* For stores */
@@ -96,9 +97,9 @@ class LoadStoreUnit : public Component<LSUPacket> {
     /* Queue with pointers to pending store requests */
     CircularBuffer stReqs;
     /*  Table for load requests */
-    std::vector<Pair<long, MemoryRequest> > ldTable;
+    std::vector<pair::Pair<long, MemoryRequest*> > ldTable;
     /*  Table for store requests */
-    std::vector<Pair<long, MemoryRequest> > stTable;
+    std::vector<pair::Pair<long, MemoryRequest*> > stTable;
 
     /* Number of translations not yet received by st unit */
     long stUnitwaitingFor;
@@ -176,6 +177,7 @@ class LoadStoreUnit : public Component<LSUPacket> {
           requestedStores(0) {
         this->ldReqs.Allocate(0, sizeof(void*));
         this->stReqs.Allocate(0, sizeof(void*));
+
         this->issueLoad.reg.isValid = false;
         this->issueStore.reg.isValid = false;
         this->genLoad.reg.isValid = false;
@@ -183,6 +185,15 @@ class LoadStoreUnit : public Component<LSUPacket> {
         this->transLoad.reg.isValid = false;
         this->transStore.reg.isValid = false;
         this->fetchLoad.reg.isValid = false;
+
+        this->issueLoad.stall = false;
+        this->issueStore.stall = false;
+        this->genLoad.stall = false;
+        this->genStore.stall = false;
+        this->transLoad.stall = false;
+        this->transStore.stall = false;
+        this->fetchLoad.stall = false;
+
         for (int i = 0; i < 5; i++) this->connIds[i] = -1;
     }
     virtual int Configure(Config config);

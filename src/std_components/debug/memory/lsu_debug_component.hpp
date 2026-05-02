@@ -27,6 +27,7 @@
 
 #include <sinuca3.hpp>
 #include <std_components/memory/lsu.hpp>
+#include "utils/pair.hpp"
 
 enum InstructionType {
     InstructionTypeLoad,
@@ -49,7 +50,7 @@ class LSUDebugComponent : public Component<DebugPacketLSU> {
     Component<LSUPacket>* lsu;
 
     CircularBuffer instCommitQueue;
-    std::vector<MemoryPacket> resolvedRequests;
+    std::vector<pair::Pair<unsigned long, long> > resolvedRequests;
 
     int lsuConnId;
     int fetchConnectionId;

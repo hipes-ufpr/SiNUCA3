@@ -93,7 +93,6 @@ void LSUDebugComponent::Clock() {
             instDecode.type = InstructionTypeOther;
             instDecode.address = 0;
             this->instCommitQueue.Enqueue(&instDecode);
-            SINUCA3_DEBUG_PRINTF("inst other enqueued!\n");
         }
         requestSentToFetch = false;
     }
@@ -101,14 +100,13 @@ void LSUDebugComponent::Clock() {
     if (!requestSentToFetch) {
         instRequest.request = 0;
         this->fetch->SendRequest(this->fetchConnectionId, &instRequest);
-        SINUCA3_DEBUG_PRINTF("sent request to fetcher!\n");
         requestSentToFetch = true;
     }
 
-    MemoryPacket memPacket;
-    while (this->ReceiveRequestFromConnection(0, &memPacket) == 0) {
-        this->resolvedRequests.push_back(memPacket);
-        SINUCA3_DEBUG_PRINTF("request with address [%lu] resolved!", memPacket);
+    DebugPacketLSU pkt;
+    while (this->ReceiveRequestFromConnection(0, &pkt) == 0) {
+        this->resolvedRequests.push_back(pair::Pair<unsigned long, long>(pkt.address, pkt.seqNum));
+        SINUCA3_DEBUG_PRINTF("request with address [%lu] resolved!\n", pkt.address);
     }
 
     if (!hasOldestInst && this->instCommitQueue.Dequeue(&oldestInst)) {
@@ -122,13 +120,18 @@ void LSUDebugComponent::Clock() {
         if (oldestInst.type == InstructionTypeStore) {
             /* Check if the store address has been resolved. */
             for (unsigned long i = 0; i < this->resolvedRequests.size(); i++) {
-                if (this->resolvedRequests[i] == oldestInst.address) {
+                if (this->resolvedRequests[i].first == oldestInst.address) {
+
                     this->instCommitQueue.Dequeue(&oldestInst);
                     this->resolvedRequests[i] = this->resolvedRequests.back();
                     this->resolvedRequests.pop_back();
                     hasOldestInst = false;
-                    this->SendResponseToConnection(0, &oldestInst.address);
-                    SINUCA3_DEBUG_PRINTF("store with address [%lu] committed!",
+
+                    DebugPacketLSU responsePkt;
+                    responsePkt.address = oldestInst.address;
+                    responsePkt.seqNum = this->resolvedRequests[i].second;
+                    this->SendResponseToConnection(0, &responsePkt);
+                    SINUCA3_DEBUG_PRINTF("store with address [%lu] committed!\n",
                                          oldestInst.address);
                     break;
                 }
