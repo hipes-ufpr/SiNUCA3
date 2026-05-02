@@ -28,7 +28,9 @@
 #include <sinuca3.hpp>
 #include <vector>
 
+#include "engine/default_packets.hpp"
 #include "tracer/trace_reader.hpp"
+#include "utils/logger.hpp"
 
 int NewComponentDefinition(Map<Definition>* definitions,
                            Map<Linkable*>* aliases,
@@ -137,6 +139,7 @@ int Engine::Configure(Config config) {
 }
 
 int Engine::SendBufferedAndFetch(int id) {
+    if (!this->fetchers[id].Ready()) return 1;
     InstructionPacket toSend;
     this->fetchers[id].GetPkt(&toSend);
     // This unfortunately drops the packet if the buffer is full. The component
@@ -147,27 +150,24 @@ int Engine::SendBufferedAndFetch(int id) {
             "with a full buffer, instructions will be dropped.\n",
             id);
     }
-    this->fetchers[id].waiting = false;
     this->fetchers[id].TryFetch();
     return 0;
 }
 
-void Engine::Fetch(int id, FetchPacket packet) {
-    (void)id;
-    (void)packet;
-    // if (packet.request == 0) {
-    //     this->SendBufferedAndFetch(id);
-    //     return;
-    // }
+void Engine::Fetch(int id) {
+    this->fetchers[id].waiting = false;
+    if (this->fetchers[id].requested == 0) {
+        this->SendBufferedAndFetch(id);
+        return;
+    }
 
-    // long weight = this->fetchBuffers[id].staticInfo->instSize;
-
-    // while (weight < packet.request) {
-    //     if (this->SendBufferedAndFetch(id)) {
-    //         return;
-    //     }
-    //     weight += this->fetchBuffers[id].staticInfo->instSize;
-    // }
+    long weight = fetchers[id].curr.staticInfo->instSize;
+    while (weight < this->fetchers[id].requested) {
+        if (this->SendBufferedAndFetch(id)) {
+            return;
+        }
+        weight += fetchers[id].curr.staticInfo->instSize;;
+    }
 }
 
 void Engine::Clock() {
@@ -176,12 +176,12 @@ void Engine::Clock() {
 
     for (int i = 0; i < numberOfConnections; ++i) {
         if (!this->fetchers[i].waiting && !this->ReceiveRequestFromConnection(i, &packet)) {
+            this->fetchers[i].requested = packet.request;
             this->fetchers[i].waiting = true;
         }
         if (this->fetchers[i].Ready()) {
-            if (this->fetchers[i].waiting) {
-                this->SendBufferedAndFetch(i);
-            }
+            if (this->fetchers[i].waiting)
+                this->Fetch(i);
         } else {
             this->fetchers[i].TryFetch();
         }

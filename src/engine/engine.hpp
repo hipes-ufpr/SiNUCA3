@@ -59,6 +59,7 @@ class Engine : public Component<FetchPacket> {
     struct Fetcher {
         InstructionPacket curr;
         InstructionPacket next;
+        long requested;
         bool waiting;
         bool currFetched;
         bool currValid;
@@ -108,7 +109,7 @@ class Engine : public Component<FetchPacket> {
     int SendBufferedAndFetch(int id);
 
     /** @brief Responds to requests. */
-    void Fetch(int id, FetchPacket packet);
+    void Fetch(int id);
 
   public:
     inline Engine()
