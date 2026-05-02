@@ -28,16 +28,21 @@
 #include <cstddef>
 #include <vector>
 
+namespace pair {
+
 template <typename T, typename U>
 struct Pair {
     T first;
     U second;
+    Pair() : first(), second() {}
+    Pair(T first, U second) : first(first), second(second) {}
 };
 
 template <typename T, typename U>
-int ErasePairWithKey(std::vector<Pair<T, U> >* buffer, T key) {
+int ErasePairWithKey(std::vector<Pair<T, U*> >* buffer, T key) {
     for (unsigned long i = 0; i < buffer->size(); i++) {
         if (buffer->at(i).first == key) {
+            delete buffer->at(i).second;
             buffer->at(i) = buffer->back();
             buffer->pop_back();
             return 0;
@@ -47,7 +52,7 @@ int ErasePairWithKey(std::vector<Pair<T, U> >* buffer, T key) {
 }
 
 template <typename T, typename U>
-bool ContainsKey(std::vector<Pair<T, U> >* buffer, T key) {
+bool ContainsKey(std::vector<Pair<T, U*> >* buffer, T key) {
     for (unsigned long i = 0; i < buffer->size(); i++) {
         if (buffer->at(i).first == key) return true;
     }
@@ -55,16 +60,17 @@ bool ContainsKey(std::vector<Pair<T, U> >* buffer, T key) {
 }
 
 template <typename T, typename U>
-U* PushBackElemWithKey(std::vector<Pair<T, U> >* buffer, T key, U elem) {
-    Pair<T, U> pair;
+U* PushBackElemWithKey(std::vector<Pair<T, U*> >* buffer, T key, U elem) {
+    Pair<T, U*> pair;
+    U* elemPtr = new U(elem);
     pair.first = key;
-    pair.second = elem;
+    pair.second = elemPtr;
     buffer->push_back(pair);
-    return &buffer->back().second;
+    return elemPtr;
 }
 
 template <typename T, typename U>
-void ChangeKeyOfElem(std::vector<Pair<T, U> >* buffer, T key, T newKey) {
+void ChangeKeyOfElem(std::vector<Pair<T, U*> >* buffer, T key, T newKey) {
     for (unsigned long i = 0; i < buffer->size(); i++) {
         if (buffer->at(i).first == key) {
             buffer->at(i).first = newKey;
@@ -74,25 +80,36 @@ void ChangeKeyOfElem(std::vector<Pair<T, U> >* buffer, T key, T newKey) {
 }
 
 template <typename T, typename U>
-void UpdateElemWithKey(std::vector<Pair<T, U> >* buffer, T key, U newElem) {
+void UpdateElemWithKey(std::vector<Pair<T, U*> >* buffer, T key, U newElem) {
     for (unsigned long i = 0; i < buffer->size(); i++) {
         if (buffer->at(i).first == key) {
-            buffer->at(i).second = newElem;
+            delete buffer->at(i).second;
+            buffer->at(i).second = new U(newElem);
             return;
         }
     }
 }
 
 template <typename T, typename U>
-int GetElemWithKey(std::vector<Pair<T, U> >* buffer, T key, U** elem) {
+void Clear(std::vector<Pair<T, U*> >* buffer) {
+    for (unsigned long i = 0; i < buffer->size(); i++) {
+        delete buffer->at(i).second;
+    }
+    buffer->clear();
+}
+
+template <typename T, typename U>
+int GetElemWithKey(std::vector<Pair<T, U*> >* buffer, T key, U** elem) {
     for (unsigned long i = 0; i < buffer->size(); i++) {
         if (buffer->at(i).first == key) {
-            *elem = &buffer->at(i).second;
+            *elem = buffer->at(i).second;
             return 0;
         }
     }
     *elem = NULL;
     return 1;  // key not found
 }
+
+}  // namespace pair
 
 #endif  // SINUCA3_PAIR_HPP_
