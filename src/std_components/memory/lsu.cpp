@@ -67,26 +67,51 @@ void LoadStoreUnit::Clock() {
 }
 
 void LoadStoreUnit::ClearNext() {
-    this->issueLoad.regNext.isValid = false;
-    this->issueStore.regNext.isValid = false;
-    this->genLoad.regNext.isValid = false;
-    this->genStore.regNext.isValid = false;
-    this->transLoad.regNext.isValid = false;
-    this->transStore.regNext.isValid = false;
-    this->fetchLoad.regNext.isValid = false;
+    this->pipeline[ISSUE_LOAD].regNext.isValid = false;
+    this->pipeline[ISSUE_STORE].regNext.isValid = false;
+    this->pipeline[GEN_LOAD].regNext.isValid = false;
+    this->pipeline[GEN_STORE].regNext.isValid = false;
+    this->pipeline[TRANS_LOAD].regNext.isValid = false;
+    this->pipeline[TRANS_STORE].regNext.isValid = false;
+    this->pipeline[FETCH_LOAD].regNext.isValid = false;
 }
 
 void LoadStoreUnit::UpdateRegisters() {
-    this->issueLoad.reg = this->issueLoad.regNext;
-    this->issueStore.reg = this->issueStore.regNext;
-    this->genLoad.reg = this->genLoad.regNext;
-    this->genStore.reg = this->genStore.regNext;
-    this->transLoad.reg = this->transLoad.regNext;
-    this->transStore.reg = this->transStore.regNext;
-    this->fetchLoad.reg = this->fetchLoad.regNext;
+    this->pipeline[ISSUE_LOAD].reg = this->pipeline[ISSUE_LOAD].regNext;
+    this->pipeline[ISSUE_STORE].reg = this->pipeline[ISSUE_STORE].regNext;
+    this->pipeline[GEN_LOAD].reg = this->pipeline[GEN_LOAD].regNext;
+    this->pipeline[GEN_STORE].reg = this->pipeline[GEN_STORE].regNext;
+    this->pipeline[TRANS_LOAD].reg = this->pipeline[TRANS_LOAD].regNext;
+    this->pipeline[TRANS_STORE].reg = this->pipeline[TRANS_STORE].regNext;
+    this->pipeline[FETCH_LOAD].reg = this->pipeline[FETCH_LOAD].regNext;
+}
+
+void LoadStoreUnit::ResetStallSignals() {
+    this->pipeline[ISSUE_LOAD].stall = false;
+    this->pipeline[ISSUE_STORE].stall = false;
+    this->pipeline[GEN_LOAD].stall = false;
+    this->pipeline[GEN_STORE].stall = false;
+    this->pipeline[TRANS_LOAD].stall = false;
+    this->pipeline[TRANS_STORE].stall = false;
+    this->pipeline[FETCH_LOAD].stall = false;
+}
+
+bool LoadStoreUnit::MustStall(int stage) {
+    /* Check if the next stage is stalled */
+    return this->pipeline[stage + 1].stall;
+}
+
+bool LoadStoreUnit::InvalidInput(const PipelineRegister* reg) {
+    return !reg->isValid || reg->op == NULL;
+}
+
+void LoadStoreUnit::Stall(int stage) {
+    this->pipeline[stage].stall = true;
+    this->pipeline[stage].regNext = this->pipeline[stage].reg;
 }
 
 void LoadStoreUnit::RunPipeline() {
+    this->ResetStallSignals();
     this->ClearNext();
 
     this->FetchLoadData();
@@ -99,6 +124,118 @@ void LoadStoreUnit::RunPipeline() {
     this->IssueStoreRequest();
 
     this->UpdateRegisters();
+}
+
+void LoadStoreUnit::IssueLoadRequest() {
+    if (this->MustStall(ISSUE_LOAD)) {
+        this->Stall(ISSUE_LOAD);
+        return;
+    }
+    this->pipeline[ISSUE_LOAD].regNext.isValid =
+        !this->ldReqs.Dequeue(&this->pipeline[ISSUE_LOAD].regNext.op);
+    if (this->pipeline[ISSUE_LOAD].regNext.isValid) {
+        this->pipeline[ISSUE_LOAD].regNext.op->wasIssued = true;
+    }
+}
+
+void LoadStoreUnit::GenerateLoadAddress() {
+    if (this->InvalidInput(&this->pipeline[ISSUE_LOAD].reg)) return;
+    if (this->MustStall(GEN_LOAD)) {
+        this->Stall(GEN_LOAD);
+        return;
+    }
+    for (unsigned long i = 0; i < this->stTable.size(); i++) {
+        if (this->stTable[i].second->wasIssued &&
+            !this->stTable[i].second->isFinished &&
+            this->stTable[i].second->seqNum <
+                this->pipeline[ISSUE_LOAD].reg.op->seqNum) {
+            /* Wait for older store to finish */
+            this->pipeline[GEN_LOAD].stall = true;
+            return;
+        }
+    }
+    this->pipeline[GEN_LOAD].regNext.isValid = true;
+    this->pipeline[GEN_LOAD].regNext.op = this->pipeline[ISSUE_LOAD].reg.op;
+}
+
+void LoadStoreUnit::TranslateLoadAddress() {
+    if (this->MustStall(TRANS_LOAD)) {
+        this->Stall(TRANS_LOAD);
+        return;
+    }
+    if (!this->InvalidInput(&this->pipeline[GEN_LOAD].reg)) {
+        MemoryPacket address;  // tmp
+        address = this->pipeline[GEN_LOAD]
+                      .reg.op->seqNum; /* seqNum is key for now. */
+        this->tlb->SendRequest(this->connIds[TLB_SOLVE_LOAD_ADDRESS], &address);
+    }
+
+    for (unsigned long i = 0; i < this->ldTable.size(); i++) {
+        if (this->ldTable[i].second->isTranslated &&
+            !this->ldTable[i].second->requestedFetch) {
+            bool bypassingPossible = this->IsLoadBypassingPossible(
+                this->ldTable[i].second->phyAddress,
+                this->ldTable[i].second->accSize);
+            bool forwardingPossible = this->IsLoadForwardingPossible(
+                this->ldTable[i].second->phyAddress,
+                this->ldTable[i].second->accSize);
+            if (this->stBufferOccupation == 0 || bypassingPossible ||
+                forwardingPossible) {
+                this->pipeline[TRANS_LOAD].regNext.isValid = true;
+                this->pipeline[TRANS_LOAD].regNext.op = this->ldTable[i].second;
+                break;
+            }
+            SINUCA3_DEBUG_PRINTF("cannot forward load!\n");
+        }
+    }
+}
+
+void LoadStoreUnit::FetchLoadData() {
+    if (this->InvalidInput(&this->pipeline[TRANS_LOAD].reg)) return;
+    MemoryPacket address;  // todo: remove
+    this->pipeline[TRANS_LOAD].reg.op->requestedFetch = true;
+    address =
+        this->pipeline[TRANS_LOAD].reg.op->seqNum; /* seqNum is key for now. */
+    this->cache->SendRequest(this->connIds[CACHE_SOLVE_LOAD_DATA], &address);
+    this->pipeline[FETCH_LOAD].regNext.isValid = false;  // last stage
+}
+
+void LoadStoreUnit::IssueStoreRequest() {
+    if (this->MustStall(ISSUE_STORE)) {
+        this->Stall(ISSUE_STORE);
+        return;
+    }
+    this->pipeline[ISSUE_STORE].regNext.isValid =
+        !this->stReqs.Dequeue(&this->pipeline[ISSUE_STORE].regNext.op);
+    if (this->pipeline[ISSUE_STORE].regNext.isValid) {
+        this->pipeline[ISSUE_STORE].regNext.op->wasIssued = true;
+    }
+}
+
+void LoadStoreUnit::GenerateStoreAddress() {
+    if (this->InvalidInput(&this->pipeline[ISSUE_STORE].reg)) return;
+    if (this->MustStall(GEN_STORE)) {
+        this->Stall(GEN_STORE);
+        return;
+    }
+    this->pipeline[GEN_STORE].regNext.isValid = true;
+    this->pipeline[GEN_STORE].regNext.op = this->pipeline[ISSUE_STORE].reg.op;
+}
+
+void LoadStoreUnit::TranslateStoreAddress() {
+    if (this->InvalidInput(&this->pipeline[GEN_STORE].reg)) return;
+    if (this->stUnitwaitingFor + this->stBufferOccupation >=
+        this->stBufferSize) {
+        /* Wait for store buffer space to be available. */
+        this->pipeline[TRANS_STORE].stall = true;
+        return;
+    }
+    unsigned long address;  // todo: remove
+    address =
+        this->pipeline[GEN_STORE].reg.op->seqNum; /* seqNum is key for now. */
+    this->tlb->SendRequest(this->connIds[TLB_SOLVE_STORE_ADDRESS], &address);
+    this->pipeline[TRANS_STORE].regNext.isValid = false;  // last stage
+    ++this->stUnitwaitingFor;
 }
 
 void LoadStoreUnit::ReceiveRequests() {
@@ -118,12 +255,14 @@ void LoadStoreUnit::ReceiveRequests() {
 
             if (request.type == LSUPacketTypeLoadRequest) {
                 /* enqueue pointer to load entry */
-                void* ptr = pair::PushBackElemWithKey(&this->ldTable, req.seqNum, req);
+                void* ptr =
+                    pair::PushBackElemWithKey(&this->ldTable, req.seqNum, req);
                 this->ldReqs.Enqueue(&ptr);
                 this->requestedLoads++;
             } else if (request.type == LSUPacketTypeStoreRequest) {
                 /* enqueue pointer to store entry */
-                void* ptr = pair::PushBackElemWithKey(&this->stTable, req.seqNum, req);
+                void* ptr =
+                    pair::PushBackElemWithKey(&this->stTable, req.seqNum, req);
                 this->stReqs.Enqueue(&ptr);
                 this->requestedStores++;
             }
@@ -151,7 +290,8 @@ void LoadStoreUnit::ReceiveCommit() {
         req->isCommited = true;
         MemoryPacket update;
         update = req->seqNum; /* seqNum is key for now. */
-        this->cache->SendRequest(this->connIds[CACHE_SOLVE_STORE_DATA], &update);
+        this->cache->SendRequest(this->connIds[CACHE_SOLVE_STORE_DATA],
+                                 &update);
     }
 }
 
@@ -185,7 +325,7 @@ void LoadStoreUnit::ReceiveTranslation() {
             SINUCA3_ERROR_PRINTF("key not found! %ld\n", (long)address);
             return;
         }
-        req->phyAddress = req->vtAddress; // todo: change
+        req->phyAddress = req->vtAddress;  // todo: change
         req->isTranslated = true;
     }
     while (this->tlb->ReceiveResponse(this->connIds[TLB_SOLVE_STORE_ADDRESS],
@@ -195,7 +335,7 @@ void LoadStoreUnit::ReceiveTranslation() {
             SINUCA3_ERROR_PRINTF("key not found! %ld\n", (long)address);
             return;
         }
-        req->phyAddress = req->vtAddress; // todo: change
+        req->phyAddress = req->vtAddress;  // todo: change
         req->isTranslated = true;
         --this->stUnitwaitingFor;
         this->OnStoreFinish(req);
@@ -228,129 +368,11 @@ void LoadStoreUnit::OnStoreCompletion(MemoryRequest* req) {
     pair::ErasePairWithKey(&this->stTable, req->seqNum);
     ++this->finishedStores;
     --this->stBufferOccupation;
-    SINUCA3_DEBUG_PRINTF("store completed!\n");
 }
 
 void LoadStoreUnit::OnLoadCompletion(MemoryRequest* req) {
     pair::ErasePairWithKey(&this->ldTable, req->seqNum);
     ++this->finishedLoads;
-}
-
-void LoadStoreUnit::IssueLoadRequest() {
-    if (this->genLoad.stall) {
-        this->issueLoad.stall = true;
-        this->issueLoad.regNext = this->issueLoad.reg;
-        return;
-    }
-    this->issueLoad.regNext.isValid =
-        !this->ldReqs.Dequeue(&this->issueLoad.regNext.op);
-    if (this->issueLoad.regNext.isValid) {
-        this->issueLoad.regNext.op->wasIssued = true;
-    }
-}
-
-void LoadStoreUnit::GenerateLoadAddress() {
-    if (!this->issueLoad.reg.isValid) return;
-    if (this->transLoad.stall) {
-        this->genLoad.stall = true;
-        this->genLoad.regNext = this->genLoad.reg;
-        return;
-    }
-    for (unsigned long i = 0; i < this->stTable.size(); i++) {
-        if (this->stTable[i].second->wasIssued &&
-            !this->stTable[i].second->isFinished &&
-            this->stTable[i].second->seqNum <
-                this->issueLoad.reg.op->seqNum) {
-            /* Wait for older store to finish */
-            this->genLoad.stall = true;
-            this->genLoad.regNext = this->genLoad.reg;
-            return;
-        }
-    }
-    this->genLoad.regNext.isValid = true;
-    this->genLoad.regNext.op = this->issueLoad.reg.op;
-}
-
-void LoadStoreUnit::TranslateLoadAddress() {
-    if (this->fetchLoad.stall) {
-        this->transLoad.stall = true;
-        this->transLoad.regNext = this->transLoad.reg;
-        return;
-    }
-    if (this->genLoad.reg.isValid) {
-        MemoryPacket address;                   // tmp
-        address = this->genLoad.reg.op->seqNum; /* seqNum is key for now. */
-        SINUCA3_DEBUG_PRINTF("tlb req seq num %ld\n", (long)address);
-        this->tlb->SendRequest(this->connIds[TLB_SOLVE_LOAD_ADDRESS], &address);
-    }
-
-    for (unsigned long i = 0; i < this->ldTable.size(); i++) {
-        if (this->ldTable[i].second->isTranslated &&
-            !this->ldTable[i].second->requestedFetch) {
-            bool bypassingPossible = this->IsLoadBypassingPossible(
-                this->ldTable[i].second->phyAddress,
-                this->ldTable[i].second->accSize);
-            bool forwardingPossible = this->IsLoadForwardingPossible(
-                this->ldTable[i].second->phyAddress,
-                this->ldTable[i].second->accSize);
-            if (this->stBufferOccupation == 0 || bypassingPossible || forwardingPossible) {
-                this->transLoad.regNext.isValid = true;
-                this->transLoad.regNext.op = this->ldTable[i].second;
-                break;
-            }
-            SINUCA3_DEBUG_PRINTF("cannot forward load!\n");
-        }
-    }
-}
-
-void LoadStoreUnit::FetchLoadData() {
-    if (!this->transLoad.reg.isValid) return;
-    MemoryPacket address;  // todo: remove
-    this->transLoad.reg.op->requestedFetch = true;
-    address = this->transLoad.reg.op->seqNum; /* seqNum is key for now. */
-    this->cache->SendRequest(this->connIds[CACHE_SOLVE_LOAD_DATA], &address);
-    this->fetchLoad.regNext.isValid = false;  // last stage
-}
-
-void LoadStoreUnit::IssueStoreRequest() {
-    if (this->genStore.stall) {
-        this->issueStore.stall = true;
-        this->issueStore.regNext = this->issueStore.reg;
-        return;
-    }
-    this->issueStore.regNext.isValid =
-        !this->stReqs.Dequeue(&this->issueStore.regNext.op);
-    if (this->issueStore.regNext.isValid) {
-        this->issueStore.regNext.op->wasIssued = true;
-    }
-}
-
-void LoadStoreUnit::GenerateStoreAddress() {
-    if (!this->issueStore.reg.isValid) return;
-    if (this->transStore.stall) {
-        this->genStore.stall = true;
-        this->genStore.regNext = this->genStore.reg;
-        return;
-    }
-    this->genStore.regNext.isValid = true;
-    this->genStore.regNext.op = this->issueStore.reg.op;
-}
-
-void LoadStoreUnit::TranslateStoreAddress() {
-    if (!this->genStore.reg.isValid) return;
-    if (this->stUnitwaitingFor + this->stBufferOccupation >=
-        this->stBufferSize) {
-        SINUCA3_DEBUG_PRINTF("store stalled!\n");
-        /* Wait for store buffer space to be available. */
-        this->transStore.stall = true;
-        this->transStore.regNext = this->transStore.reg;
-        return;
-    }
-    unsigned long address;                   // todo: remove
-    address = this->genStore.reg.op->seqNum; /* seqNum is key for now. */
-    this->tlb->SendRequest(this->connIds[TLB_SOLVE_STORE_ADDRESS], &address);
-    this->transStore.regNext.isValid = false;  // last stage
-    ++this->stUnitwaitingFor;
 }
 
 /* Optimization checks */
@@ -383,7 +405,8 @@ bool LoadStoreUnit::IsLoadBypassingPossible(unsigned long ldAddress,
         unsigned long stAddress = this->stTable[i].second->phyAddress;
         int stSize = this->stTable[i].second->accSize;
         if (HasIntersection(ldAddress, ldSize, stAddress, stSize)) {
-            SINUCA3_DEBUG_PRINTF("intersection of %p/%d and %p/%d\n", ldAddress, ldSize, stAddress, stSize);
+            SINUCA3_DEBUG_PRINTF("intersection of %p/%d and %p/%d\n", ldAddress,
+                                 ldSize, stAddress, stSize);
             return false;
         }
     }

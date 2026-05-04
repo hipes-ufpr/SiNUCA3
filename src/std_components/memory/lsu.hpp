@@ -53,6 +53,16 @@ const int CACHE_SOLVE_LOAD_DATA = 2;
 const int CACHE_SOLVE_STORE_DATA = 3;
 const int SEND_TO = 4;
 
+/* Do not change the number order. */
+/* It is needed to make stall checks. */
+const int FETCH_LOAD = 3;
+const int TRANS_LOAD = 2;
+const int GEN_LOAD = 1;
+const int ISSUE_LOAD = 0;
+const int TRANS_STORE = 6;
+const int ISSUE_STORE = 5;
+const int GEN_STORE = 4;
+
 struct LSUPacket {
     struct {
         unsigned long vtAddr; /** @brief Virtual address. */
@@ -89,28 +99,31 @@ class LoadStoreUnit : public Component<LSUPacket> {
   private:
     Component<MemoryPacket>* tlb;
     Component<MemoryPacket>* cache;
-    Component<DebugPacketLSU>* sendTo; /* Change to rob pointer later */
+    Component<DebugPacketLSU>* sendTo; // change to rob pointer later
     int connIds[5];
 
-    /* Queue with pointers to pending load requests */
+    /** @brief Queue with pointers to pending load requests */
     CircularBuffer ldReqs;
-    /* Queue with pointers to pending store requests */
+    /** @brief Queue with pointers to pending store requests */
     CircularBuffer stReqs;
-    /*  Table for load requests */
+    /** @brief Table for load requests */
     std::vector<pair::Pair<long, MemoryRequest*> > ldTable;
-    /*  Table for store requests */
+    /** @brief Table for store requests */
     std::vector<pair::Pair<long, MemoryRequest*> > stTable;
 
-    /* Number of translations not yet received by st unit */
+    /** @brief Number of translations not yet received by st unit */
     long stUnitwaitingFor;
-    /* Occupation of the store buffer */
+    /** @brief Occupation of the store buffer */
     long stBufferOccupation;
-    /* Global sequence number */
+    /** @brief Global sequence number */
     long globalSeq;
 
     /* Configuration knobs */
+    /** @brief Size of the store buffer */
     long stBufferSize;
+    /** @brief Whether load bypassing is enabled */
     bool ldBypassingEnabled;
+    /** @brief Whether load forwarding is enabled */
     bool ldForwardingEnabled;
 
     /* Use in statistics */
@@ -119,42 +132,54 @@ class LoadStoreUnit : public Component<LSUPacket> {
     int requestedLoads;
     int requestedStores;
 
-    /* Pipeline data */
-    PipelineData issueLoad;
-    PipelineData issueStore;
-    PipelineData genLoad;
-    PipelineData genStore;
-    PipelineData transLoad;
-    PipelineData transStore;
-    PipelineData fetchLoad;
+    /** @brief Control data for each stage. */
+    PipelineData pipeline[7];
 
-    /* Get responses */
+    /** @brief Get commit responses. */
     void ReceiveCommit();
+    /** @brief Get memory update responses. */
     void ReceiveUpdate();
+    /** @brief Get translation responses. */
     void ReceiveTranslation();
+    /** @brief Get fetched data responses. */
     void ReceiveFetchedData();
-
-    /* Get new requests. Add operation to table and enqueue request. */
+    /** @brief Get new requests. Add operation to table and enqueue request. */
     void ReceiveRequests();
-    /* Run the pipeline calls. */
+    /** @brief Run the pipeline calls. */
     void RunPipeline();
-    /* Invalidate next cycle registers. */
+    /** @brief Invalidate next cycle registers. */
     void ClearNext();
-    /* Update registers. */
+    /** @brief Update registers. */
     void UpdateRegisters();
-
-    /* Handle load and store completions. */
+    /** @brief Set stall to false */
+    void ResetStallSignals();
+    /** @brief Set stall signal and keep current register value */
+    void Stall(int stage);
+    /** @brief Check if the next stage is stalled */
+    bool MustStall(int stage);
+    /** @brief Check if the input to a stage is valid */
+    bool InvalidInput(const PipelineRegister* reg);
+    /** @brief Handle load completion */
     void OnLoadCompletion(MemoryRequest* req);
+    /** @brief Handle store commit */
     void OnStoreFinish(MemoryRequest* req);
+    /** @brief Handle store completion */
     void OnStoreCompletion(MemoryRequest* req);
 
     /* Pipeline stages */
+    /** @brief Issue a load request */
     void IssueLoadRequest();
+    /** @brief Issue a store request */
     void IssueStoreRequest();
+    /** @brief Generate load address */
     void GenerateLoadAddress();
+    /** @brief Translate load address */
     void TranslateLoadAddress();
+    /** @brief Fetch load data */
     void FetchLoadData();
+    /** @brief Generate store address */
     void GenerateStoreAddress();
+    /** @brief Translate store address */
     void TranslateStoreAddress();
 
     /* Optimizations */
@@ -177,22 +202,9 @@ class LoadStoreUnit : public Component<LSUPacket> {
           requestedStores(0) {
         this->ldReqs.Allocate(0, sizeof(void*));
         this->stReqs.Allocate(0, sizeof(void*));
-
-        this->issueLoad.reg.isValid = false;
-        this->issueStore.reg.isValid = false;
-        this->genLoad.reg.isValid = false;
-        this->genStore.reg.isValid = false;
-        this->transLoad.reg.isValid = false;
-        this->transStore.reg.isValid = false;
-        this->fetchLoad.reg.isValid = false;
-
-        this->issueLoad.stall = false;
-        this->issueStore.stall = false;
-        this->genLoad.stall = false;
-        this->genStore.stall = false;
-        this->transLoad.stall = false;
-        this->transStore.stall = false;
-        this->fetchLoad.stall = false;
+        
+        /* Initialize pipeline data */
+        memset(this->pipeline, 0, sizeof(this->pipeline));  
 
         for (int i = 0; i < 5; i++) this->connIds[i] = -1;
     }
