@@ -106,7 +106,6 @@ void LSUDebugComponent::Clock() {
     DebugPacketLSU pkt;
     while (this->ReceiveRequestFromConnection(0, &pkt) == 0) {
         this->resolvedRequests.push_back(pair::Pair<unsigned long, long>(pkt.address, pkt.seqNum));
-        SINUCA3_DEBUG_PRINTF("request with address [%lu] resolved!\n", pkt.address);
     }
 
     if (!hasOldestInst && this->instCommitQueue.Dequeue(&oldestInst)) {
@@ -131,8 +130,6 @@ void LSUDebugComponent::Clock() {
                     responsePkt.address = oldestInst.address;
                     responsePkt.seqNum = this->resolvedRequests[i].second;
                     this->SendResponseToConnection(0, &responsePkt);
-                    SINUCA3_DEBUG_PRINTF("store with address [%lu] committed!\n",
-                                         oldestInst.address);
                     break;
                 }
             }

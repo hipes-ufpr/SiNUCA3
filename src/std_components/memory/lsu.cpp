@@ -136,7 +136,7 @@ void LoadStoreUnit::ReceiveCommit() {
     while (this->sendTo->ReceiveResponse(this->connIds[SEND_TO], &commit) ==
            0) {
         MemoryRequest* req;
-        if (pair::GetElemWithKey(&this->ldTable, commit.seqNum, &req)) {
+        if (pair::GetElemWithKey(&this->stTable, commit.seqNum, &req)) {
             SINUCA3_ERROR_PRINTF("key not found!\n");
             return;
         }
@@ -160,7 +160,7 @@ void LoadStoreUnit::ReceiveUpdate() {
     while (this->cache->ReceiveResponse(this->connIds[CACHE_SOLVE_STORE_DATA],
                                         &update) == 0) {
         MemoryRequest* req;
-        if (pair::GetElemWithKey(&this->ldTable, (long)update, &req)) {
+        if (pair::GetElemWithKey(&this->stTable, (long)update, &req)) {
             SINUCA3_ERROR_PRINTF("key not found!\n");
             return;
         }
@@ -182,21 +182,22 @@ void LoadStoreUnit::ReceiveTranslation() {
                                       &address) == 0) {
         MemoryRequest* req;  // address is seqNum for now
         if (pair::GetElemWithKey(&this->ldTable, (long)address, &req)) {
-            SINUCA3_ERROR_PRINTF("key not found!\n");
+            SINUCA3_ERROR_PRINTF("key not found! %ld\n", (long)address);
             return;
         }
-        req->phyAddress = address;
+        req->phyAddress = req->vtAddress; // todo: change
         req->isTranslated = true;
     }
     while (this->tlb->ReceiveResponse(this->connIds[TLB_SOLVE_STORE_ADDRESS],
                                       &address) == 0) {
         MemoryRequest* req;  // address is seqNum for now
         if (pair::GetElemWithKey(&this->stTable, (long)address, &req)) {
-            SINUCA3_ERROR_PRINTF("key not found!\n");
+            SINUCA3_ERROR_PRINTF("key not found! %ld\n", (long)address);
             return;
         }
-        req->phyAddress = address;
+        req->phyAddress = req->vtAddress; // todo: change
         req->isTranslated = true;
+        --this->stUnitwaitingFor;
         this->OnStoreFinish(req);
     }
 }
@@ -227,6 +228,7 @@ void LoadStoreUnit::OnStoreCompletion(MemoryRequest* req) {
     pair::ErasePairWithKey(&this->stTable, req->seqNum);
     ++this->finishedStores;
     --this->stBufferOccupation;
+    SINUCA3_DEBUG_PRINTF("store completed!\n");
 }
 
 void LoadStoreUnit::OnLoadCompletion(MemoryRequest* req) {
@@ -250,21 +252,19 @@ void LoadStoreUnit::IssueLoadRequest() {
 void LoadStoreUnit::GenerateLoadAddress() {
     if (!this->issueLoad.reg.isValid) return;
     if (this->transLoad.stall) {
-        this->issueLoad.stall = true;
-        this->issueLoad.regNext = this->issueLoad.reg;
+        this->genLoad.stall = true;
+        this->genLoad.regNext = this->genLoad.reg;
         return;
     }
-    if (this->issueStore.reg.isValid) {
-        for (unsigned long i = 0; i < this->stTable.size(); i++) {
-            if (this->stTable[i].second->wasIssued &&
-                !this->stTable[i].second->isFinished &&
-                this->stTable[i].second->seqNum <
-                    this->issueLoad.reg.op->seqNum) {
-                /* Wait for older store to finish */
-                this->genLoad.stall = true;
-                this->genLoad.regNext = this->genLoad.reg;
-                return;
-            }
+    for (unsigned long i = 0; i < this->stTable.size(); i++) {
+        if (this->stTable[i].second->wasIssued &&
+            !this->stTable[i].second->isFinished &&
+            this->stTable[i].second->seqNum <
+                this->issueLoad.reg.op->seqNum) {
+            /* Wait for older store to finish */
+            this->genLoad.stall = true;
+            this->genLoad.regNext = this->genLoad.reg;
+            return;
         }
     }
     this->genLoad.regNext.isValid = true;
@@ -272,34 +272,33 @@ void LoadStoreUnit::GenerateLoadAddress() {
 }
 
 void LoadStoreUnit::TranslateLoadAddress() {
+    if (this->fetchLoad.stall) {
+        this->transLoad.stall = true;
+        this->transLoad.regNext = this->transLoad.reg;
+        return;
+    }
     if (this->genLoad.reg.isValid) {
-        if (this->fetchLoad.stall) {
-            this->transLoad.stall = true;
-            this->transLoad.regNext = this->issueLoad.reg;
-            return;
-        }
         MemoryPacket address;                   // tmp
         address = this->genLoad.reg.op->seqNum; /* seqNum is key for now. */
+        SINUCA3_DEBUG_PRINTF("tlb req seq num %ld\n", (long)address);
         this->tlb->SendRequest(this->connIds[TLB_SOLVE_LOAD_ADDRESS], &address);
     }
 
     for (unsigned long i = 0; i < this->ldTable.size(); i++) {
         if (this->ldTable[i].second->isTranslated &&
             !this->ldTable[i].second->requestedFetch) {
-            if (this->stBufferOccupation > 0) {
-                bool bypassingPossible = this->IsLoadBypassingPossible(
-                    this->ldTable[i].second->phyAddress,
-                    this->ldTable[i].second->accSize);
-                bool forwardingPossible = this->IsLoadForwardingPossible(
-                    this->ldTable[i].second->phyAddress,
-                    this->ldTable[i].second->accSize);
-                if (!bypassingPossible && !forwardingPossible) {
-                    continue;
-                }
+            bool bypassingPossible = this->IsLoadBypassingPossible(
+                this->ldTable[i].second->phyAddress,
+                this->ldTable[i].second->accSize);
+            bool forwardingPossible = this->IsLoadForwardingPossible(
+                this->ldTable[i].second->phyAddress,
+                this->ldTable[i].second->accSize);
+            if (this->stBufferOccupation == 0 || bypassingPossible || forwardingPossible) {
+                this->transLoad.regNext.isValid = true;
+                this->transLoad.regNext.op = this->ldTable[i].second;
+                break;
             }
-            this->transLoad.regNext.isValid = true;
-            this->transLoad.regNext.op = this->ldTable[i].second;
-            break;
+            SINUCA3_DEBUG_PRINTF("cannot forward load!\n");
         }
     }
 }
@@ -341,6 +340,7 @@ void LoadStoreUnit::TranslateStoreAddress() {
     if (!this->genStore.reg.isValid) return;
     if (this->stUnitwaitingFor + this->stBufferOccupation >=
         this->stBufferSize) {
+        SINUCA3_DEBUG_PRINTF("store stalled!\n");
         /* Wait for store buffer space to be available. */
         this->transStore.stall = true;
         this->transStore.regNext = this->transStore.reg;
@@ -350,6 +350,7 @@ void LoadStoreUnit::TranslateStoreAddress() {
     address = this->genStore.reg.op->seqNum; /* seqNum is key for now. */
     this->tlb->SendRequest(this->connIds[TLB_SOLVE_STORE_ADDRESS], &address);
     this->transStore.regNext.isValid = false;  // last stage
+    ++this->stUnitwaitingFor;
 }
 
 /* Optimization checks */
@@ -382,6 +383,7 @@ bool LoadStoreUnit::IsLoadBypassingPossible(unsigned long ldAddress,
         unsigned long stAddress = this->stTable[i].second->phyAddress;
         int stSize = this->stTable[i].second->accSize;
         if (HasIntersection(ldAddress, ldSize, stAddress, stSize)) {
+            SINUCA3_DEBUG_PRINTF("intersection of %p/%d and %p/%d\n", ldAddress, ldSize, stAddress, stSize);
             return false;
         }
     }
