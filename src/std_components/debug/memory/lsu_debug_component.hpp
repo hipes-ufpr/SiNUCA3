@@ -64,7 +64,7 @@ class LSUDebugComponent : public Component<DebugPacketLSU> {
           lsu(NULL),
           lsuConnId(-1),
           fetchConnectionId(-1),
-          fixedInstLatency(10),
+          fixedInstLatency(2),
           loadsCounter(0),
           storesCounter(0) {
         this->instCommitQueue.Allocate(0, sizeof(InstructionDecode));

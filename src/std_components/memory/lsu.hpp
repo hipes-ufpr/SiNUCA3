@@ -53,15 +53,13 @@ const int CACHE_SOLVE_LOAD_DATA = 2;
 const int CACHE_SOLVE_STORE_DATA = 3;
 const int SEND_TO = 4;
 
-/* Do not change the number order. */
-/* It is needed to make stall checks. */
-const int FETCH_LOAD = 3;
-const int TRANS_LOAD = 2;
-const int GEN_LOAD = 1;
-const int ISSUE_LOAD = 0;
-const int TRANS_STORE = 6;
-const int ISSUE_STORE = 5;
-const int GEN_STORE = 4;
+const int FETCH_LOAD = 0;
+const int TRANS_LOAD = 1;
+const int GEN_LOAD = 2;
+const int ISSUE_LOAD = 3;
+const int TRANS_STORE = 4;
+const int GEN_STORE = 5;
+const int ISSUE_STORE = 6;
 
 struct LSUPacket {
     struct {
@@ -91,6 +89,7 @@ struct PipelineRegister {
 struct PipelineData {
     PipelineRegister reg;
     PipelineRegister regNext;
+    int nextStage;
     bool stall;
 };
 
@@ -204,7 +203,13 @@ class LoadStoreUnit : public Component<LSUPacket> {
         this->stReqs.Allocate(0, sizeof(void*));
         
         /* Initialize pipeline data */
-        memset(this->pipeline, 0, sizeof(this->pipeline));  
+        memset(this->pipeline, 0, sizeof(this->pipeline));
+
+        this->pipeline[ISSUE_LOAD].nextStage = GEN_LOAD;
+        this->pipeline[GEN_LOAD].nextStage = TRANS_LOAD;
+        this->pipeline[TRANS_LOAD].nextStage = FETCH_LOAD;
+        this->pipeline[ISSUE_STORE].nextStage = GEN_STORE;
+        this->pipeline[GEN_STORE].nextStage = TRANS_STORE;
 
         for (int i = 0; i < 5; i++) this->connIds[i] = -1;
     }

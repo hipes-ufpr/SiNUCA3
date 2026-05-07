@@ -108,34 +108,30 @@ void LSUDebugComponent::Clock() {
         this->resolvedRequests.push_back(pair::Pair<unsigned long, long>(pkt.address, pkt.seqNum));
     }
 
+    DebugPacketLSU responsePkt;
     if (!hasOldestInst && this->instCommitQueue.Dequeue(&oldestInst)) {
         return; /* No instructions to commit. */
     }
 
     hasOldestInst = true;
+    
     if (oldestInst.remainingCycles > 0) {
         oldestInst.remainingCycles -= 1;
     } else {
+        hasOldestInst = false;
         if (oldestInst.type == InstructionTypeStore) {
             /* Check if the store address has been resolved. */
             for (unsigned long i = 0; i < this->resolvedRequests.size(); i++) {
                 if (this->resolvedRequests[i].first == oldestInst.address) {
-
-                    this->instCommitQueue.Dequeue(&oldestInst);
-                    this->resolvedRequests[i] = this->resolvedRequests.back();
-                    this->resolvedRequests.pop_back();
-                    hasOldestInst = false;
-
-                    DebugPacketLSU responsePkt;
                     responsePkt.address = oldestInst.address;
                     responsePkt.seqNum = this->resolvedRequests[i].second;
                     this->SendResponseToConnection(0, &responsePkt);
-                    break;
+                    this->resolvedRequests[i] = this->resolvedRequests.back();
+                    this->resolvedRequests.pop_back();
+                    return;
                 }
             }
-        } else {
-            this->instCommitQueue.Dequeue(&oldestInst);
-            hasOldestInst = false;
+            hasOldestInst = true; 
         }
     }
 }

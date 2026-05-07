@@ -98,7 +98,7 @@ void LoadStoreUnit::ResetStallSignals() {
 
 bool LoadStoreUnit::MustStall(int stage) {
     /* Check if the next stage is stalled */
-    return this->pipeline[stage + 1].stall;
+    return this->pipeline[this->pipeline[stage].nextStage].stall;
 }
 
 bool LoadStoreUnit::InvalidInput(const PipelineRegister* reg) {
@@ -139,7 +139,9 @@ void LoadStoreUnit::IssueLoadRequest() {
 }
 
 void LoadStoreUnit::GenerateLoadAddress() {
-    if (this->InvalidInput(&this->pipeline[ISSUE_LOAD].reg)) return;
+    if (this->InvalidInput(&this->pipeline[ISSUE_LOAD].reg)) {
+        return;
+    }
     if (this->MustStall(GEN_LOAD)) {
         this->Stall(GEN_LOAD);
         return;
@@ -185,13 +187,14 @@ void LoadStoreUnit::TranslateLoadAddress() {
                 this->pipeline[TRANS_LOAD].regNext.op = this->ldTable[i].second;
                 break;
             }
-            SINUCA3_DEBUG_PRINTF("cannot forward load!\n");
         }
     }
 }
 
 void LoadStoreUnit::FetchLoadData() {
-    if (this->InvalidInput(&this->pipeline[TRANS_LOAD].reg)) return;
+    if (this->InvalidInput(&this->pipeline[TRANS_LOAD].reg)) {
+        return;
+    }
     MemoryPacket address;  // todo: remove
     this->pipeline[TRANS_LOAD].reg.op->requestedFetch = true;
     address =
@@ -213,7 +216,9 @@ void LoadStoreUnit::IssueStoreRequest() {
 }
 
 void LoadStoreUnit::GenerateStoreAddress() {
-    if (this->InvalidInput(&this->pipeline[ISSUE_STORE].reg)) return;
+    if (this->InvalidInput(&this->pipeline[ISSUE_STORE].reg)) {
+        return;
+    }
     if (this->MustStall(GEN_STORE)) {
         this->Stall(GEN_STORE);
         return;
@@ -223,7 +228,9 @@ void LoadStoreUnit::GenerateStoreAddress() {
 }
 
 void LoadStoreUnit::TranslateStoreAddress() {
-    if (this->InvalidInput(&this->pipeline[GEN_STORE].reg)) return;
+    if (this->InvalidInput(&this->pipeline[GEN_STORE].reg)) {
+        return;
+    }
     if (this->stUnitwaitingFor + this->stBufferOccupation >=
         this->stBufferSize) {
         /* Wait for store buffer space to be available. */
@@ -337,7 +344,6 @@ void LoadStoreUnit::ReceiveTranslation() {
         }
         req->phyAddress = req->vtAddress;  // todo: change
         req->isTranslated = true;
-        --this->stUnitwaitingFor;
         this->OnStoreFinish(req);
     }
 }
@@ -357,7 +363,8 @@ void LoadStoreUnit::ReceiveFetchedData() {
 
 void LoadStoreUnit::OnStoreFinish(MemoryRequest* req) {
     req->isFinished = true;
-    this->stBufferOccupation++;
+    this->stBufferOccupation++; // Got translation
+    this->stUnitwaitingFor--; // Not waiting anymore
     DebugPacketLSU update;  // todo: remove
     update.seqNum = req->seqNum;
     update.address = req->vtAddress;
@@ -405,8 +412,6 @@ bool LoadStoreUnit::IsLoadBypassingPossible(unsigned long ldAddress,
         unsigned long stAddress = this->stTable[i].second->phyAddress;
         int stSize = this->stTable[i].second->accSize;
         if (HasIntersection(ldAddress, ldSize, stAddress, stSize)) {
-            SINUCA3_DEBUG_PRINTF("intersection of %p/%d and %p/%d\n", ldAddress,
-                                 ldSize, stAddress, stSize);
             return false;
         }
     }
