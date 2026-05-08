@@ -102,9 +102,9 @@ class LoadStoreUnit : public Component<LSUPacket> {
     int connIds[5];
 
     /** @brief Queue with pointers to pending load requests */
-    CircularBuffer ldReqs;
+    CircularBuffer waitingLoads;
     /** @brief Queue with pointers to pending store requests */
-    CircularBuffer stReqs;
+    CircularBuffer waitingStores;
     /** @brief Table for load requests */
     std::vector<pair::Pair<long, MemoryRequest*> > ldTable;
     /** @brief Table for store requests */
@@ -133,37 +133,40 @@ class LoadStoreUnit : public Component<LSUPacket> {
 
     /** @brief Control data for each stage. */
     PipelineData pipeline[7];
-
-    /** @brief Get commit responses. */
-    void ReceiveCommit();
-    /** @brief Get memory update responses. */
-    void ReceiveUpdate();
-    /** @brief Get translation responses. */
-    void ReceiveTranslation();
-    /** @brief Get fetched data responses. */
-    void ReceiveFetchedData();
-    /** @brief Get new requests. Add operation to table and enqueue request. */
+    
+    /** @brief Get requests from connected components. */
     void ReceiveRequests();
+    /** @brief Get responses from connected components. */
+    void ReceiveResponses();
     /** @brief Run the pipeline calls. */
     void RunPipeline();
-    /** @brief Invalidate next cycle registers. */
-    void ClearNext();
-    /** @brief Update registers. */
-    void UpdateRegisters();
-    /** @brief Set stall to false */
-    void ResetStallSignals();
-    /** @brief Set stall signal and keep current register value */
-    void Stall(int stage);
-    /** @brief Check if the next stage is stalled */
-    bool MustStall(int stage);
-    /** @brief Check if the input to a stage is valid */
-    bool InvalidInput(const PipelineRegister* reg);
-    /** @brief Handle load completion */
-    void OnLoadCompletion(MemoryRequest* req);
-    /** @brief Handle store commit */
-    void OnStoreFinish(MemoryRequest* req);
-    /** @brief Handle store completion */
-    void OnStoreCompletion(MemoryRequest* req);
+
+    /** @brief Run the store pipeline backwards. */
+    void RunStorePipelineBackward();
+    /** @brief Run the load pipeline backwards. */
+    void RunLoadPipelineBackward();
+
+    /** @brief Get responses from the cache. */
+    void ReceiveFromCache();
+    /** @brief Get responses from the tlb. */
+    void ReceiveFromTlb();
+    /** @brief Get responses from the rob. */
+    void ReceiveFromRob();
+    /** @brief Get requests from the scheduler. */
+    void ReceiveFromScheduler();
+
+    /** @brief Handle load data acknowledgment */
+    void HandleLoadDataAck(long id);
+    /** @brief Handle store update acknowledgment */
+    void HandleStoreUpdateAck(long id);
+    /** @brief Handle load translation */
+    void HandleLoadTranslation(long id, unsigned long address);
+    /** @brief Handle store translation */
+    void HandleStoreTranslation(long id, unsigned long address);
+    /** @brief Handle store commit acknowledgment */
+    void HandleStoreCommitAck(long id);
+    /** @brief Allocate and fill a memory request */
+    MemoryRequest* AllocateAndFillMemoryRequest(LSUPacket* lsuRequest);
 
     /* Pipeline stages */
     /** @brief Issue a load request */
@@ -181,11 +184,76 @@ class LoadStoreUnit : public Component<LSUPacket> {
     /** @brief Translate store address */
     void TranslateStoreAddress();
 
+    /** @brief Try to issue a load request */
+    void TryIssueLoad(PipelineRegister* next);
+    /** @brief Try to issue a store request */
+    void TryIssueStore(PipelineRegister* next);
+    /** @brief Check if the load generation stage should stall */
+    bool MustStallGenLoad();
+    /** @brief Check if the store translation stage should stall */
+    bool MustStallStoreTrans();
+    /** @brief Request load translation */
+    void RequestLoadTranslation();
+    /** @brief Request load fetch */
+    void RequestLoadFetch();
+    /** @brief Request store translation */
+    void RequestStoreTranslation();
+    /** @brief Try to select a translated load for fetching */
+    void TryToSelectLoadForFetch();
+
     /* Optimizations */
     /** @brief Check if address aliasing exists. */
     bool IsLoadBypassingPossible(unsigned long address, int size);
     /** @brief Check if forwarding store data is possible. */
     bool IsLoadForwardingPossible(unsigned long address, int size);
+
+    inline bool IsNextStageStalled(int stage) {
+        return this->pipeline[this->pipeline[stage].nextStage].stall;
+    }
+    inline bool InvalidInput(const PipelineRegister* reg) {
+        return !reg->isValid || reg->op == NULL;
+    }
+    inline void Stall(int stage) {
+        this->pipeline[stage].stall = true;
+        this->pipeline[stage].regNext = this->pipeline[stage].reg;
+    }
+    inline void PropagateInput(int prev, int next) {
+        this->pipeline[next].regNext = this->pipeline[prev].reg;
+        this->pipeline[next].regNext.isValid = true;
+    }
+    inline void InvalidateOutput(int stage) {
+        this->pipeline[stage].regNext.isValid = false;
+    }
+
+    inline void ClearNext() {
+        for (int i = 0; i < 7; i++) {
+            this->pipeline[i].regNext.isValid = false;
+        }
+    }
+    inline void UpdateRegisters() {
+        for (int i = 0; i < 7; i++) {
+            this->pipeline[i].reg = this->pipeline[i].regNext;
+        }
+    }
+    inline void ResetStallSignals() {
+        for (int i = 0; i < 7; i++) {
+            this->pipeline[i].stall = false;
+        }
+    }
+
+    inline void EnqueueLoadToWaitingQueue(long seqNum) {
+        this->waitingLoads.Enqueue(&seqNum);
+    }
+    inline void EnqueueStoreToWaitingQueue(long seqNum) {
+        this->waitingStores.Enqueue(&seqNum);
+    }
+    inline void AddLoadTableEntry(MemoryRequest* req) {
+        pair::PushBackElemWithKey(&this->ldTable, req.seqNum, req);
+    }
+
+    inline void AddStoreTableEntry(MemoryRequest* req) {
+        pair::PushBackElemWithKey(&this->stTable, req.seqNum, req);
+    }
 
   public:
     LoadStoreUnit()
@@ -199,9 +267,9 @@ class LoadStoreUnit : public Component<LSUPacket> {
           finishedLoads(0),
           requestedLoads(0),
           requestedStores(0) {
-        this->ldReqs.Allocate(0, sizeof(void*));
-        this->stReqs.Allocate(0, sizeof(void*));
-        
+        this->waitingLoads.Allocate(0, sizeof(long));
+        this->waitingStores.Allocate(0, sizeof(long));
+
         /* Initialize pipeline data */
         memset(this->pipeline, 0, sizeof(this->pipeline));
 
@@ -217,8 +285,8 @@ class LoadStoreUnit : public Component<LSUPacket> {
     virtual void Clock();
     virtual void PrintStatistics();
     virtual ~LoadStoreUnit() {
-        this->ldReqs.Deallocate();
-        this->stReqs.Deallocate();
+        this->waitingLoads.Deallocate();
+        this->waitingStores.Deallocate();
     }
 };
 

@@ -31,8 +31,10 @@ void LoadStoreUnit::PrintStatistics() {
     SINUCA3_LOG_PRINTF("Total store requests: %d\n", this->requestedStores);
     SINUCA3_LOG_PRINTF("Completed store requests: %d\n", this->finishedStores);
     SINUCA3_LOG_PRINTF("Completed load requests: %d\n", this->finishedLoads);
-    SINUCA3_LOG_PRINTF("Pending loads: %d\n", this->ldReqs.GetOccupation());
-    SINUCA3_LOG_PRINTF("Pending stores: %d\n", this->stReqs.GetOccupation());
+    SINUCA3_LOG_PRINTF("Pending loads: %d\n",
+                       this->waitingLoads.GetOccupation());
+    SINUCA3_LOG_PRINTF("Pending stores: %d\n",
+                       this->waitingStores.GetOccupation());
 }
 
 int LoadStoreUnit::Configure(Config config) {
@@ -58,223 +60,343 @@ int LoadStoreUnit::Configure(Config config) {
 }
 
 void LoadStoreUnit::Clock() {
-    this->ReceiveCommit();
-    this->ReceiveUpdate();
-    this->ReceiveTranslation();
-    this->ReceiveFetchedData();
+    this->ReceiveResponses();
     this->ReceiveRequests();
     this->RunPipeline();
 }
 
-void LoadStoreUnit::ClearNext() {
-    this->pipeline[ISSUE_LOAD].regNext.isValid = false;
-    this->pipeline[ISSUE_STORE].regNext.isValid = false;
-    this->pipeline[GEN_LOAD].regNext.isValid = false;
-    this->pipeline[GEN_STORE].regNext.isValid = false;
-    this->pipeline[TRANS_LOAD].regNext.isValid = false;
-    this->pipeline[TRANS_STORE].regNext.isValid = false;
-    this->pipeline[FETCH_LOAD].regNext.isValid = false;
+void LoadStoreUnit::ReceiveResponses() {
+    this->ReceiveFromCache();
+    this->ReceiveFromTlb();
+    this->ReceiveFromRob();
 }
 
-void LoadStoreUnit::UpdateRegisters() {
-    this->pipeline[ISSUE_LOAD].reg = this->pipeline[ISSUE_LOAD].regNext;
-    this->pipeline[ISSUE_STORE].reg = this->pipeline[ISSUE_STORE].regNext;
-    this->pipeline[GEN_LOAD].reg = this->pipeline[GEN_LOAD].regNext;
-    this->pipeline[GEN_STORE].reg = this->pipeline[GEN_STORE].regNext;
-    this->pipeline[TRANS_LOAD].reg = this->pipeline[TRANS_LOAD].regNext;
-    this->pipeline[TRANS_STORE].reg = this->pipeline[TRANS_STORE].regNext;
-    this->pipeline[FETCH_LOAD].reg = this->pipeline[FETCH_LOAD].regNext;
-}
-
-void LoadStoreUnit::ResetStallSignals() {
-    this->pipeline[ISSUE_LOAD].stall = false;
-    this->pipeline[ISSUE_STORE].stall = false;
-    this->pipeline[GEN_LOAD].stall = false;
-    this->pipeline[GEN_STORE].stall = false;
-    this->pipeline[TRANS_LOAD].stall = false;
-    this->pipeline[TRANS_STORE].stall = false;
-    this->pipeline[FETCH_LOAD].stall = false;
-}
-
-bool LoadStoreUnit::MustStall(int stage) {
-    /* Check if the next stage is stalled */
-    return this->pipeline[this->pipeline[stage].nextStage].stall;
-}
-
-bool LoadStoreUnit::InvalidInput(const PipelineRegister* reg) {
-    return !reg->isValid || reg->op == NULL;
-}
-
-void LoadStoreUnit::Stall(int stage) {
-    this->pipeline[stage].stall = true;
-    this->pipeline[stage].regNext = this->pipeline[stage].reg;
-}
+void LoadStoreUnit::ReceiveRequests() { this->ReceiveFromScheduler(); }
 
 void LoadStoreUnit::RunPipeline() {
     this->ResetStallSignals();
     this->ClearNext();
 
-    this->FetchLoadData();
-    this->TranslateLoadAddress();
-    this->GenerateLoadAddress();
-    this->IssueLoadRequest();
+    /*
+     * Evaluate stages backwards so stalls/backpressure
+     * propagate within the same cycle.
+     */
 
-    this->TranslateStoreAddress();
-    this->GenerateStoreAddress();
-    this->IssueStoreRequest();
+    this->RunLoadPipelineBackward();
+    this->RunStorePipelineBackward();
 
     this->UpdateRegisters();
 }
 
-void LoadStoreUnit::IssueLoadRequest() {
-    if (this->MustStall(ISSUE_LOAD)) {
-        this->Stall(ISSUE_LOAD);
+void LoadStoreUnit::RunLoadPipelineBackward() {
+    this->FetchLoadData();
+    this->TranslateLoadAddress();
+    this->GenerateLoadAddress();
+    this->IssueLoadRequest();
+}
+
+void LoadStoreUnit::RunStorePipelineBackward() {
+    this->TranslateStoreAddress();
+    this->GenerateStoreAddress();
+    this->IssueStoreRequest();
+}
+
+void LoadStoreUnit::ReceiveFromCache() {
+    MemoryPacket resp;
+    while (!this->cache->ReceiveResponse(this->connIds[CACHE_SOLVE_LOAD_DATA],
+                                         &resp)) {
+        this->HandleLoadDataAck((long)resp);
+    }
+    while (!this->cache->ReceiveResponse(this->connIds[CACHE_SOLVE_STORE_DATA],
+                                         &resp)) {
+        this->HandleStoreUpdateAck((long)resp);
+    }
+}
+
+void LoadStoreUnit::ReceiveFromTlb() {
+    MemoryPacket resp;
+    while (!this->tlb->ReceiveResponse(this->connIds[TLB_SOLVE_LOAD_ADDRESS],
+                                       &resp)) {
+        this->HandleLoadTranslation((long)resp, 0);
+    }
+    while (!this->tlb->ReceiveResponse(this->connIds[TLB_SOLVE_STORE_ADDRESS],
+                                       &resp)) {
+        this->HandleStoreTranslation((long)resp, 0);
+    }
+}
+
+void LoadStoreUnit::ReceiveFromRob() {
+    DebugPacketLSU resp;
+    while (!this->sendTo->ReceiveResponse(this->connIds[SEND_TO], &resp)) {
+        this->HandleStoreCommitAck((long)resp.seqNum);
+    }
+}
+
+void LoadStoreUnit::ReceiveFromScheduler() {
+    LSUPacket request;
+    int numberOfConnections = this->GetNumberOfConnections();
+    for (int i = 0; i < numberOfConnections; i++) {
+        while (!this->ReceiveRequestFromConnection(i, &request)) {
+            MemoryRequest* req = this->AllocateAndFillMemoryRequest(&request);
+            if (request.type == LSUPacketTypeLoadRequest) {
+                this->EnqueueLoadToWaitingQueue(req->seqNum);
+                this->AddLoadTableEntry(req);
+                this->requestedLoads++;
+            } else if (request.type == LSUPacketTypeStoreRequest) {
+                this->EnqueueStoreToWaitingQueue(req->seqNum);
+                this->AddStoreTableEntry(req);
+                this->requestedStores++;
+            }
+        }
+    }
+}
+
+void LoadStoreUnit::HandleLoadTranslation(long id, unsigned long phyAddress) {
+    (void)phyAddress;  // todo: tmp fix
+    MemoryRequest* entry = pair::GetElemWithKey(&this->ldTable, id);
+    if (entry == NULL) {
+        SINUCA3_ERROR_PRINTF("Load entry with key [%ld] not found!\n", id);
         return;
     }
-    this->pipeline[ISSUE_LOAD].regNext.isValid =
-        !this->ldReqs.Dequeue(&this->pipeline[ISSUE_LOAD].regNext.op);
-    if (this->pipeline[ISSUE_LOAD].regNext.isValid) {
-        this->pipeline[ISSUE_LOAD].regNext.op->wasIssued = true;
+
+    entry->phyAddress = entry->vtAddress;  // todo: tmp fix
+    entry->isTranslated = true;
+}
+
+void LoadStoreUnit::HandleStoreTranslation(long id, unsigned long phyAddress) {
+    (void)phyAddress;  // todo: tmp fix
+    MemoryRequest* entry = pair::GetElemWithKey(&this->stTable, id);
+    if (entry == NULL) {
+        SINUCA3_ERROR_PRINTF("Store entry with key [%ld] not found!\n", id);
+        return;
+    }
+
+    entry->phyAddress = entry->vtAddress;  // todo: tmp fix
+    entry->isTranslated = true;
+
+    entry->isFinished = true;
+    this->stBufferOccupation++;
+    this->stUnitwaitingFor--;
+
+    DebugPacketLSU update = {.address = entry->vtAddress,
+                             .seqNum = entry->seqNum};
+
+    this->sendTo->SendRequest(this->connIds[SEND_TO], &update);
+}
+
+void LoadStoreUnit::HandleStoreCommitAck(long id) {
+    MemoryRequest* entry = pair::GetElemWithKey(&this->stTable, id);
+    if (entry == NULL) {
+        SINUCA3_ERROR_PRINTF("Store entry with key [%ld] not found!\n", id);
+        return;
+    }
+    if (!entry->isFinished) {
+        SINUCA3_ERROR_PRINTF("Store entry with key [%ld] not finished!\n", id);
+        return;
+    }
+    if (entry->isCommited) {
+        SINUCA3_ERROR_PRINTF("Store entry with key [%ld] commited!\n", id);
+        return;
+    }
+
+    entry->isCommited = true;
+    MemoryPacket update;
+    update = entry->seqNum; /* seqNum is key for now. */
+
+    this->cache->SendRequest(this->connIds[CACHE_SOLVE_STORE_DATA], &update);
+}
+
+void LoadStoreUnit::HandleLoadDataAck(long id) {
+    MemoryRequest* entry = pair::ErasePairWithKey(&this->ldTable, id);
+    ++this->finishedLoads;
+    delete entry;
+}
+
+void LoadStoreUnit::HandleStoreUpdateAck(long id) {
+    MemoryRequest* entry = pair::ErasePairWithKey(&this->stTable, id);
+
+    if (entry == NULL) {
+        SINUCA3_ERROR_PRINTF("Store entry with key [%ld] not found!\n", id);
+        return;
+    } else {
+        if (!entry->isFinished) {
+            SINUCA3_ERROR_PRINTF("Store entry with key [%ld] not finished!\n",
+                                 id);
+        }
+        if (!entry->isCommited) {
+            SINUCA3_ERROR_PRINTF("Store entry with key [%ld] not commited!\n",
+                                 id);
+        }
+        delete entry;
+    }
+
+    ++this->finishedStores;
+    --this->stBufferOccupation;
+
+    delete entry;
+}
+
+MemoryRequest* LoadStoreUnit::AllocateAndFillMemoryRequest(
+    LSUPacket* lsuRequest) {
+    MemoryRequest req = {.vtAddress = lsuRequest->operation.vtAddr,
+                         .phyAddress = 0,
+                         .seqNum = this->globalSeq++,
+                         .accSize = lsuRequest->operation.size,
+                         .requestedFetch = false,
+                         .wasIssued = false,
+                         .isTranslated = false,
+                         .isFinished = false,
+                         .isCommited = false};
+    return new MemoryRequest(req);
+}
+
+/* Load Unit Pipeline */
+
+void LoadStoreUnit::IssueLoadRequest() {
+    if (this->IsNextStageStalled(ISSUE_LOAD)) {
+        this->Stall(ISSUE_LOAD);
+    } else {
+        this->TryIssueLoad(&this->pipeline[ISSUE_LOAD].regNext);
     }
 }
 
 void LoadStoreUnit::GenerateLoadAddress() {
     if (this->InvalidInput(&this->pipeline[ISSUE_LOAD].reg)) {
-        return;
-    }
-    if (this->MustStall(GEN_LOAD)) {
+        this->InvalidateOutput(GEN_LOAD);
+    } else if (this->IsNextStageStalled(GEN_LOAD) || this->MustStallGenLoad()) {
         this->Stall(GEN_LOAD);
-        return;
+    } else {
+        this->PropagateInput(ISSUE_LOAD, GEN_LOAD);
     }
-    for (unsigned long i = 0; i < this->stTable.size(); i++) {
-        if (this->stTable[i].second->wasIssued &&
-            !this->stTable[i].second->isFinished &&
-            this->stTable[i].second->seqNum <
-                this->pipeline[ISSUE_LOAD].reg.op->seqNum) {
-            /* Wait for older store to finish */
-            this->pipeline[GEN_LOAD].stall = true;
-            return;
-        }
-    }
-    this->pipeline[GEN_LOAD].regNext.isValid = true;
-    this->pipeline[GEN_LOAD].regNext.op = this->pipeline[ISSUE_LOAD].reg.op;
 }
 
 void LoadStoreUnit::TranslateLoadAddress() {
-    if (this->MustStall(TRANS_LOAD)) {
-        this->Stall(TRANS_LOAD);
+    this->TryToSelectLoadForFetch();
+
+    if (this->InvalidInput()) {
         return;
     }
-    if (!this->InvalidInput(&this->pipeline[GEN_LOAD].reg)) {
-        MemoryPacket address;  // tmp
-        address = this->pipeline[GEN_LOAD]
-                      .reg.op->seqNum; /* seqNum is key for now. */
-        this->tlb->SendRequest(this->connIds[TLB_SOLVE_LOAD_ADDRESS], &address);
-    }
 
-    for (unsigned long i = 0; i < this->ldTable.size(); i++) {
-        if (this->ldTable[i].second->isTranslated &&
-            !this->ldTable[i].second->requestedFetch) {
-            bool bypassingPossible = this->IsLoadBypassingPossible(
-                this->ldTable[i].second->phyAddress,
-                this->ldTable[i].second->accSize);
-            bool forwardingPossible = this->IsLoadForwardingPossible(
-                this->ldTable[i].second->phyAddress,
-                this->ldTable[i].second->accSize);
-            if (this->stBufferOccupation == 0 || bypassingPossible ||
-                forwardingPossible) {
-                this->pipeline[TRANS_LOAD].regNext.isValid = true;
-                this->pipeline[TRANS_LOAD].regNext.op = this->ldTable[i].second;
-                break;
-            }
-        }
+    if (this->IsNextStageStalled()) {
+        this->Stall();
+    } else {
+        this->RequestLoadTranslation();
     }
 }
 
 void LoadStoreUnit::FetchLoadData() {
-    if (this->InvalidInput(&this->pipeline[TRANS_LOAD].reg)) {
-        return;
+    if (!this->InvalidInput()) {
+        this->RequestLoadFetch();
     }
-    MemoryPacket address;  // todo: remove
-    this->pipeline[TRANS_LOAD].reg.op->requestedFetch = true;
-    address =
-        this->pipeline[TRANS_LOAD].reg.op->seqNum; /* seqNum is key for now. */
-    this->cache->SendRequest(this->connIds[CACHE_SOLVE_LOAD_DATA], &address);
-    this->pipeline[FETCH_LOAD].regNext.isValid = false;  // last stage
 }
 
+/* Store Unit Pipeline */
+
 void LoadStoreUnit::IssueStoreRequest() {
-    if (this->MustStall(ISSUE_STORE)) {
+    if (this->IsNextStageStalled(ISSUE_STORE)) {
         this->Stall(ISSUE_STORE);
-        return;
-    }
-    this->pipeline[ISSUE_STORE].regNext.isValid =
-        !this->stReqs.Dequeue(&this->pipeline[ISSUE_STORE].regNext.op);
-    if (this->pipeline[ISSUE_STORE].regNext.isValid) {
-        this->pipeline[ISSUE_STORE].regNext.op->wasIssued = true;
+    } else {
+        this->TryIssueStore(&this->pipeline[ISSUE_STORE].regNext);
     }
 }
 
 void LoadStoreUnit::GenerateStoreAddress() {
     if (this->InvalidInput(&this->pipeline[ISSUE_STORE].reg)) {
-        return;
+        this->InvalidateOutput(GEN_STORE);
+    } else {
+        this->PropagateInput(ISSUE_STORE, GEN_STORE);
     }
-    if (this->MustStall(GEN_STORE)) {
-        this->Stall(GEN_STORE);
-        return;
-    }
-    this->pipeline[GEN_STORE].regNext.isValid = true;
-    this->pipeline[GEN_STORE].regNext.op = this->pipeline[ISSUE_STORE].reg.op;
 }
 
 void LoadStoreUnit::TranslateStoreAddress() {
-    if (this->InvalidInput(&this->pipeline[GEN_STORE].reg)) {
+    if (this->InvalidInput()) {
         return;
     }
-    if (this->stUnitwaitingFor + this->stBufferOccupation >=
-        this->stBufferSize) {
-        /* Wait for store buffer space to be available. */
-        this->pipeline[TRANS_STORE].stall = true;
-        return;
+
+    if (this->IsNextStageStalled() || this->MustStallStoreTrans()) {
+        this->Stall();
+    } else {
+        this->RequestStoreTranslation();
     }
-    unsigned long address;  // todo: remove
-    address =
-        this->pipeline[GEN_STORE].reg.op->seqNum; /* seqNum is key for now. */
-    this->tlb->SendRequest(this->connIds[TLB_SOLVE_STORE_ADDRESS], &address);
-    this->pipeline[TRANS_STORE].regNext.isValid = false;  // last stage
-    ++this->stUnitwaitingFor;
 }
 
-void LoadStoreUnit::ReceiveRequests() {
-    LSUPacket request;
-    int numberOfConnections = this->GetNumberOfConnections();
-    for (int i = 0; i < numberOfConnections; i++) {
-        while (this->ReceiveRequestFromConnection(i, &request) == 0) {
-            MemoryRequest req = {.vtAddress = request.operation.vtAddr,
-                                 .phyAddress = 0,
-                                 .seqNum = this->globalSeq++,
-                                 .accSize = request.operation.size,
-                                 .requestedFetch = false,
-                                 .wasIssued = false,
-                                 .isTranslated = false,
-                                 .isFinished = false,
-                                 .isCommited = false};
+void LoadStoreUnit::TryIssueLoad(PipelineRegister* next) {
+    // change (QUEUE HAS SEQUENCE NUMBERS)
+    if (this->waitingLoads.Dequeue(&next->op) != 0) {
+        next->isValid = false;
+        return;
+    }
 
-            if (request.type == LSUPacketTypeLoadRequest) {
-                /* enqueue pointer to load entry */
-                void* ptr =
-                    pair::PushBackElemWithKey(&this->ldTable, req.seqNum, req);
-                this->ldReqs.Enqueue(&ptr);
-                this->requestedLoads++;
-            } else if (request.type == LSUPacketTypeStoreRequest) {
-                /* enqueue pointer to store entry */
-                void* ptr =
-                    pair::PushBackElemWithKey(&this->stTable, req.seqNum, req);
-                this->stReqs.Enqueue(&ptr);
-                this->requestedStores++;
+    next->isValid = true;
+    next->op->wasIssued = true;
+}
+
+bool LoadStoreUnit::MustStallGenLoad() {
+    /*
+     * Check for older stores not finished, which may cause address conflicts.
+     */
+    for (unsigned long i = 0; i < this->stTable.size(); i++) {
+        if (this->stTable[i].second->wasIssued &&
+            !this->stTable[i].second->isFinished &&
+            this->stTable[i].second->seqNum <
+                this->pipeline[ISSUE_LOAD].reg.op->seqNum) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void LoadStoreUnit::RequestLoadTranslation() {
+    // Sequence number is used as key for now
+    MemoryPacket vtAddr = this->pipeline[GEN_LOAD].reg.op->seqNum;
+    this->tlb->SendRequest(this->connIds[TLB_SOLVE_LOAD_ADDRESS], &vtAddr);
+}
+
+void LoadStoreUnit::TryToSelectLoadForFetch() {
+    for (unsigned long i = 0; i < this->ldTable.size(); i++) {
+        if (this->ldTable[i].second->isTranslated &&
+            !this->ldTable[i].second->requestedFetch) {
+            bool canBypass = this->IsLoadBypassingPossible(
+                this->ldTable[i].second->phyAddress,
+                this->ldTable[i].second->accSize);
+            bool canForward = this->IsLoadForwardingPossible(
+                this->ldTable[i].second->phyAddress,
+                this->ldTable[i].second->accSize);
+
+            if (this->stBufferOccupation == 0 || canBypass || canForward) {
+                this->pipeline[TRANS_LOAD].regNext.op = this->ldTable[i].second;
+                this->pipeline[TRANS_LOAD].regNext.isValid = true;
             }
         }
     }
+}
+
+void LoadStoreUnit::RequestLoadFetch() {
+    MemoryPacket physAddr = this->pipeline[TRANS_LOAD].reg.op->phyAddress;
+    this->cache->SendRequest(this->connIds[CACHE_SOLVE_LOAD_DATA], &physAddr);
+    this->pipeline[TRANS_LOAD].reg.op->requestedFetch = true;
+}
+
+void LoadStoreUnit::TryIssueStore(PipelineRegister* next) {
+    // change (QUEUE HAS SEQUENCE NUMBERS)
+    if (this->waitingStores.Dequeue(&next->op) != 0) {
+        next->isValid = false;
+        return;
+    }
+    next->isValid = true;
+    next->op->wasIssued = true;
+}
+
+void LoadStoreUnit::RequestStoreTranslation() {
+    // Sequence number is used as key for now
+    MemoryPacket vtAddr = this->pipeline[GEN_STORE].reg.op->seqNum;
+    this->tlb->SendRequest(this->connIds[TLB_SOLVE_STORE_ADDRESS], &vtAddr);
+    ++this->stUnitwaitingFor;
+}
+
+bool LoadStoreUnit::MustStallStoreTrans() {
+    return this->stUnitwaitingFor + this->stBufferOccupation >=
+           this->stBufferSize;
 }
 
 void LoadStoreUnit::ReceiveCommit() {
@@ -300,86 +422,6 @@ void LoadStoreUnit::ReceiveCommit() {
         this->cache->SendRequest(this->connIds[CACHE_SOLVE_STORE_DATA],
                                  &update);
     }
-}
-
-void LoadStoreUnit::ReceiveUpdate() {
-    MemoryPacket update;  // todo: remove
-    while (this->cache->ReceiveResponse(this->connIds[CACHE_SOLVE_STORE_DATA],
-                                        &update) == 0) {
-        MemoryRequest* req;
-        if (pair::GetElemWithKey(&this->stTable, (long)update, &req)) {
-            SINUCA3_ERROR_PRINTF("key not found!\n");
-            return;
-        }
-        if (!req->isFinished) {
-            SINUCA3_ERROR_PRINTF("request not finished!\n");
-            return;
-        }
-        if (!req->isCommited) {
-            SINUCA3_ERROR_PRINTF("request not commited!\n");
-            return;
-        }
-        this->OnStoreCompletion(req);
-    }
-}
-
-void LoadStoreUnit::ReceiveTranslation() {
-    MemoryPacket address;  // todo: remove
-    while (this->tlb->ReceiveResponse(this->connIds[TLB_SOLVE_LOAD_ADDRESS],
-                                      &address) == 0) {
-        MemoryRequest* req;  // address is seqNum for now
-        if (pair::GetElemWithKey(&this->ldTable, (long)address, &req)) {
-            SINUCA3_ERROR_PRINTF("key not found! %ld\n", (long)address);
-            return;
-        }
-        req->phyAddress = req->vtAddress;  // todo: change
-        req->isTranslated = true;
-    }
-    while (this->tlb->ReceiveResponse(this->connIds[TLB_SOLVE_STORE_ADDRESS],
-                                      &address) == 0) {
-        MemoryRequest* req;  // address is seqNum for now
-        if (pair::GetElemWithKey(&this->stTable, (long)address, &req)) {
-            SINUCA3_ERROR_PRINTF("key not found! %ld\n", (long)address);
-            return;
-        }
-        req->phyAddress = req->vtAddress;  // todo: change
-        req->isTranslated = true;
-        this->OnStoreFinish(req);
-    }
-}
-
-void LoadStoreUnit::ReceiveFetchedData() {
-    MemoryPacket data;  // todo: remove
-    while (this->cache->ReceiveResponse(this->connIds[CACHE_SOLVE_LOAD_DATA],
-                                        &data) == 0) {
-        MemoryRequest* req;  // data is seqNum for now
-        if (pair::GetElemWithKey(&this->ldTable, (long)data, &req)) {
-            SINUCA3_ERROR_PRINTF("key not found!\n");
-            return;
-        }
-        this->OnLoadCompletion(req);
-    }
-}
-
-void LoadStoreUnit::OnStoreFinish(MemoryRequest* req) {
-    req->isFinished = true;
-    this->stBufferOccupation++; // Got translation
-    this->stUnitwaitingFor--; // Not waiting anymore
-    DebugPacketLSU update;  // todo: remove
-    update.seqNum = req->seqNum;
-    update.address = req->vtAddress;
-    this->sendTo->SendRequest(this->connIds[SEND_TO], &update);
-}
-
-void LoadStoreUnit::OnStoreCompletion(MemoryRequest* req) {
-    pair::ErasePairWithKey(&this->stTable, req->seqNum);
-    ++this->finishedStores;
-    --this->stBufferOccupation;
-}
-
-void LoadStoreUnit::OnLoadCompletion(MemoryRequest* req) {
-    pair::ErasePairWithKey(&this->ldTable, req->seqNum);
-    ++this->finishedLoads;
 }
 
 /* Optimization checks */
