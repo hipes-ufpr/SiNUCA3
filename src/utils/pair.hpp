@@ -39,75 +39,42 @@ struct Pair {
 };
 
 template <typename T, typename U>
-int ErasePairWithKey(std::vector<Pair<T, U*> >* buffer, T key) {
+U ErasePairWithKey(std::vector<Pair<T, U> >* buffer, T key) {
     for (unsigned long i = 0; i < buffer->size(); i++) {
         if (buffer->at(i).first == key) {
-            delete buffer->at(i).second;
+            U elem = buffer->at(i).second;
             buffer->at(i) = buffer->back();
             buffer->pop_back();
-            return 0;
+            return elem;
         }
     }
-    return 1;
+    return NULL;
 }
 
 template <typename T, typename U>
-bool ContainsKey(std::vector<Pair<T, U*> >* buffer, T key) {
+int ContainsKey(std::vector<Pair<T, U> >* buffer, T key) {
     for (unsigned long i = 0; i < buffer->size(); i++) {
-        if (buffer->at(i).first == key) return true;
+        if (buffer->at(i).first == key) return 1;
     }
-    return false;
+    return 0;
 }
 
 template <typename T, typename U>
-U* PushBackElemWithKey(std::vector<Pair<T, U*> >* buffer, T key, U elem) {
-    Pair<T, U*> pair;
-    U* elemPtr = new U(elem);
+void PushBackElemWithKey(std::vector<Pair<T, U> >* buffer, T key, U elem) {
+    Pair<T, U> pair;
     pair.first = key;
-    pair.second = elemPtr;
+    pair.second = elem;
     buffer->push_back(pair);
-    return elemPtr;
 }
 
 template <typename T, typename U>
-void ChangeKeyOfElem(std::vector<Pair<T, U*> >* buffer, T key, T newKey) {
+U GetElemWithKey(std::vector<Pair<T, U> >* buffer, T key) {
     for (unsigned long i = 0; i < buffer->size(); i++) {
         if (buffer->at(i).first == key) {
-            buffer->at(i).first = newKey;
-            return;
+            return buffer->at(i).second;
         }
     }
-}
-
-template <typename T, typename U>
-void UpdateElemWithKey(std::vector<Pair<T, U*> >* buffer, T key, U newElem) {
-    for (unsigned long i = 0; i < buffer->size(); i++) {
-        if (buffer->at(i).first == key) {
-            delete buffer->at(i).second;
-            buffer->at(i).second = new U(newElem);
-            return;
-        }
-    }
-}
-
-template <typename T, typename U>
-void Clear(std::vector<Pair<T, U*> >* buffer) {
-    for (unsigned long i = 0; i < buffer->size(); i++) {
-        delete buffer->at(i).second;
-    }
-    buffer->clear();
-}
-
-template <typename T, typename U>
-int GetElemWithKey(std::vector<Pair<T, U*> >* buffer, T key, U** elem) {
-    for (unsigned long i = 0; i < buffer->size(); i++) {
-        if (buffer->at(i).first == key) {
-            *elem = buffer->at(i).second;
-            return 0;
-        }
-    }
-    *elem = NULL;
-    return 1;  // key not found
+    return NULL;
 }
 
 }  // namespace pair
