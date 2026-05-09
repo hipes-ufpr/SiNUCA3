@@ -47,19 +47,25 @@ struct DebugPacketLSU {
 
 enum LSUPacketType { LSUPacketTypeLoadRequest, LSUPacketTypeStoreRequest };
 
-const int TLB_SOLVE_LOAD_ADDRESS = 0;
-const int TLB_SOLVE_STORE_ADDRESS = 1;
-const int CACHE_SOLVE_LOAD_DATA = 2;
-const int CACHE_SOLVE_STORE_DATA = 3;
-const int SEND_TO = 4;
+enum ConnectionType {
+    TLB_SOLVE_LOAD_ADDRESS = 0,
+    TLB_SOLVE_STORE_ADDRESS,
+    CACHE_SOLVE_LOAD_DATA,
+    CACHE_SOLVE_STORE_DATA,
+    SEND_TO,
+    TOTAL_CONNECTIONS
+};
 
-const int FETCH_LOAD = 0;
-const int TRANS_LOAD = 1;
-const int GEN_LOAD = 2;
-const int ISSUE_LOAD = 3;
-const int TRANS_STORE = 4;
-const int GEN_STORE = 5;
-const int ISSUE_STORE = 6;
+enum PipelineStage {
+    FETCH_LOAD = 0,
+    TRANS_LOAD,
+    GEN_LOAD,
+    ISSUE_LOAD,
+    TRANS_STORE,
+    GEN_STORE,
+    ISSUE_STORE,
+    NUM_STAGES
+};
 
 struct LSUPacket {
     struct {
@@ -76,9 +82,8 @@ struct MemoryRequest {
     int accSize;
     bool requestedFetch; /* For loads */
     bool wasIssued;
-    bool isTranslated;
-    bool isFinished; /* For stores */
-    bool isCommited; /* For stores */
+    bool wasTranslated;
+    bool wasCommited; /* For stores */
 };
 
 struct PipelineRegister {
@@ -99,7 +104,7 @@ class LoadStoreUnit : public Component<LSUPacket> {
     Component<MemoryPacket>* tlb;
     Component<MemoryPacket>* cache;
     Component<DebugPacketLSU>* sendTo; // change to rob pointer later
-    int connIds[5];
+    int connIds[TOTAL_CONNECTIONS];
 
     /** @brief Queue with pointers to pending load requests */
     CircularBuffer waitingLoads;
@@ -124,6 +129,8 @@ class LoadStoreUnit : public Component<LSUPacket> {
     bool ldBypassingEnabled;
     /** @brief Whether load forwarding is enabled */
     bool ldForwardingEnabled;
+    /** @brief Whether the processor translates addresses. */
+    bool hasMmu;
 
     /* Use in statistics */
     int finishedStores;
@@ -132,8 +139,8 @@ class LoadStoreUnit : public Component<LSUPacket> {
     int requestedStores;
 
     /** @brief Control data for each stage. */
-    PipelineData pipeline[7];
-    
+    PipelineData pipeline[NUM_STAGES];
+
     /** @brief Get requests from connected components. */
     void ReceiveRequests();
     /** @brief Get responses from connected components. */
@@ -184,21 +191,27 @@ class LoadStoreUnit : public Component<LSUPacket> {
     /** @brief Translate store address */
     void TranslateStoreAddress();
 
-    /** @brief Try to issue a load request */
+    /** @brief Try to issue a load request. */
     void TryIssueLoad(PipelineRegister* next);
-    /** @brief Try to issue a store request */
+    /** @brief Try to issue a store request. */
     void TryIssueStore(PipelineRegister* next);
-    /** @brief Check if the load generation stage should stall */
+    /** @brief Request data fetch */
+    void RequestDataFetch(MemoryPacket* physAddr);
+    /** @brief Request data update */
+    void RequestDataUpdate(MemoryPacket* physAddr);
+    /** @brief Called when there is a mmu. */
+    void RequestStoreTranslation(MemoryPacket* vtAddr);
+    /** @brief Called when there is a mmu. */
+    void RequestLoadTranslation(MemoryPacket* vtAddr);
+    /** @brief Called when there is no mmu. */
+    void TranslateLoadDirectly();
+    /** @brief Called when there is no mmu. */
+    void TranslateStoreDirectly();
+    /** @brief Check if the load generation stage should stall. */
     bool MustStallGenLoad();
-    /** @brief Check if the store translation stage should stall */
+    /** @brief Check if the store translation stage should stall. */
     bool MustStallStoreTrans();
-    /** @brief Request load translation */
-    void RequestLoadTranslation();
-    /** @brief Request load fetch */
-    void RequestLoadFetch();
-    /** @brief Request store translation */
-    void RequestStoreTranslation();
-    /** @brief Try to select a translated load for fetching */
+    /** @brief Try to select a translated load for fetching. */
     void TryToSelectLoadForFetch();
 
     /* Optimizations */
@@ -207,8 +220,8 @@ class LoadStoreUnit : public Component<LSUPacket> {
     /** @brief Check if forwarding store data is possible. */
     bool IsLoadForwardingPossible(unsigned long address, int size);
 
-    inline bool IsNextStageStalled(int stage) {
-        return this->pipeline[this->pipeline[stage].nextStage].stall;
+    inline bool IsStalled(int stage) {
+        return this->pipeline[stage].stall;
     }
     inline bool InvalidInput(const PipelineRegister* reg) {
         return !reg->isValid || reg->op == NULL;
@@ -226,17 +239,17 @@ class LoadStoreUnit : public Component<LSUPacket> {
     }
 
     inline void ClearNext() {
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < NUM_STAGES; i++) {
             this->pipeline[i].regNext.isValid = false;
         }
     }
     inline void UpdateRegisters() {
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < NUM_STAGES; i++) {
             this->pipeline[i].reg = this->pipeline[i].regNext;
         }
     }
     inline void ResetStallSignals() {
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < NUM_STAGES; i++) {
             this->pipeline[i].stall = false;
         }
     }
@@ -248,11 +261,10 @@ class LoadStoreUnit : public Component<LSUPacket> {
         this->waitingStores.Enqueue(&seqNum);
     }
     inline void AddLoadTableEntry(MemoryRequest* req) {
-        pair::PushBackElemWithKey(&this->ldTable, req.seqNum, req);
+        pair::PushBackElemWithKey(&this->ldTable, req->seqNum, req);
     }
-
     inline void AddStoreTableEntry(MemoryRequest* req) {
-        pair::PushBackElemWithKey(&this->stTable, req.seqNum, req);
+        pair::PushBackElemWithKey(&this->stTable, req->seqNum, req);
     }
 
   public:
@@ -263,6 +275,7 @@ class LoadStoreUnit : public Component<LSUPacket> {
           stBufferSize(16),
           ldBypassingEnabled(true),
           ldForwardingEnabled(true),
+          hasMmu(false),
           finishedStores(0),
           finishedLoads(0),
           requestedLoads(0),
@@ -279,7 +292,8 @@ class LoadStoreUnit : public Component<LSUPacket> {
         this->pipeline[ISSUE_STORE].nextStage = GEN_STORE;
         this->pipeline[GEN_STORE].nextStage = TRANS_STORE;
 
-        for (int i = 0; i < 5; i++) this->connIds[i] = -1;
+        for (int i = 0; i < TOTAL_CONNECTIONS; i++)
+            this->connIds[i] = -1;
     }
     virtual int Configure(Config config);
     virtual void Clock();
