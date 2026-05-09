@@ -44,19 +44,20 @@ void LoadStoreUnit::PrintStatistics() {
 int LoadStoreUnit::Configure(Config config) {
     if (config.ComponentReference("cache", &this->cache, true))
         return config.Error("cache", "missing required component reference");
-    if (config.ComponentReference("tlb", &this->tlb, true))
-        return config.Error("tlb", "missing required component reference");
     if (config.ComponentReference("sendTo", &this->sendTo, true))
         return config.Error("sendTo", "missing required component reference");
+
+    config.ComponentReference("tlb", &this->tlb, false);
+    if (this->tlb) {
+        this->connIds[TLB_SOLVE_LOAD_ADDRESS] = this->tlb->Connect(0);
+        this->connIds[TLB_SOLVE_STORE_ADDRESS] = this->tlb->Connect(0);
+    }
 
     /* Adjustable configuration knobs */
     config.Integer("storeBufferSize", &this->stBufferSize, false);
     config.Bool("loadBypassingEnabled", &this->ldBypassingEnabled, false);
     config.Bool("loadForwardingEnabled", &this->ldForwardingEnabled, false);
-    config.Bool("hasMmu", &this->hasMmu, false);
 
-    this->connIds[TLB_SOLVE_LOAD_ADDRESS] = this->tlb->Connect(0);
-    this->connIds[TLB_SOLVE_STORE_ADDRESS] = this->tlb->Connect(0);
     this->connIds[CACHE_SOLVE_LOAD_DATA] = this->cache->Connect(0);
     this->connIds[CACHE_SOLVE_STORE_DATA] = this->cache->Connect(0);
     this->connIds[SEND_TO] = this->sendTo->Connect(0);
@@ -121,6 +122,7 @@ void LoadStoreUnit::ReceiveFromCache() {
 }
 
 void LoadStoreUnit::ReceiveFromTlb() {
+    if (this->tlb == NULL) return;
     MemoryPacket resp;
     while (!this->tlb->ReceiveResponse(this->connIds[TLB_SOLVE_LOAD_ADDRESS],
                                        &resp)) {
@@ -284,7 +286,7 @@ void LoadStoreUnit::GenerateLoadAddress() {
 
 void LoadStoreUnit::TranslateLoadAddress() {
     if (!this->InvalidInput(&this->pipeline[GEN_LOAD].reg)) {
-        if (this->hasMmu) {
+        if (this->tlb) {
             this->RequestLoadTranslation(
                 &this->pipeline[GEN_LOAD].reg.op->vtAddress);
         } else {
@@ -333,7 +335,7 @@ void LoadStoreUnit::TranslateStoreAddress() {
         this->Stall(TRANS_STORE);
         this->InvalidateOutput(TRANS_STORE);
     } else {
-        if (this->hasMmu) {
+        if (this->tlb) {
             this->RequestStoreTranslation(
                 &this->pipeline[GEN_STORE].reg.op->vtAddress);
         } else {

@@ -129,8 +129,6 @@ class LoadStoreUnit : public Component<LSUPacket> {
     bool ldBypassingEnabled;
     /** @brief Whether load forwarding is enabled */
     bool ldForwardingEnabled;
-    /** @brief Whether the processor translates addresses. */
-    bool hasMmu;
 
     /* Use in statistics */
     int finishedStores;
@@ -269,13 +267,15 @@ class LoadStoreUnit : public Component<LSUPacket> {
 
   public:
     LoadStoreUnit()
-        : stUnitwaitingFor(0),
+        : tlb(NULL),
+          cache(NULL),
+          sendTo(NULL),
+          stUnitwaitingFor(0),
           stBufferOccupation(0),
           globalSeq(0),
           stBufferSize(16),
           ldBypassingEnabled(true),
           ldForwardingEnabled(true),
-          hasMmu(false),
           finishedStores(0),
           finishedLoads(0),
           requestedLoads(0),

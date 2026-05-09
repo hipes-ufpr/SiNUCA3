@@ -5,8 +5,6 @@ LSUDebugComponent: &lsuDebug
     class: LoadStoreUnit
     cache:
       class: SimpleMemory
-    tlb:
-      class: SimpleMemory
     sendTo: *lsuDebug
     storeBufSize: 16
     loadBypassingEnabled: true
