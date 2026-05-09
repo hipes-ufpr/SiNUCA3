@@ -70,20 +70,28 @@ class Engine : public Component<FetchPacket> {
         int tid;
 
         Fetcher()
-            : currFetched(false),
+            : waiting(false),
+              currFetched(false),
               currValid(false),
               error(false),
               end(false),
               tracer(NULL),
               tid(-1) {}
+
+        /** @brief Returns the number of instructions to be fetched. */
         unsigned long GetInstToBeFetched() const;
+        /** @brief Sets the trace reader and thread id. */
         void Set(TraceReader* tracer, int tid);
+        /** @brief Copy current (instruction) to target and update current. */
         void GetPkt(InstructionPacket* target);
+        /** @brief Tries to fetch an instruction. */
         void TryFetch();
+        /** @brief Checks if the fetcher is properly set. */
         bool FetcherSet() const;
+        /** @brief Checks if the current instruction is ready. */
         bool Ready() const;
     };
-    Fetcher* fetchers; /** @brief */
+    Fetcher* fetchers; /** @brief Fetchers for each core. */
 
     /**
      * @brief Will be one when there's no more instructions in the trace file.

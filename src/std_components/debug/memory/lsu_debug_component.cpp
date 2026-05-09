@@ -114,7 +114,7 @@ void LSUDebugComponent::Clock() {
     }
 
     hasOldestInst = true;
-    
+
     if (oldestInst.remainingCycles > 0) {
         oldestInst.remainingCycles -= 1;
     } else {
@@ -131,7 +131,7 @@ void LSUDebugComponent::Clock() {
                     return;
                 }
             }
-            hasOldestInst = true; 
+            hasOldestInst = true;
         }
     }
 }

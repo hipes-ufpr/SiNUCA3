@@ -227,6 +227,7 @@ int Engine::SetupSimulation(std::vector<TraceReader*>* tracers) {
         }
     }
     return 0;
+    // configure mmu
 }
 
 int Engine::Simulate(std::vector<TraceReader*>* traceReaders) {
@@ -288,16 +289,20 @@ void Engine::Fetcher::Set(TraceReader* tracer, int tid) {
     this->tracer = tracer;
     this->tid = tid;
 }
+
 bool Engine::Fetcher::FetcherSet() const {
     return (this->tracer != NULL && this->tid >= 0);
 }
+
 bool Engine::Fetcher::Ready() const {
     return (this->FetcherSet() && this->currValid);
 }
+
 void Engine::Fetcher::TryFetch() {
     if (!this->FetcherSet()) {
         return;
     }
+
     InstructionPacket* target = (this->currFetched) ? &this->next : &this->curr;
 
     const FetchResult r = this->tracer->Fetch(target, this->tid);
@@ -314,12 +319,14 @@ void Engine::Fetcher::TryFetch() {
         }
     }
 }
+
 void Engine::Fetcher::GetPkt(InstructionPacket* target) {
     *target = this->curr;
     this->curr = this->next;
     this->currFetched = this->currValid;
     this->currValid = false;
 }
+
 unsigned long Engine::Fetcher::GetInstToBeFetched() const {
     if (!this->FetcherSet()) {
         return 0;
