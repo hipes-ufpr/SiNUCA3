@@ -108,6 +108,14 @@ bool Connection::RemoveFromAResponseBuffer(int id, void* messageOutput) {
     return this->responseBuffers[id]->Dequeue(messageOutput);
 }
 
+bool Connection::IsRequestBufferFull(int id) {
+    return this->requestBuffers[id]->IsFull();
+}
+
+bool Connection::IsResponseBufferFull(int id) {
+    return this->responseBuffers[id]->IsFull(); 
+}
+
 Linkable::Linkable(int messageSize)
     : messageSize(messageSize), numberOfConnections(0), context(0) {}
 
@@ -152,6 +160,11 @@ int Linkable::ConnectUnsafe(int bufferSize) {
 }
 
 int Linkable::SendRequestUnsafe(int connectionID, void* messageInput) {
+
+    if (this->connections[connectionID]->IsResponseBufferFull(SOURCE_ID)
+        && this->connections[connectionID]->IsRequestBufferFull(SOURCE_ID)) {
+        return 1; 
+    }
     return this->connections[connectionID]->InsertIntoRequestBuffer(
         SOURCE_ID, messageInput);
 }
@@ -162,6 +175,11 @@ int Linkable::GetRequestUnsafe(int connectionID, void* messageOutput) {
 }
 
 int Linkable::SendResponseUnsafe(int connectionID, void* messageInput) {
+
+    if (this->connections[connectionID]->IsResponseBufferFull(DEST_ID)) {
+        return 1;
+    }
+
     return this->connections[connectionID]->InsertIntoResponseBuffer(
         DEST_ID, messageInput);
 }

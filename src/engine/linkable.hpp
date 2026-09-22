@@ -166,6 +166,20 @@ struct Connection {
      * @return 0 if successfuly, 1 otherwise.
      */
     bool RemoveFromAResponseBuffer(int id, void* messageOutput);
+
+    /**
+     * @brief Check if the requestBuffer is full.
+     * @param id The id of the buffer.
+     * @return 0 if is not full, 1 otherwise.
+     */
+    bool IsRequestBufferFull(int id);
+
+    /**
+     * @brief Check if the responseBuffer is full.
+     * @param id The id of the buffer.
+     * @return 0 if is not full, 1 otherwise.
+     */
+    bool IsResponseBufferFull(int id);
 };
 
 /**
