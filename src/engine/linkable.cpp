@@ -161,8 +161,7 @@ int Linkable::ConnectUnsafe(int bufferSize) {
 
 int Linkable::SendRequestUnsafe(int connectionID, void* messageInput) {
 
-    if (this->connections[connectionID]->IsResponseBufferFull(SOURCE_ID)
-        && this->connections[connectionID]->IsRequestBufferFull(SOURCE_ID)) {
+    if (this->connections[connectionID]->IsResponseBufferFull(DEST_ID)) {
         return 1; 
     }
     return this->connections[connectionID]->InsertIntoRequestBuffer(
@@ -176,7 +175,7 @@ int Linkable::GetRequestUnsafe(int connectionID, void* messageOutput) {
 
 int Linkable::SendResponseUnsafe(int connectionID, void* messageInput) {
 
-    if (this->connections[connectionID]->IsResponseBufferFull(DEST_ID)) {
+    if (this->connections[connectionID]->IsResponseBufferFull(SOURCE_ID)) {
         return 1;
     }
 
