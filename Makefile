@@ -13,7 +13,7 @@
 # fits best for you. Licenses text below.
 #
 # Contact mails:
-# - gabrielgbrito@icloud.com (probably still exists).
+# - me@gboncoffee.dev.br (probably still exists).
 # - ggb23@inf.ufpr.br (prefer this as it is my academic mail, but it may not
 #   exist anymore if you're reading far enough in the future).
 #
@@ -257,7 +257,7 @@ ifdef FORCE_CC
   ifndef CC
     $(error "Refusing to compile without CC being set due to FORCE_CC being set.")
   else
-    ifeq '' $(shell which $(CC))
+    ifeq "$(shell which $(CC))" ""
       $(error "Refusing to compile without $(CC) in PATH due to FORCE_CC being set.")
     endif
   endif
@@ -280,7 +280,7 @@ ifdef FORCE_CPP
   ifndef CPP
     $(error "Refusing to compile without CPP being set due to FORCE_CPP being set.")
   else
-    ifeq '' $(shell which $(CPP))
+    ifeq "$(shell which $(CPP))" ""
       $(error "Refusing to compile without $(CPP) in PATH due to FORCE_CPP being set.")
     endif
   endif
