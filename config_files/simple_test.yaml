@@ -1,7 +1,36 @@
 simpleCore: &simpleCore
   class: SimpleCore
-  fetching: *ENGINE
-  dataMemory:
-    class: SimpleMemory
+  fetcher: fetcher
+  engine: *ENGINE
+  mmu: *ADDRESS_MAPPER
+  dataMemory: dataMemory
+  instructionMemory: instructionMemory
+
+instructionMemory:
+  class: SimpleMemory
+  sendTo: exec
+
+dataMemory:
+  class: SimpleMemory
+
+exec:
+  class: SimpleExecutionUnit
+
+fetcher:
+  class: Fetcher
+  fetch: *ENGINE
+  fetchSize: 16
+  fetchInterval: 8
   instructionMemory:
-    class: SimpleMemory
+    class: SimpleInstructionMemory
+    sendTo:
+      class: SimpleExecutionUnit
+  predictor:
+    class: HardwiredPredictor
+    syscall: false
+    call: false
+    return: false
+    uncond: false
+    cond: false
+    noBranch: false
+  misspredictPenalty: 10
