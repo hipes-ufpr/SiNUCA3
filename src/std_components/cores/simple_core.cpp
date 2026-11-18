@@ -116,11 +116,9 @@ int SimpleCore::EstablishChildComponents() {
 
 int SimpleCore::EstablishConnections(Config config) {
     if (config.ComponentReference("engine", &this->engine, true)) return 1;
-    if (config.ComponentReference("instructionMemory",
-                                  &this->instructionMemory))
-        return 1;
-    if (config.ComponentReference("dataMemory", &this->dataMemory)) return 1;
-    if (config.ComponentReference("mmu", &this->mmu)) return 1;
+    if (config.ComponentReference("instructionMemory", &this->instructionMemory, true)) return 1;
+    if (config.ComponentReference("dataMemory", &this->dataMemory, true)) return 1;
+    if (config.ComponentReference("mmu", &this->mmu, true)) return 1;
     if (config.ComponentReference("fetcher", &this->fetcher, true)) return 1;
 
     if (this->instructionMemory != NULL)

@@ -1,4 +1,4 @@
-ifndef CC
+ifeq "$(shell which $(CC))" ""
   CC = clang
   ifeq "$(shell which clang)" ""
     CC = gcc
@@ -30,4 +30,4 @@ matrix: matrix.c $(ADD_FILES)
 	$(CC) $(CFLAGS) -o $@ $^
 
 clean:
-	-rm factorials intrinsics pi
+	-rm factorials intrinsics pi matrix

@@ -262,7 +262,7 @@ ifdef FORCE_CC
     endif
   endif
 else
-  ifndef CC
+  ifeq "$(shell which $(CC))" ""
     CC = clang
     ifeq "$(shell which clang)" ""
       CC = gcc
@@ -285,14 +285,14 @@ ifdef FORCE_CPP
     endif
   endif
 else
-  ifndef CC
+  ifeq "$(shell which $(CPP))" ""
     CPP = clang++
     ifeq "$(shell which clang++)" ""
       CPP = g++
       ifeq "$(shell which g++)" ""
         CPP = c++
         ifeq "$(shell which c++)" ""
-          $(error "Could not detect C compiler. Set one with CPP or install clang++, g++ or c++.")
+          $(error "Could not detect C++ compiler. Set one with CPP or install clang++, g++ or c++.")
         endif
       endif
     endif

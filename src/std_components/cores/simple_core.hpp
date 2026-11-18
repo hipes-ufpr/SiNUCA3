@@ -42,7 +42,7 @@ class SimpleCore : public Component<InstructionPacket> {
         instructionMemory;               /** @brief The instruction memory. */
     Component<MemoryPacket>* dataMemory; /** @brief The data memory. */
     Component<int>* fetcher;             /** @brief The fetcher. */
-    Component<MemoryPacket>* mmu;        /** @brief Memory management unit. */
+    Component<MemoryPacket*>* mmu;        /** @brief Memory management unit. */
 
     unsigned long numFetchedInstructions; /** @brief The number of fetched
                                              instructions. */
